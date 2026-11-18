@@ -1,0 +1,73 @@
+# Generic MQTT unauthenticated-broker check, built 2026-09-17 (user: "build mqtt candidate"),
+# following up on the MAR-2000 finding (checks/candidates/moxa-mar-2000-mosquitto-unauthenticated-
+# mqtt.yaml). Confirmed no prior check for this existed before writing this file.
+#
+# Not vendor-specific — same reasoning as checks/snmp/snmp-community-default-creds.yaml ("SNMP is
+# used by hundreds of ICS/OT vendors' gear with no single hardware tie"). An MQTT broker with no
+# password_file/ACL configured (Mosquitto's own documented default behavior when neither is set)
+# accepts anonymous connections from anyone — a deployment misconfiguration seen across many
+# vendors' IIoT gear, not proprietary information about any one product. This check therefore
+# narrows on the protocol itself via a new `protocol_probe: mqtt_identity` (added to
+# core/fingerprint.py this same pass, hand-rolled MQTT 3.1.1 CONNECT/CONNACK, stdlib-only —
+# matching every other protocol_probe in that file) rather than a vendor/product pair, the same
+# pattern established by the SNMP community-string check.
+#
+# THE FINDING this check tests: a real MQTT CONNECT with Clean Session=1 and NO username/password
+# fields set — the exact packet a client with no configured credentials sends. A CONNACK with
+# return code 0 (Accepted) means the broker let it through anonymously. See
+# checks/mqtt/native/mqtt_unauthenticated_broker.py's own docstring for the full mechanism detail
+# (built on paho-mqtt, already a project dependency via core/discovery.py's Sparkplug B listener).
+#
+# NON-DESTRUCTIVE: the check only performs the CONNECT/CONNACK handshake, then disconnects — it
+# never publishes or subscribes, so it confirms the underlying condition without exercising the
+# actual read/write access an accepted connection would grant.
+#
+# disclosure_status: public — this is a documented, protocol-level MQTT/Mosquitto deployment
+# behavior (RFC/spec-level, not a vendor secret), same disclosure posture as the SNMP
+# community-string check.
+#
+# RESOLVED 2026-09-24: the Moxa MAR-2000 finding this check was built to eventually serve
+# (checks/candidates/moxa-mar-2000-mosquitto-unauthenticated-mqtt.yaml, sent to Moxa PSIRT
+# 2026-09-19, acknowledged 2026-09-21) was reviewed by Moxa and declined as a distinct
+# vulnerability case (grouped into the same 8-finding batch response as the other Moxa findings
+# this session, which characterized the batch as "documented, user-changeable default
+# credentials" — a framing that doesn't map cleanly onto THIS finding at all, since it's a
+# missing-authentication config shape (CWE-306), not a credential). Per user direction
+# 2026-09-24, that candidate file is RETIRED (deleted) rather than kept as a separate stub: this
+# check is already generic, vendor-agnostic, and public — it covers MAR-2000's exposed broker
+# automatically via the mqtt_identity protocol probe, with no vendor-specific gate to lift. The
+# MAR-2000 firmware confirmation (Mosquitto with zero auth directives configured, started
+# unconditionally at boot as part of the device's internal model-messaging framework) stands as a
+# real-world example this check's own design already anticipated.
+
+check_id: mqtt-unauthenticated-broker
+protocol: mqtt
+kind: native
+module: checks.mqtt.native.mqtt_unauthenticated_broker
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  protocol_probe: mqtt_identity
+params:
+  client_id_prefix: "icsscanner-"
+  default_port: 1883
+detection_hints:
+  transport: tcp
+  app_protocol: mqtt
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own MQTT CONNECT packet — Clean Session=1, no username/password flags, a randomly generated icsscanner- client ID — verified directly against this check's own packet-building logic, not hand-derived"
+    patterns:
+      - context: request
+        regex: "\\x10.\\x00\\x04MQTT\\x04\\x02\\x00\\x3c\\x00.icsscanner-"
+  broad:
+    description: "Any MQTT CONNECT packet with no username/password flags set (connect flags byte with bits 6/7 clear) — the vulnerability class (anonymous MQTT access), not this scanner's specific client ID"
+    patterns:
+      - context: request
+        regex: "\\x10.\\x00\\x04MQTT\\x04"
+references:
+  - "https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html"
+  - "https://mosquitto.org/man/mosquitto-conf-5.html — allow_anonymous / password_file documentation"
+description: "MQTT broker accepts an unauthenticated CONNECT (Clean Session, no username/password) with return code 0/Accepted — the broker has no password_file/ACL configured and permits anonymous connections. No CVE — a documented MQTT/Mosquitto deployment misconfiguration, not vendor-specific."

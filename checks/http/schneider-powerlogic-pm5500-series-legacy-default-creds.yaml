@@ -1,0 +1,68 @@
+# Default-credentials sweep, 2026-08-24 — user-supplied Schneider Electric official user-manual
+# page (productinfo.se.com, "Default passwords/passcodes and user accounts" - PM5500, doc
+# HRB1684301-18, "PowerLogic PM5500/PM5600/PM5700 series - User manual"), also saved as a PDF and
+# read directly. Table gives 2 distinct credential eras — this check covers the OLDER-firmware
+# one ("Webpages and FTP", roles "Web master"/"Product master") shared across 12 named meter
+# models: PM5560/PM5562/PM5562MC/PM5563/PM5580 (firmware <=2.9.9), PM5570/PM5660/PM5760
+# (<=3.2.9), PM5650 (<=2.12.9), PM5561 (<=10.9.9), PM5661/PM5761 (<=11.2.9). The newer-firmware
+# Administrator/MAC-derived-password scheme and the Guest/Powerlogic@1 account are separate,
+# see the sibling checks (schneider-powerlogic-pm5500-series-guest-default-creds.yaml and, for
+# Administrator, lab-notes/side-quests.md — not buildable yet, needs a live-MAC-to-password
+# computation capability this project doesn't have).
+#
+# FTP sibling: checks/ftp/schneider-powerlogic-pm5500-series-legacy-default-creds.yaml (same
+# document explicitly lists "Webpages and FTP" as one combined configuration area for this
+# credential era, not independently re-derived for FTP).
+#
+# INDEPENDENTLY RE-CONFIRMED 2026-08-25: user supplied a second Schneider FAQ, FA243273 ("PM5000
+# Series Default IP Address, User Account Login Credentials, and Administrative Login for
+# Webpages and Password Reset"), directly. Its own credential table states user1:pass1 ("Web
+# Master account") and user2:pass2 ("Product Master account") verbatim for the same legacy
+# firmware era — an independent match. Also names a separate front-panel-only "Display passcode"
+# (0000) for this era — a local physical-access mechanism, not network-reachable, out of scope
+# for this check.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-powerlogic-pm5500-series-legacy-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["user1", "pass1"]
+    - ["user2", "pass2"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credentials (user1:pass1, user2:pass2 — 'Web master'/'Product master' roles)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic (dXNlcjE6cGFzczE=|dXNlcjI6cGFzczI=)"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product family), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://productinfo.se.com/pm5500/595e2aa946e0fb0001f715da/PM5500%20user%20manual/English/PM5500SeriesUserManualv02_0000044889.ditamap/$/C_DefaultPasswordsAndUserAccounts_0000387599"
+  - "Schneider Electric FAQ FA243273, \"PM5000 Series Default IP Address, User Account Login Credentials, and Administrative Login for Webpages and Password Reset\" (user-supplied, independent re-confirmation)"
+description: >
+  Schneider Electric PowerLogic PM5500/PM5600/PM5700 series power meters (PM5560, PM5562,
+  PM5562MC, PM5563, PM5580, PM5570, PM5660, PM5760, PM5650, PM5561, PM5661, PM5761 — on the
+  firmware versions listed in the reference doc) ship with factory-default webpage/FTP logins
+  user1:pass1 ("Web master") and user2:pass2 ("Product master") — no CVE, documented
+  factory-default behavior per Schneider's own official user manual page (directly confirmed,
+  not search-summarized). Newer firmware on the same models replaces this scheme with a
+  per-device MAC-address-derived Administrator password plus a separate Guest account — see the
+  sibling checks/side-quest note for those.

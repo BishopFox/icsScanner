@@ -1,0 +1,40 @@
+# Example scan policy — copy and edit, don't scan straight from this file.
+# Loaded by core/scan_policy.py:load_scan_policy(). See 00-PROJECT-CHARTER.md § Scope for the
+# invocation-model decision (YAML policy + CLI flags as overrides) this file implements.
+#
+# Every field here can be overridden per-run by a matching icsscanner.py CLI flag without
+# editing this file — see `icsscanner.py --help`.
+
+# Path to a target inventory YAML (required). See templates/target-inventory.example.yaml.
+inventory: templates/target-inventory.example.yaml
+
+# Restrict to specific protocols. Omit (or leave as null) to run checks for every protocol a
+# target's inventory entry is compatible with.
+protocols:
+  - http
+  - telnet
+
+# Restrict to specific check_ids. Omit to run every check that matches `protocols:` and the
+# fingerprint gate. check_ids are the check_id field from a checks/<protocol>/*.yaml file, e.g.:
+# check_ids:
+#   - http-schneider-powerlogic-egx100-default-creds
+
+# Safe-mode is the default (01-METHODOLOGY-AND-CHECKLISTS.md point 4) — a destructive check
+# never fires unless this is explicitly true. Flip to true only for an authorized, scoped run;
+# icsscanner.py will still require an explicit confirmation (or --yes) before proceeding.
+include_destructive: false
+
+# Bounded concurrency across targets (00-PROJECT-CHARTER.md § Scope) — each target is still
+# individually rate-limited and aliveness-polled regardless of this value.
+max_concurrent_targets: 4
+
+# Two-tier rate limiting (core/scan_engine.py:TwoTierRateLimiter) — a global cap and a
+# per-target cap, both apply to every send. Omit `*_pps` to fall back to the paired `*_delay_s`.
+rate:
+  global_pps: null
+  global_delay_s: 0.1
+  per_target_pps: null
+  per_target_delay_s: 0.2
+
+# Where the JSONL result log and text summary are written.
+output_dir: ./output

@@ -1,0 +1,58 @@
+# Default-credentials sweep, Phase 41 (2026-08-27) — industrial device-server/gateway vendor
+# pass. Uses the generic checks/telnet/native/telnet_default_creds.py executor with
+# password_only:true.
+#
+# Source: two official Comtrol PDFs, fetched and read directly:
+# "password_protect_the_devicemaster_web_page_&_telnet_sessions.pdf" (states: connect via
+# Telnet, hit a password prompt, press Enter with NO password to reach the "dm>" admin prompt)
+# and "devicemaster_security_guide.pdf" (port table: 22/SSH, 23/Telnet, 80/HTTP, 443/HTTPS, all
+# "enabled by default", none password-protected out of the box). Documented generically across
+# Comtrol's shared help-file set covering DeviceMaster, DeviceMaster PRO, DeviceMaster RTS, and
+# DeviceMaster LT — not pinned to one SKU.
+#
+# This is "ships with no authentication configured" rather than a literal fixed credential pair
+# — modeled here as a blank-password login attempt (the functional equivalent), same shape as
+# other blank/no-auth findings elsewhere in this project. The SSH (22) and HTTP/HTTPS (80/443)
+# variants of the same no-auth-by-default behavior are documented in the same source but not
+# implemented as separate checks here — Telnet is the cleanest bounded single-shot of the three.
+#
+# KNOWN FINGERPRINT-GATE GAP (same pattern as other vendors this phase): no verifiable "Comtrol"
+# OUI entry exists in core/fingerprint.py's table yet.
+#
+# No CVE found (CISA/NVD search for Comtrol DeviceMaster came up empty) — documented factory-
+# default/no-auth-by-default behavior.
+
+check_id: telnet-comtrol-devicemaster-blank-auth
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Comtrol"
+params:
+  default_port: 23
+  password_only: true
+  credentials:
+    - ["", ""]
+  success_indicators:
+    - "dm>"
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet connection sending a blank password (bare CRLF) at the password prompt, with no username exchange at all"
+    patterns: []  # generic "any-line" pattern removed 2026-11-11 (real-traffic validation); no device-specific signature beyond the narrow probe/credential bytes. See lab-notes/zeek-detection-validation-pnnl-2026-11.md
+  broad:
+    description: "Any Telnet session reaching the 'dm>' admin prompt on this device with no password ever having been configured — the vulnerability class (no authentication configured by default on this product), not a specific guessed value"
+    patterns:
+      - context: response
+        regex: "dm>"
+references:
+  - "https://files.comtrol.com/contribs/devicemaster/help_files/password_protect_the_devicemaster_web_page_&_telnet_sessions.pdf"
+  - "https://files.comtrol.com/contribs/devicemaster/help_files/devicemaster_security_guide.pdf"
+description: "Comtrol DeviceMaster (and PRO/RTS/LT variants) device servers ship with no Telnet authentication configured out of the box — pressing Enter at the password prompt reaches the 'dm>' admin prompt directly. No CVE found; documented factory-default/no-auth-by-default behavior."

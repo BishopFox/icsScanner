@@ -1,0 +1,62 @@
+# Default-credentials sweep, Phase 41 (2026-08-27) — industrial device-server/gateway vendor
+# pass. Uses the generic checks/http/native/basic_auth_default_creds.py executor.
+#
+# Source: official JetNet 5010G Series User's Manual V1.1 (korenix.com.ua-hosted PDF), fetched
+# and read directly, sections 3.1-3.2: serial console login "Switch login: admin / Password:
+# admin"; HTTP web UI (port 80) and HTTPS web UI (port 443) both stated as "Default user name
+# and password are both admin."
+#
+# MODEL-SCOPE CAVEAT: only JetNet 5010G was independently verified by direct PDF read. Other
+# JetNet models (7020G, 6059G, 5210G, 6710G, etc.) are claimed to share the same admin/admin
+# default across multiple third-party manual-excerpt summaries, but NOT independently confirmed
+# in this pass — do not assume this check's coverage extends beyond 5010G without separately
+# verifying those models' own manuals.
+#
+# Separately, note (do not conflate): Korenix's JETPORT serial-server line (a different product
+# family from JetNet switches) has its own SEC Consult SA-20210601-0 advisory (CVE-2020-12500
+# through -12504: backdoor accounts, unauthenticated device administration on UDP port 5010,
+# CSRF, command injection) — unrelated hardware, unrelated mechanism, not implemented here.
+# Also unconfirmed (WebSearch-summary only, CISA page 403'd on direct fetch): ICSA-17-299-01,
+# describing hardcoded/undocumented credentials removed in a later JetNet firmware update —
+# possibly the same admin/admin value, possibly a separate hidden account; not corroborated
+# directly, not cited as a CVE on this check.
+#
+# KNOWN FINGERPRINT-GATE GAP (same pattern as Digi/Antaira in earlier phases): no verifiable
+# "Korenix" OUI entry exists in core/fingerprint.py's table yet — this check's vendor
+# precondition currently has no OUI match to fire against on real hardware. Not guessed to paper
+# over this.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-korenix-jetnet-5010g-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Korenix"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "admin"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (admin:admin)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46YWRtaW4="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://korenix.com.ua/data/JetNet/5000%20series/JetNet_5010G_User's_Manual_V1.1.pdf"
+description: "Korenix JetNet 5010G managed industrial switch ships with a factory-default admin/admin web-UI login — no CVE, documented factory-default behavior. Coverage independently verified for 5010G only; other JetNet models are unconfirmed."

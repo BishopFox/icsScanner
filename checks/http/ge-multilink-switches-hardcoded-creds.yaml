@@ -1,0 +1,75 @@
+# Default-credentials sweep, Priority 2 of human-review-queue.md — PROMOTED 2026-08-24.
+# Real CVE (CVE-2016-2310, CISA ICSA-16-154-01, CVSS v3 10.0, CWE-259 hardcoded credential) —
+# the vulnerability class, affected models (ML800/810/1200/1600/2400/3000/3100, firmware before
+# 5.5.0/5.5.0k), and remote exploitability over the web interface were all confirmed directly
+# from the actual CISA PDF and the independent Canadian Centre for Cyber Security advisory
+# (both read in full, see the candidate file's own research trail) — but neither publishes the
+# literal credential value, by design (deliberately not documented in either agency's public
+# advisory). Searched further for a security-researcher writeup/PoC/exploit-db entry that states
+# it directly — none found (cvedetails, vulners, northit.co.uk, Security Ledger, Threatpost all
+# describe the vulnerability class without disclosing the value).
+#
+# CREDENTIAL SOURCE: originally user-supplied directly ("manager / manager is the default ftp and
+# web password"), same class of input that promoted the SAMSON TROVIS 5590 and Wellintech
+# KingSCADA checks earlier in this sweep. **UPGRADED 2026-08-24 to primary-source-confirmed**:
+# user supplied GE's own official "MultiLink ML1600/ML2400 Ethernet Communications Switch
+# Quickstart Guide" (GEK-113393A), read directly — states explicitly, for BOTH the console/CLI
+# login ("Enter the login name manager and the default password manager") AND the web login page
+# ("At the Multilink login web page, enter the default Login name, which is manager... Enter the
+# default login Password, which is again manager"). This is the same manager/manager value
+# already shipped, now independently confirmed from an official GE document rather than resting
+# on the user's own recollection alone.
+#
+# FTP CAVEAT, added 2026-08-24: the SAME Quickstart Guide's only FTP-related content describes
+# the switch acting as an FTP CLIENT (config/firmware backup to a server running on the
+# OPERATOR'S OWN computer, initiated from within an already-authenticated web/SWM session that
+# itself requires "system administration rights and privileges") — not the switch running its
+# own inbound FTP server a remote, unauthenticated client could connect to and log into directly.
+# This document does NOT confirm the switch exposes a standalone FTP-server login at all. See
+# checks/ftp/ge-multilink-switches-hardcoded-creds.yaml's own header for the resulting caveat on
+# that sibling check — this HTTP check's own basis (the web UI) is unaffected and still solid.
+
+check_id: http-ge-multilink-switches-hardcoded-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+cve_id: CVE-2016-2310
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "GE Automation"
+  version:        # affected: GE Multilink ML-series firmware before 5.5.0 (CVE-2016-2310). Latent until
+    fixed: "5.5.0"   # ML firmware is extracted; suppress only when KNOWN >= 5.5.0.
+params:
+  path: "/"
+  credentials:
+    - ["manager", "manager"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented hardcoded credential (manager:manager)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic bWFuYWdlcjptYW5hZ2Vy"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (CVE-2016-2310, hardcoded credentials), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+advisory_url: "https://www.cisa.gov/news-events/ics-advisories/icsa-16-154-01"  # promoted from references (canonical advisory)
+references:
+  - "https://www.cisa.gov/news-events/ics-advisories/icsa-16-154-01"
+  - "https://nvd.nist.gov/vuln/detail/CVE-2016-2310"
+  - "https://www.cyber.gc.ca/en/alerts-advisories/ge-multilink-series-switch-security-updates"
+description: >
+  GE MultiLink series managed Ethernet switches (ML800, ML810, ML1200, ML1600, ML2400, ML3000,
+  ML3100 — firmware before 5.5.0/5.5.0k) ship with a hardcoded web-interface credential
+  (manager:manager) allowing remote configuration access — CVE-2016-2310, CWE-259, CVSS v3 10.0
+  (CISA ICSA-16-154-01). The vulnerability class and affected models are confirmed directly from
+  the official advisory; the literal credential value was supplied by the user directly, since
+  neither CISA's nor CCCS's advisory publishes it and no further public source states it either.

@@ -1,0 +1,158 @@
+# PROMOTED 2026-09-14 to checks/http/siemens-scalance-lpe9403-edgebox-web-app-default-creds.yaml
+# BLOCKER TAG (2026-09-22 triage pass): live-hardware-gap -- No live device or official quick-start/commissioning guide has been checked yet to confirm or rule out a documented factory default for the WEB APP account specifically.
+# — the executor blocker described in the FOLLOW-UP note below is RESOLVED: checks/http/native/
+# json_post_default_creds.py now implements the JSON-POST + static-header mechanism, built
+# specifically to unblock this candidate. This stub is kept for its full sourcing history.
+#
+# Candidate stub — 2026-09-14. User supplied Siemens's own official SCALANCE LPE9403 firmware
+# update package (Download_SCALANCE_LPE9403_Firmware_V5.0-files.zip, containing
+# scalance-lpe9403-V05.00.00.swu) and the matching OSS/GPL-compliance bundle
+# (OSS_SCALANCE_LPE9403_LPE9423_V5.0.zip). NOT executable (no `kind`). A genuinely new device for
+# this project — no prior candidate or check existed for LPE9403/LPE9423 ("Local Processing
+# Engine" — an x86/ARM industrial edge-computing appliance running Docker/containerd apps,
+# distinct from the SCALANCE network-appliance line the S615 candidate covers).
+#
+# ACQUISITION/EXTRACTION — genuinely clean, no encryption anywhere, same firmware-extraction
+# methodology as the TM172SI pilot (01-METHODOLOGY-AND-CHECKLISTS.md, "Extracting the vendor's
+# own firmware/binary"), and notably EASIER than either prior pilot device:
+#   - `scalance-lpe9403-V05.00.00.swu` is a plain, unencrypted SVR4 cpio archive (SWUpdate
+#     format) — `file` reads it directly. `cpio -id` extracts it with no wrapper to defeat.
+#   - Inside: a plaintext JSON `sw-description` manifest (with a DETACHED `.sig` signature —
+#     signed, not encrypted, same "signed != encrypted" pattern already seen in the TM172SI RAUC
+#     bundle) plus `rootfs.ext4.img.zst` — a standard zstd-compressed ext4 filesystem image.
+#   - `zstd -d` decompresses it, and `debugfs -R "rdump / <dir>" rootfs.ext4.img` extracts the
+#     full filesystem WITHOUT needing a privileged loopback mount (`debugfs` operates read-only
+#     directly on the image file) — a lower-friction extraction path worth preferring over
+#     `unblob`/`mount` for any future plain-ext4-image firmware.
+#   - Confirmed real: a standard Debian-based OS (dpkg/apt present, matching the separately
+#     supplied OSS bundle's ~231 Debian source packages: bash, coreutils, containerd, nginx,
+#     openssl, systemd-adjacent tooling, etc.) — a materially more modern/standard stack than
+#     either the SCALANCE S615 (proprietary RTOS-ish container) or TM172SI (Renesas RZ/N1
+#     UBI/UBIFS) firmware images this project has examined so far.
+#
+# THE ACTUAL WEB LOGIN MECHANISM — resolved directly from the extracted rootfs, same "grep the
+# real Angular bundle" approach that worked for TM172SI, never needed disassembly:
+#   - Real service: `edgeboxwebapp.service` (systemd), binary `/usr/sbin/edgebox_web_app` (a
+#     stripped ARM64 ELF — the actual firmware image inspected is the ARM64/aarch64 build per its
+#     `bl2_qspi_sec.pbl`/`fip.bin` boot-loader images; the demangled C++ symbols found in the
+#     binary, e.g. `LinuxDriver::generatePasswordFileEntry(...)`, indicate a native C++
+#     application, not Java, despite the Java-style dotted logger namespace
+#     `com.siemens.lpe.edgeboxwebapp` used in its log lines).
+#   - Frontend Angular bundle (`/usr/var/www/edgebox_web_app/main-7O3NWDGO.js`) contains a
+#     literal route map: `Login:"auth/login"`, `Logout:"auth/logout"`, `Session:"auth/session"`,
+#     `UserRole:"auth/userRole"`. The login call itself:
+#       this.http.post(ne.Login, JSON.stringify(n), {headers:new Ct({"Content-Type":
+#       "application/json","X-CSRF-TOKEN":`${this.sessionService.getCsrfToken()...`
+#     — a JSON POST to `auth/login` with `username`/`password` fields (confirmed via the reactive
+#     login form's own field names and the i18n error-message keys, e.g.
+#     `LoginPage.SignIn.Errors.Password.Empty`), gated by an X-CSRF-TOKEN header the client must
+#     obtain first (an XSRF-cookie style flow, not a bare credential POST) — a materially more
+#     complex mechanism than either TM172SI's plain HTTP Basic Auth or a classic HTML form-POST.
+#     NEITHER of this project's existing native executors
+#     (checks/http/native/basic_auth_default_creds.py, checks/http/native/
+#     form_post_default_creds.py) currently handles a CSRF-token pre-fetch step — real new
+#     executor work would be needed even once a credential value is known.
+#   - A genuine, real "First Login" forced-change flow exists and is FORCED on both fields at
+#     once, not just the password: the login page's own i18n string reads literally "Change user
+#     name admin" (`LoginPage.FirstLogin.NewUserNameText`) alongside "Change password"
+#     (`NewPasswordText`) — meaning a fresh-out-of-box unit's factory account is username `admin`
+#     (confirmed) with an unknown factory password, and first login forces changing BOTH the
+#     username and the password before any further use.
+#
+# WHAT'S STILL MISSING — the opposite gap shape from TM172SI/S615 (there, the credential VALUE
+# was known from an official manual and only the MECHANISM was unconfirmed; here, the mechanism
+# is now fully mapped but no default PASSWORD value was found anywhere): grepped the full
+# extracted rootfs (i18n translation strings, config files under etc/edgebox_web_app and
+# var/lib/edgebox_web_app) and ran `strings` against the edgebox_web_app binary itself for any
+# static default-password-shaped literal — none found. The binary's own
+# `LinuxDriver::generatePasswordFileEntry` symbol name is suggestive of a PER-DEVICE generated
+# system-account password (not a shared static default), though this is inference from a symbol
+# name, not direct proof — it could just as easily be for an unrelated internal service account,
+# and no live device or official quick-start/commissioning guide has been checked yet to confirm
+# or rule out a documented factory default for the WEB APP account specifically.
+#
+# REAL BONUS FINDING, confirmed and directly actionable context for risk-tiering: a proper
+# brute-force lockout mechanism exists and is REAL, not just documented-in-a-manual —
+# `/etc/fail2ban/jail.d/edgebox_web_app.conf` + a matching filter
+# (`failregex = com.siemens.lpe.edgeboxwebapp.*Login Error!.*from <ADDR>`, journal-backed) is
+# shipped and enabled by default, banning by source IP on repeated failed logins. Whenever/if this
+# candidate becomes buildable, it must be classified DESTRUCTIVE tier (risk_reason: ["lockout"]),
+# same reasoning already applied to the SCALANCE S615 candidate — not the plain "login" adverse
+# tier most default-creds checks in this project get.
+#
+# FOLLOW-UP 2026-09-14 — CREDENTIAL VALUE RESOLVED, deeper pass over the same firmware zip's
+# `lpe.iso` (1.36 GB base install image, previously not examined). Listed via `7z l` rather than
+# fully extracting — mostly the same OSS/Debian package set as the separate OSS zip (redundant,
+# confirmed), but ALSO contains genuinely new content: official "Configuration Manual" and
+# "Operating Instructions" PDFs in 6 languages each. Fetched none of these remotely — they were
+# already sitting in the vendor's own ISO, read directly via pdftotext (English edition,
+# PH_SCALANCE-LPE-9000_76.pdf, "Configuration Manual, 05/2026, A5E55928793-AA").
+#
+# §9.3.1 "Default user profiles and passwords" (Web User Interface chapter), quoted directly:
+# "The following default user profiles and passwords are preconfigured: [table] Profile: admin /
+# Password: admin." §9.3.2 confirms the login FORM shape directly: "Establish a connection to the
+# device and call the Web UI. The login page of the Web UI is displayed... Click the User name
+# field and enter the factory default user name... Click the Password field and enter the factory
+# default password... Click the Log in button" — matching the JSON POST to auth/login with
+# username/password fields already mapped from the firmware's own Angular bundle above. Confirms
+# the forced first-login change applies to BOTH fields at once, exactly as the i18n strings
+# already indicated, and explicitly states this same admin/admin default applies after ANY
+# configuration reset (console configreset, Web UI System > Reset configuration menu, or the
+# power-on reset button) — not just a fresh-out-of-box unit.
+#
+# (Note: a SEPARATE, near-identical table exists at §8.6.1 "Default user profiles and passwords"
+# under the "Linux Shell" chapter, same admin/admin pair — that is SSH/console access, a different
+# service from the Web UI and out of scope for THIS candidate, which is HTTP-only. Not conflated.)
+#
+# REMAINING BLOCKER, narrowed to exactly one: this project has no executor that handles the
+# CSRF-token pre-fetch + JSON-body POST mechanism the LPE9403's Web UI actually uses (confirmed
+# from the Angular bundle: `sessionStorage.getItem("csrfToken")` is read on the login POST itself,
+# meaning an initial CSRF token must be obtained from some earlier bootstrap call — likely a GET
+# to `auth/session` — before the login POST can carry a valid X-CSRF-TOKEN header; not yet traced
+# to the exact bootstrap response shape). Building this executor is real, scoped new work — same
+# size of task as the SNMPv3 USM executor built earlier this session — deliberately not started
+# without a separate go-ahead, matching this sweep's own recurring "new executor capability gets
+# its own checkpoint" pattern.
+#
+# `nozomiV1.26.2.0.swu` and `SINEMA_RC_V2_0_0.swu` (bundled third-party/Siemens app images) were
+# also examined this pass — see lab-notes/default-credentials-sweep.md and the new
+# candidate-nozomi-remote-collector-lpe9403-app-default-creds.yaml stub for the Nozomi finding;
+# SINEMA RC's edge-client role turned out to be gated behind THIS SAME edgebox_web_app login
+# (`auth_request /auth/admin` in its own nginx endpoint.conf), not a separate credential surface.
+# Firmware/hygiene note: none of the extracted firmware, decompressed rootfs/ISO content, or
+# extracted filesystem tree is committed to this repo, per the methodology's own hygiene rule.
+#
+# Action needed before building: new executor support for the CSRF-token pre-fetch + JSON POST
+# mechanism (scoped, real work — the credential value and risk tier are both now fully resolved).
+
+check_id: candidate-siemens-scalance-lpe9403-edgebox-web-app-default-creds
+protocol: http
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Siemens AG"
+  product: "SCALANCE LPE9403"
+references:
+  - "scalance-lpe9403-V05.00.00.swu — official SCALANCE LPE9403 firmware update package, user-supplied, extracted and inspected directly (SWUpdate/cpio -> zstd -> ext4 -> debugfs rdump -> Angular frontend bundle source + binary strings)"
+  - "PH_SCALANCE-LPE-9000_76.pdf — official \"SCALANCE LPE9403 / SCALANCE LPE9423 V5.0 Configuration Manual\", 05/2026, A5E55928793-AA, English edition, extracted from the same firmware zip's lpe.iso and read directly via pdftotext"
+description: >
+  Siemens SCALANCE LPE9403 ("Local Processing Engine" edge-computing appliance) ships with a
+  factory Web UI login of admin/admin — confirmed directly, twice (Web UI §9.3.1 and the separate
+  Linux Shell/SSH §8.6.1), in Siemens's own official Configuration Manual, and reapplied after any
+  configuration reset, not just fresh-out-of-box. Forces changing BOTH the username and password
+  on first successful login. The exact mechanism (JSON POST to auth/login, username/password
+  fields, X-CSRF-TOKEN header) is fully mapped from the firmware's own Angular frontend bundle. A
+  real, enabled-by-default fail2ban brute-force lockout was confirmed in the firmware, so this
+  must be DESTRUCTIVE tier, not adverse, once built. NOT YET BUILT: this project has no executor
+  that handles the CSRF-token pre-fetch + JSON-body POST mechanism this device actually uses —
+  real, scoped new executor work, not a params-only reuse of an existing module.
+
+# A4 PASS 2026-10-05 — REASSESSED, likely NOT a valid default-credential candidate: the web-app login
+# wire format was already resolved (JSON POST to auth/login, username/password + X-CSRF-TOKEN header,
+# token pre-fetched XSRF-cookie style). BUT the deeper blocker is that there is NO shared static
+# default PASSWORD: username 'admin' is confirmed, but no default-password value exists anywhere in
+# the firmware, the binary's `generatePasswordFileEntry` implies a PER-DEVICE generated system
+# password, and first login FORCES changing BOTH username and password. With no static default
+# credential there is nothing to scan for -- this should be treated as a NON-finding for a default-
+# cred check (keep as a documented negative, do not arm), NOT a wire-format/RE gap. (The source
+# firmware zip has also since rotated off disk.) Removed from the Ghidra/sidecar promotable list.

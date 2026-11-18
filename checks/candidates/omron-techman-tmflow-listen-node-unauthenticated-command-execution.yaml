@@ -1,0 +1,97 @@
+# Candidate stub — DELIBERATELY kept as a candidate (kind: absent). Surfaced 2026-08-27 during a
+# thorough bulk-triage document review of ingest/i626_tm_flow_software_installation_manual_en.pdf
+# (pdftotext-first triage per the established workflow, then a targeted visual check of the
+# Network Setting screenshots on pp.94-95 that turned up nothing — this finding came from reading
+# the manual's own "Listen Node" section, p.143, not from that visual check).
+#
+# NOT a default-credentials finding — a DIFFERENT vulnerability class (missing authentication for
+# a command-execution surface), same shape as checks/profinet/profinet-dcp-set-unauthenticated-
+# signal.yaml, but with a real, meaningful precondition that check doesn't have: this is opt-in
+# per-project (a TMflow developer has to place a Listen Node in their flow AND have that project
+# actively running) rather than an always-on protocol-wide characteristic.
+#
+# Source: Omron's own official TMflow Software Installation Manual (Software Version 1.88),
+# read directly (text + confirmed no contradicting/qualifying detail in surrounding pages).
+# Verbatim: "In the Listen Node, a socket server can be established and be connected by an
+# external device to communicate according to the defined protocol. All the functions available
+# in Expression Editor can also be executed in Listen Node." — "Socket Server is set up after the
+# project is running and closed after the project is stopped." Default/example port shown in the
+# manual's own IP/Port table: 5890 (TCP, presumably user-configurable per Listen Node instance,
+# since the manual gives no explicit "cannot be changed" language either way — treat as the
+# documented default, not a confirmed-immutable value).
+#
+# What's confirmed: a TCP socket server exists on this port while the feature is active, accepts
+# "commands" per TMflow's own "defined protocol" (referenced elsewhere as documented in a
+# separate "Expression Editor and Listen Node" manual, not included in this ingest batch), and
+# NOTHING in this manual's description of the feature mentions any authentication step at any
+# point — commands are validated only for syntax ("If the command is not valid, an error message
+# will be returned... If the command is valid, it will be executed"), not for the sender's
+# identity/authorization.
+#
+# SAFETY-RELEVANT, not just a data-disclosure concern: the manual explicitly states the command
+# set includes "motion commands and IO value assignment" — i.e., a successful unauthenticated
+# connection to this port can potentially command a physical robot arm to move. This is a
+# meaningfully higher-consequence finding than a typical default-credentials check and, if ever
+# pursued further, likely warrants the same "extra caution before any live test" review this
+# project already applies to GE Multilin protection-relay register writes and Rockwell's
+# CVE-2021-22681 key-bypass item (see lab-notes/human-review-queue.md).
+#
+# UPDATE 2026-08-27, same day — port and protocol blockers both substantially resolved:
+#   - Port 5890 CONFIRMED by two more independent sources beyond this manual: RoboDK's own
+#     official "Setup Listen Node" integration guide states it explicitly as a fixed setup step
+#     ("3. Enter the port 5890") and separately warns "Make sure to start at slow speeds during
+#     the debugging procedure" — independent, vendor-integration-level corroboration that this is
+#     a real, acknowledged physical-actuation risk, not a theoretical one. github.com/osjacky430/
+#     tmr_listener (a real, tested, open-source ROS driver for this exact protocol, MIT-licensed,
+#     CI-tested) hardcodes the same port in its own README walkthrough.
+#   - Wire-level protocol CONFIRMED from the same tmr_listener source, read directly: ASCII,
+#     checksummed, tagged frames (`$TMSCT,<len>,<id>,<commands>,*<XOR-checksum-hex>\r\n`), headers
+#     TMSCT (script)/TMSTA (status)/TMSVR (variable read-write)/CPERR (error) — no authentication
+#     step anywhere in the protocol design, confirming the finding's core claim from source code,
+#     not just prose. Full framing detail in scripts/safety_critical/_tmr_protocol.py's docstring.
+#   - A companion, even broader surface also confirmed from the same source: "TM Robot Ethernet
+#     Slave" (TMSVR) allows read/write of arbitrary global/predefined/user-defined variables, not
+#     just motion — not implemented or covered by this candidate, flagged here for a future pass.
+#
+# What's STILL not confirmed: whether port 5890 can be reconfigured per-instance (would affect
+# fingerprint-gate reliability, not the finding itself), and the exact serialized text for
+# ScriptExit() specifically (inferred by analogy with tmr_listener's own worked examples for
+# other functions — see _tmr_protocol.py's docstring for why this residual gap fails safe).
+#
+# SAFETY-TIER TOOL BUILT 2026-08-27, verification only, per the new "Safety-critical scripts"
+# tier in 01-METHODOLOGY-AND-CHECKLISTS.md (added specifically for this finding, at the user's
+# direction): scripts/safety_critical/tmr_listen_node_plan.py +
+# scripts/safety_critical/tmr_listen_node_confirm.py. Two separate scripts (no single command can
+# go from nothing to a live connection), an interactive typed one-time confirmation phrase, and a
+# short plan-expiry window. The tool NEVER sends a motion command — only an ID + immediate
+# ScriptExit(), the least dangerous action that still demonstrates the missing-authentication
+# root cause. Whether to ever build a version that sends a real motion/actuation command remains
+# its own separate, undecided human decision — same "tier above even standalone script"
+# capability-existence gate this project already applies to GE Multilin SR/UR crypto and
+# Rockwell CVE-2021-22681.
+#
+# No CVE found for this specific finding.
+
+check_id: candidate-omron-techman-tmflow-listen-node-unauthenticated-command-execution
+protocol: tmflow-listen-node
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Omron Corporation"
+  product: "TM / TMflow"
+references:
+  - "ingest/i626_tm_flow_software_installation_manual_en.pdf"
+  - "ingest/Setup Listen Node - RoboDK Documentation.pdf"
+  - "https://github.com/osjacky430/tmr_listener"
+  - "scripts/safety_critical/tmr_listen_node_plan.py"
+  - "scripts/safety_critical/tmr_listen_node_confirm.py"
+description: >
+  Omron TM-series collaborative robots (Techman-built, TMflow software) can run a project-
+  defined "Listen Node" that opens a TCP socket server (port 5890, confirmed by 3 independent
+  sources) accepting external commands — including motion commands and I/O value assignment —
+  with no authentication mechanism anywhere in the protocol (confirmed against a real,
+  open-source implementation of the wire format, not just vendor prose). Opt-in per-project, not
+  always-on. Not promoted to checks/: this is a safety-critical, physical-actuation-capable
+  finding, handled instead by a dedicated verification-only tool at
+  scripts/safety_critical/tmr_listen_node_{plan,confirm}.py that never sends a motion command and
+  requires a two-step, interactively-confirmed process before sending anything at all.

@@ -1,0 +1,48 @@
+# Default-credentials sweep, Phase 14. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor. Covers 11 named LOYTEC building-
+# automation devices per SCADAPASS's own row: L-DALI, L-INX Automation Server, L-GATE Universal
+# Gateway, L-IP CEA-709/IP Router, L-VIS, LIOB-10x/LIOB-x5x I/O Modules, LIP-ME20X BACnet Router,
+# LWEB-802/803/900. Sibling: checks/http/loytec-lproxy-default-creds.yaml (different password).
+#
+# Sources (2 independent, one being LOYTEC's OWN security documentation): SCADAPASS, citing a
+# dedicated Darius Freamon post covering this exact multi-device list; corroborated by LOYTEC's
+# OWN "Cyber Security Guideline" document explicitly stating devices ship with a default
+# admin/loytec4u account with full access rights — the vendor's own security documentation
+# confirming its own default, the strongest corroboration tier (same pattern as Tridium/eWON).
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-loytec-multidevice-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "LOYTEC electronics GmbH"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "loytec4u"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (admin:loytec4u)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46bG95dGVjNHU="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://dariusfreamon.wordpress.com/2016/02/01/loytec-electronics-multiple-devices-web-interface-default-admin-credentials/"
+  - "https://www.loytec.com/terms/doc_download/2401-Cyber-Security-Guideline-1.1"
+description: "Multiple LOYTEC building-automation devices (L-DALI, L-INX, L-GATE, L-IP, L-VIS, LIOB series, LWEB series) ship with a factory-default admin/loytec4u web-UI login — no CVE, documented factory-default behavior confirmed directly by LOYTEC's own security guideline."

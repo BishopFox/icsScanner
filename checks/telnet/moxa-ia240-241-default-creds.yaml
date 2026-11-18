@@ -1,0 +1,58 @@
+# Default-credentials sweep, Phase 10. Telnet sibling of
+# checks/ftp/moxa-ia240-241-default-creds.yaml — see that file for the source trail. SCADAPASS
+# gives root:root (not blank) for Telnet/PPP/serial console specifically, a DIFFERENT password
+# than the FTP account on the same device — not assumed identical, shipped as documented.
+#
+# UPDATE 2026-09-17 (ingest batch 4): DIRECTLY VERIFIED against real firmware --
+# `moxa-ia240-series-linux-firmware-v1.10.zip` (2019, JFFS2 extracted via jefferson): `/etc/shadow`
+# root hash `gs5hdcM0NRKeI` (DES-crypt) CRACKS TO "root" via Python's `crypt` module, and
+# `/etc/inetd.conf`'s `telnet stream tcp nowait root /bin/telnetd` is started unconditionally at
+# boot (`S20inetd` in `etc/rc.d/rcS.d`, no config gate) -- confirms both the credential AND the
+# always-on network exposure directly from vendor-shipped code, not just aggregator sourcing.
+# confidence raised to high. See checks/ftp/moxa-ia240-241-default-creds.yaml for the full
+# extraction detail (this is the same firmware image and same /etc/shadow entry).
+#
+# UPDATE 2026-09-17 (ingest batch 5): the SAME byte-identical root hash (gs5hdcM0NRKeI) was found
+# in FOUR MORE IA-series firmware images this pass -- IA260, IA261, IA262, IA3341 (2010-2012) --
+# confirming this is a single shared credential across Moxa's whole IA-series ARM embedded-
+# computer line, not unique to IA240/241. See checks/ssh/moxa-ia-series-default-creds.yaml (new
+# this pass) for the multi-model detail and an additional SSH-reachable variant (IA3341).
+#
+# UPDATE 2026-09-17 (ingest batch 7): the SAME byte-identical root hash confirmed on FOUR ioPAC
+# industrial PAC firmware images too (ioPAC 8500-C/8500-IEC/8020/5500) -- see
+# checks/ssh/moxa-ia-series-default-creds.yaml for the full detail. This credential now spans 9
+# distinct Moxa embedded-Linux product models across two product categories (embedded computers
+# and PACs).
+
+check_id: telnet-moxa-ia240-241-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Moxa Technologies"
+params:
+  credentials:
+    - ["root", "root"]
+  default_port: 23
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet username+password login attempt(s) using the documented factory credential(s) (root:root)"
+    patterns:
+      - context: request
+        bytes: "root\r\nroot\r\n"
+  broad:
+    description: "Any Telnet login attempt (a username followed by a password, both CRLF-terminated) on this device — the vulnerability class (default/weak credentials on this product's Telnet server), not the specific guessed credential"
+    patterns: []  # generic "any-line" pattern removed 2026-11-11 (real-traffic validation); no device-specific signature beyond the narrow probe/credential bytes. See lab-notes/zeek-detection-validation-pnnl-2026-11.md
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://support.elmark.com.pl/moxa/products/Komputery_wbudowane/IA240/manual/IA240_241-LX_Users_Manual_v4.pdf"
+  - "moxa-ia240-series-linux-firmware-v1.10.zip, user-supplied ingest, JFFS2 extracted via jefferson, /etc/shadow root hash cracked directly (root/root)"
+description: "Moxa IA240/241 embedded computers ship with a factory-default root/root Telnet login — no CVE, documented factory-default behavior."

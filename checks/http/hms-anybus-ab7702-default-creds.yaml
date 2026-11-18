@@ -1,0 +1,50 @@
+# Default-credentials sweep, Phase 41 (2026-08-27) — industrial device-server/gateway vendor
+# pass. Uses the generic checks/http/native/basic_auth_default_creds.py executor.
+#
+# Source: official HMS Networks Anybus Modbus-TCP/RTU Gateway (AB7702) user manual,
+# Doc.Id. HMSI-168-77 Rev 2.03, fetched and read directly (Log in / Password Settings sections):
+# "you should enter 'admin' in the user name box. This is the default password" — accessed at
+# the module's own IP over HTTP (e.g. http://10.10.12.204), default password for authentication
+# of new settings also confirmed as "admin".
+#
+# MODEL-SCOPE CAVEAT, stated rather than silently over-generalized: this credential applies to
+# the AB7702 (HMSI-168-77) line specifically. A visually similar but SEPARATE HMS product line —
+# the USB-configurable Anybus X-gateway Modbus-TCP (doc HMSI-168-44) — ships with AUTHENTICATION
+# DISABLED BY DEFAULT (an optional toggle, no default admin/admin at all) and must not be
+# conflated with this check. A separate HMS Anybus X-Gateway model (AB7832-F) has its own
+# distinct CVE-2024-23766/CVE-2024-23767 advisories, also unrelated to this specific finding.
+#
+# No CVE — documented factory-default behavior on this specific product line.
+
+check_id: http-hms-anybus-ab7702-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "HMS Networks"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "admin"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (admin:admin)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46YWRtaW4="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://www.virtualscada.com/PRODUCT_LITERATURE/MBTCP/AB7702_X-gateway_MTCP_RTU_user_manual.pdf"
+description: "HMS Networks Anybus Modbus-TCP/RTU Gateway (AB7702, HMSI-168-77) ships with a factory-default admin/admin web-UI login — no CVE, documented factory-default behavior. Does NOT apply to the separate Anybus X-gateway (HMSI-168-44) line, which ships with authentication disabled by default instead."

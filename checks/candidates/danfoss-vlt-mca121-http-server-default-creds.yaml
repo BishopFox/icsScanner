@@ -1,0 +1,125 @@
+# Candidate stub — default-credentials sweep, direct-name VFD-brand research (2026-08-18, user:
+# BLOCKER TAG (2026-09-22 triage pass): live-hardware-gap -- GET-vs-POST HTTP behavior is ambiguous; resolvable by a live device or a source showing the exact response codes.
+# "continue with...direct-name VFD research (ABB/Danfoss/Yaskawa/Siemens Sinamics)"). NOT
+# executable (no `kind`).
+#
+# Danfoss VLT AutomationDrive FC 301/302 (a real industrial variable-frequency drive) fitted with
+# the MCA 121 EtherNet/IP option module — on-board web server credential username=danfoss,
+# password=danfoss, confirmed directly from Danfoss's own official "Operating Instructions MCA
+# 121 EtherNet/IP" manual (MG.90.J3.02), read via pdftotext. The exact same
+# username/password/architecture ("on-board web server", default IP 192.168.1.2, /ipconfig
+# endpoint) is independently corroborated by a SEPARATE Danfoss manual for the VLT Compact
+# Starter MCD 201/202 and VLT Soft Starter MCD 500 (a different product line using the same
+# EtherNet/IP module design) — real cross-product corroboration, not a single-document claim.
+#
+# REAL CAVEAT, found by reading the FULL parameter table, not just the login section: MCA 121's
+# own parameter list shows **12-81 HTTP Server defaults to [0] Disabled** (alongside 12-80 FTP
+# Server and 12-82 SMTP Service, also disabled by default) on the VLT AutomationDrive product
+# specifically. This means an out-of-the-box FC 301/302 with this module installed will NOT have
+# its web server reachable at all until an operator explicitly enables it.
+#
+# FOLLOW-UP 2026-08-18 (user supplied a local copy of the VLT Soft Starter's own Ethernet/IP
+# Module Installation Guide, MG17M202, doc AN361182310204en-000301, pages 10-18 read directly):
+# **the MCD 201/202/500 soft-starter line does NOT have an equivalent opt-in HTTP-server-disable
+# parameter at all.** Read the full packet-structure/register tables (§7.1-7.6, every Control
+# Command, Status Command, and Internal Register the module exposes) — no HTTP/FTP/SMTP
+# enable/disable bit exists anywhere in this product line's fieldbus interface, unlike the
+# AutomationDrive's parameter 12-8*. This is real, if indirect, evidence the soft-starter line's
+# web server is not gated behind the same opt-in default as the VFD line — resolving the original
+# open question in the credential's favor for THIS specific product family.
+#
+# NEW OPEN QUESTION surfaced by the same read, not yet resolved: the manual's own On-board Web
+# Server walkthrough (§5.1) orders the steps as (4) browse to <ip>/ipconfig, (5) edit settings,
+# (6) click Submit, (7) "If prompted, enter username and password" — i.e. the auth prompt is
+# described as appearing AFTER Submit, not on the initial page load. This raises a real
+# possibility that HTTP Basic Auth is only challenged on the write/Submit action, not on a plain
+# GET of /ipconfig. This project's shared checks/http/native/basic_auth_default_creds.py executor
+# sends the Authorization header on a GET request only — if the real device's auth gate is
+# POST-only, a check built on this executor could return a false NOT_APPLICABLE against a
+# genuinely vulnerable unit (the credential check would silently never trigger the real
+# challenge). NOT BUILT until this is resolved — either by a live device, a source that shows the
+# exact HTTP response codes for GET vs POST, or accepting the read-vs-write risk explicitly (the
+# same kind of read-preferred-over-write-fallback caution already applied to the GE Multilin 850
+# check, which also could not assume a write-only signal was safe to treat as ambiguous CONFIRMED).
+#
+# 2 MORE MODULE MANUALS CHECKED 2026-08-19 (user supplied Danfoss's own official PROFINET Module
+# and Modbus TCP Module Installation Guides for the SAME VLT Compact Starter MCD 200/Soft Starter
+# MCD 500 product line, docs AN428735951761en-000301 and AN428736661763en-000301 respectively,
+# BOTH dated 2022.11 — genuinely newer than the earlier EtherNet/IP manual (2017) and Soft
+# Starter installation guide already reviewed). BOTH independently confirm the exact SAME
+# danfoss/danfoss credential, in an identically-worded "Manage Users and Passwords" section — the
+# 3rd and 4th module confirming this default across Danfoss's whole fieldbus-option-module family
+# for this soft-starter line, on top of the earlier 2 product-line confirmations. Credential
+# confidence is now very strong.
+#
+# REAL CLARIFICATION, not a full resolution: these newer manuals describe a richer, multi-tier
+# web UI (User / Supervisor / Administrator privilege levels) than the older EtherNet/IP manual's
+# simple form. Critically: "Once connected, the web server reports basic information about the
+# device and the soft starter" — described as happening BEFORE any login step, i.e. the home/info
+# page is freely viewable with no authentication. The actual credential prompt is tied
+# specifically to the Administration section ("Connect to the web server and click
+# Administration" -> user/password entry) and to changing configuration — NOT the whole site.
+#
+# EXACT URL SCHEME FOUND 2026-08-19, viewing the Modbus TCP manual's own screenshots directly
+# (not just its surrounding text): the browser address bar in the "Connect to the Device"
+# screenshot (§5.3.1) shows `192.168.0.2/home.htm` — a plain, unauthenticated GET, device-info
+# tables rendered directly, no login prompt. The "Adding a User" screenshot (§5.3.2.1) shows
+# `192.168.0.2/home.htm?pageId=UserPasswordManagement` — the WHOLE site is a SINGLE page
+# (home.htm) that switches displayed content via a `pageId` QUERY STRING parameter, not separate
+# URL paths like "/administration". This is real, concrete progress: the exact target path+query
+# for the Administration/User-Password-Management view is now known, and it's reachable via a
+# plain GET (not a POST) — meaning THIS specific candidate might not even need the new form-POST
+# executor at all; the existing checks/http/native/basic_auth_default_creds.py executor's `path`
+# param can already express a full path+query string.
+#
+# STILL AMBIGUOUS, not resolved by the screenshot: the User-Password-Management screenshot ALSO
+# shows NO visible login prompt — it renders directly, already showing existing user accounts
+# ("admin", "danfoss_admin"). This does NOT prove the page is unauthenticated: tutorial
+# screenshots are commonly captured from an already-logged-in session. If anything, the fact that
+# content renders immediately (no full-page reload/native browser Basic-Auth popup visible before
+# the page appears) makes it PLAUSIBLE this is a form+session-cookie mechanism (log in once via a
+# form elsewhere, then home.htm?pageId=... checks a session cookie) rather than classic HTTP
+# Basic Auth at all — which the existing GET-based executor, built specifically for the
+# Authorization-header mechanism, could not express even with the right path. NOT BUILT until
+# this is resolved — either a live device, or a source showing the actual login FORM (if one
+# exists) and its field names/POST target, would settle which mechanism is real.
+
+check_id: candidate-danfoss-vlt-mca121-http-server-default-creds
+protocol: http
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Danfoss"
+references:
+  - "https://assets.danfoss.com/documents/276754/AN304840617560en-000101.pdf"
+  - "MG17M202 (AN361182310204en-000301) — VLT Soft Starter MCD 201/202/500 EtherNet/IP Module Installation Guide, user-supplied local copy, pages 10-18"
+  - "AN428735951761en-000301 — VLT Compact Starter MCD 200/Soft Starter MCD 500 PROFINET Module Installation Guide (2022.11), user-supplied local copy"
+  - "AN428736661763en-000301 — VLT Compact Starter MCD 200/Soft Starter MCD 500 Modbus TCP Module Installation Guide (2022.11), user-supplied local copy"
+description: >
+  Danfoss on-board web server credential danfoss/danfoss, now confirmed identically across 4
+  separate fieldbus-option-module manuals (EtherNet/IP, PROFINET, Modbus TCP, all for the VLT
+  Soft Starter/Compact Starter line) — very strong credential confidence. CONFIRMED disabled-by-
+  default on the separate VLT AutomationDrive (FC 301/302) VFD product line (parameter 12-81);
+  NOT shown to share that opt-in default on the Soft Starter line, which is the live target. The
+  exact protected URL is now known directly from the Modbus TCP manual's own screenshots:
+  home.htm loads freely with no login; home.htm?pageId=UserPasswordManagement is the
+  Administration/User-Password-Management view, reachable via a plain GET (not POST) — so this
+  candidate may not even need the new form-POST executor. Not yet built: that same screenshot
+  shows no visible login prompt on the Administration page either, which is ambiguous rather than
+  reassuring — it could mean the tutorial screenshot was taken from an already-authenticated
+  session (classic HTTP Basic Auth still plausible), or it could mean this uses a form+session-
+  cookie mechanism instead of Basic Auth entirely (which the existing GET-based executor could
+  not express even with the right path). Needs a live device or a source showing the actual login
+  form (if one exists) to resolve which mechanism is real.
+
+not_automatable_reference:
+  credential: "danfoss / danfoss  (on-board web server)"
+  source: "Danfoss Operating Instructions MCA 121 EtherNet/IP (MG.90.J3.02), cross-corroborated by the MCD 201/202/500 EtherNet/IP guide"
+  category: "auth-flow-ambiguous"
+  reason: >-
+    Two reasons it is not safely automatable: (1) on the VLT AutomationDrive line parameter 12-81
+    HTTP Server is Disabled by default, so a factory-fresh unit has no reachable web server until
+    an operator enables it; (2) the manual's own walkthrough describes the auth challenge appearing
+    only AFTER a Submit (write) action, so a GET-time Basic Auth check could silently return
+    NOT_APPLICABLE against a genuinely vulnerable unit. Resolving the GET-vs-POST challenge
+    behavior needs a live device or a source showing the exact response codes.

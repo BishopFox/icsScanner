@@ -1,0 +1,37 @@
+# Default-credentials sweep, Phase 8. Telnet variant — see checks/http/rockwell-9300-rades-8edm-
+# default-creds.yaml for the full source trail. Same device, same ZYPCOM password. Assumed
+# standard username-then-password prompt sequence (not password_only/Cisco-line-password mode)
+# with an empty username, matching the blank-username pattern the HTTP variant uses — not
+# independently confirmed which telnet login style this specific device uses.
+
+check_id: telnet-rockwell-9300-rades-8edm-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Rockwell Automation"
+params:
+  credentials:
+    - ["", "ZYPCOM"]
+  default_port: 23
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet username+password login attempt(s) using the documented factory credential(s) ('':ZYPCOM)"
+    patterns:
+      - context: request
+        bytes: "\r\nZYPCOM\r\n"
+  broad:
+    description: "Any Telnet login attempt (a username followed by a password, both CRLF-terminated) on this device — the vulnerability class (default/weak credentials on this product's Telnet server), not the specific guessed credential"
+    patterns: []  # generic "any-line" pattern removed 2026-11-11 (real-traffic validation); no device-specific signature beyond the narrow probe/credential bytes. See lab-notes/zeek-detection-validation-pnnl-2026-11.md
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "http://literature.rockwellautomation.com/idc/groups/literature/documents/um/gmsc10-um004_-en-e.pdf"
+description: "9300-RADES/9300-8EDM industrial modems/switches ship with a factory-default blank-username/ZYPCOM Telnet login — no CVE, documented factory-default behavior."

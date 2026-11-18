@@ -1,0 +1,42 @@
+# Candidate stub — 2026-09-16. User-supplied ingest: Eaton knowledgehub PDF cache (see sibling
+# PXGX/PXGMS candidate for context). Confirmed no prior Eaton Brightlayer candidate/check existed
+# before this file.
+#
+# THE FINDING, confirmed directly from "Brightlayer Default User Name and Password.pdf" (read via
+# pdftotext): Eaton Brightlayer (a data-center/power-monitoring software suite — On-premise
+# Server, per a sibling PDF in this batch, "Brightlayer On-premise 7.3 Security Patch.pdf")
+# ships with a SINGLE, STATIC (not per-device-derived) default password used identically across
+# THREE separate access paths:
+#     Web Interface / ServerAdmin tool  — username: admin,  password: Monit@r#1
+#     SSH (OVF/Hyper-V deployed server) — username: vdc,    password: Monit@r#1
+#     root (via `sudo su -` from vdc)   — same password: Monit@r#1
+# This is architecturally a WORSE finding than most of this batch's derived-per-device schemes
+# (MAC/serial-based): a single fixed string, identical on every deployment, valid across web, SSH,
+# and effectively root access via the documented sudo path.
+#
+# NOT YET A REAL CHECK: this project has no Brightlayer firmware/frontend package to confirm the
+# exact web-login request shape (the source PDF describes only the browser-facing "Web Interface
+# or the ServerAdmin tool" flow, not raw HTTP). The SSH path, however, is architecturally simple
+# and well-precedented in this project (a plain username/password SSH login, the same shape as
+# e.g. `checks/ssh/universal-robots-sftp-default-creds.yaml`) — SSH is the stronger near-term
+# build candidate of the two paths named here, needing only port/reachability confirmation, not a
+# new protocol implementation.
+
+check_id: candidate-eaton-brightlayer-default-creds
+protocol: unknown
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Eaton"
+  product: "Brightlayer (Data Center Suite / On-premise Server)"
+references:
+  - "Brightlayer Default User Name and Password.pdf, user-supplied Eaton knowledgehub export, read directly via pdftotext"
+description: >
+  Eaton Brightlayer (a data-center/power-monitoring software suite) ships a single, static
+  default password, Monit@r#1, used identically across its Web Interface/ServerAdmin tool login
+  (admin), its SSH login (vdc), and effectively root access via a documented sudo path — confirmed
+  directly from Eaton's own support documentation. Unlike most of this Eaton research batch's
+  derived-per-device credential schemes, this one is a fixed string shared across every
+  deployment. Not yet a check: the web login's exact HTTP request shape is unconfirmed, though the
+  SSH path is architecturally simple and well-precedented in this project (plain username/password
+  SSH), making it the stronger near-term build candidate of the two.

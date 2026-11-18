@@ -1,0 +1,69 @@
+# Default-credentials sweep, 2026-08-26 — user supplied a direct googlevideo.com CDN link to a
+# Schneider Electric official tutorial video, "How to enable FTP option in Vamp relays" (113s,
+# silent screen recording of Vampset connecting to a relay via FTP, narrated only through on-
+# screen caption text). This RESOLVES the long-standing "FTP username shape unconfirmed" blocker
+# tracked in lab-notes/human-review-queue.md Priority 1 for the separate PowerLogic P3 Vampset
+# `.vfm`-template finding — see the corrective note below on why this became its OWN check
+# instead of just filling in that one's missing username.
+#
+# What's directly visible in the video (verified frame-by-frame, not just the caption text):
+#   1. Vampset's own "PROTOCOL CONFIGURATION" screen, connected to a device identified on-screen
+#      as "FEEDER MANAGER Vamp 255" ("OG-1 FEEDER"): "Enable FTP server" checked, "FTP password"
+#      field showing the PLAINTEXT value "config" directly in the software's own configuration
+#      screen — independently matching the value already found in the separate Vampset .vfm
+#      template file (`ftp_pwd: config`).
+#   2. The subsequent WinSCP connection to the relay's IP (192.168.100.16 in the video) prompts
+#      for credentials in two dialogs: "Username - <ip> - WinSCP" (the video shows "vamp" typed
+#      into this field) then "Password - <ip> - WinSCP" (masked, but the same on-screen caption
+#      confirms it).
+#   3. An explicit on-screen caption during this exact step: "Default username is 'vamp' &
+#      password is 'config'" — stated as the general default, not a one-off example.
+#
+# SCOPING CORRECTION vs. the sibling `schneider-easergy-p3-ftp-default-creds.yaml` check (fixed
+# username "easergy", same password "config", built in an earlier batch from two Easergy-P3-
+# titled Schneider FAQs): this video's own title says "Vamp relays" (plural, the native VAMP-AS
+# relay product line Schneider acquired — VAMP 40/50/55/143/145/150/155/230/240/245/250/255/259
+# etc., all configured via the same Vampset tool), and the on-screen device explicitly reads
+# "Vamp 255," not "Easergy P3." Rather than assume these two sourced-but-different usernames
+# ("easergy" vs "vamp") for what might or might not be the exact same physical hardware under
+# different branding, this is built as its OWN check scoped to native VAMP-branded relays,
+# leaving the Easergy-branded check's own username exactly as its own sources stated. Both stay
+# independently sourced rather than one silently overwriting the other.
+#
+# Login mechanism: real FTP (not SFTP) — WinSCP's own dialog titles in the video read plain
+# "Username"/"Password," and the relay's own Vampset screen labels this service "FTP server"
+# with no TLS/SSH indication anywhere in the flow.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: ftp-schneider-vamp-relay-ftp-default-creds
+protocol: ftp
+kind: native
+module: checks.ftp.native.ftp_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  credentials:
+    - ["vamp", "config"]
+detection_hints:
+  transport: tcp
+  app_protocol: ftp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own FTP USER/PASS attempt using the documented factory credential (vamp:config) for a native VAMP-branded protection relay's optional FTP service"
+    patterns:
+      - context: request
+        bytes: "USER vamp\\r\\nPASS config\\r\\n"
+  broad:
+    description: "Any FTP USER/PASS pair using 'vamp' as the username against this device family — the vulnerability class (a factory-default protection-relay FTP credential), not the specific guessed password"
+    patterns:
+      - context: request
+        regex: "USER vamp\\r\\nPASS .*\\r\\n"
+references:
+  - "Schneider Electric official tutorial video, \"How to enable FTP option in Vamp relays\" (user-supplied direct video link)"
+description: "Schneider Electric VAMP-branded protection relays (e.g. VAMP 255, configured via the Vampset tool), when the optional FTP server feature is enabled, default to a fixed FTP login of vamp:config. No CVE, documented factory-default behavior confirmed directly on-screen in Schneider's own official tutorial video, both via an explicit caption and the live Vampset/WinSCP credential-entry flow."

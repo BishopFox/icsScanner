@@ -1,0 +1,43 @@
+# Candidate stub — 2026-11-10, opto22 sweep follow-up (lead #2 from the SNAP PAC / groov EPIC CVE
+# buildability review). NOT executable (no `kind`). Deconfliction: no prior SNAP PAC candidate/check
+# existed (the OptoMMP check 513bb00 is a different, protocol-layer detection).
+#
+# FINDING (ICSA-23-236-02, Opto 22 SNAP PAC S1, firmware R10.3b):
+#   CVE-2023-40706 (CWE-307, CVSS 7.5): the built-in web server has no limit on login attempts and does
+#     not require complex passwords -> brute-forceable if the operator did not set a strong password.
+#   CVE-2023-40708: the FTP port is open by default in R10.3b.
+#   Opto 22 mitigation: disable the built-in web server via Network Security in PAC Manager.
+# disclosure_status: public (published CISA advisory + CVEs).
+#
+# BUILDABLE as a benign IDENTITY + EXPOSURE check (not an exploit): detect a SNAP PAC built-in web
+# server + confirm FTP open, version-gated to the affected range. NOT YET BUILDABLE -- blockers:
+#  1. NO SNAP PAC web-server identity probe. Need the PAC web-server identity banner (Server header /
+#     default page markers) pinned from SNAP PAC firmware or a live unit before a probe exists. The
+#     OptoMMP probe (probe_optommp_identity) already identifies a SNAP PAC at the protocol layer and
+#     reads the firmware version (0xF030001C) -> the version-gate for CVE-2023-40706 could key on that,
+#     with the web-server/FTP exposure confirmed by a benign banner read.
+#  2. Detection must stay READ-ONLY: confirm the web server is present + FTP is open + version is in
+#     range. NEVER brute-force the web login or authenticate to FTP.
+#
+# BUILDABLE once the SNAP PAC web/FTP identity is pinned -> an exposure check gating on
+# optommp_identity (or a new snap_pac_http probe) that flags the ICSA-23-236-02 affected exposure.
+
+check_id: candidate-opto22-snap-pac-web-ftp-default-exposure
+protocol: http
+cve_id: CVE-2023-40706
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Opto 22"
+  product: "SNAP PAC S1"
+references:
+  - "Opto 22 SNAP PAC S1, ICSA-23-236-02 (CVE-2023-40706 no login-attempt limit + weak-password allowed, CVSS 7.5; CVE-2023-40708 FTP open by default, firmware R10.3b): https://www.cisa.gov/news-events/ics-advisories/icsa-23-236-02"
+  - "core/fingerprint.py probe_optommp_identity -- protocol-layer SNAP PAC identity + firmware-version read (0xF030001C) usable as the version-gate input."
+description: >
+  Opto 22 SNAP PAC S1 (firmware R10.3b) exposes a built-in web server with no login-attempt limit and
+  no complex-password requirement (CVE-2023-40706, CVSS 7.5) and an FTP port open by default
+  (CVE-2023-40708) -- ICSA-23-236-02. Buildable as a benign READ-ONLY identity + exposure check
+  (detect the SNAP PAC web server, confirm FTP open, version-gate to the affected range); it must never
+  brute-force the login or authenticate to FTP. Not yet buildable: no SNAP PAC web-server identity
+  probe exists -- the web-server banner must be pinned from firmware or a live unit; the firmware-version
+  gate can reuse probe_optommp_identity. disclosure_status: public (published CVEs).

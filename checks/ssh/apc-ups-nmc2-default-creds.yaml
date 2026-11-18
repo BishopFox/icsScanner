@@ -1,0 +1,66 @@
+# Default-credentials sweep, 2026-08-25 — a genuinely NEW protocol surface for this device
+# family, discovered while reviewing a different Schneider FAQ (FAQ000242942, "How do I update my
+# Smart-UPS firmware using the command line interface of my Network Management Card?", for the
+# APC UPS Network Management Card 2 — AP9630/AP9631, same family as the sibling FTP/Telnet
+# checks). That FAQ gives a real worked SSH login transcript, not just a mention:
+#
+#   C:\Directory>ssh -c aes256-cbc -o FingerPrintHash=md5 apc@10.0.0.1
+#   ...
+#   apc@10.0.0.1's password:
+#   Schneider Electric          Network Management Card AOS      v6.8.2
+#   ...
+#
+# The same device's own status screen (shown after login) lists both "SSH/SCP: Enabled" and
+# "Telnet: Enabled" as live, concurrently-enabled services on a real production-configured unit —
+# this is not a hypothetical or documentation-only feature.
+#
+# Same account-model reasoning as the sibling Telnet check
+# (checks/telnet/apc-ups-nmc2-default-creds.yaml): the R4 revision of the "UPS Network Management
+# Card 2 User's Guide" states Administrator and Device User get CLI access, while Read-Only User
+# is explicitly "Access through the UI only" — SSH is CLI access, so Read-Only is excluded here
+# for the same reason. The worked transcript above only demonstrates the "apc" (Administrator)
+# login specifically; "device" is included by the same documented-role reasoning as the Telnet
+# check, not from its own separate worked transcript.
+#
+# SCOPE: AP9630/AP9631 only, matching the sibling FTP/Telnet/HTTP checks for this device family.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: ssh-apc-ups-nmc2-default-creds
+protocol: ssh
+kind: native
+module: checks.ssh.native.ssh_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "American Power Conversion"
+params:
+  credentials:
+    - ["apc", "apc"]
+    - ["device", "apc"]
+detection_hints:
+  transport: tcp
+  app_protocol: ssh
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "No narrow wire-level signature is possible for this check — unlike FTP/Telnet, SSH encrypts the session immediately after key exchange, so the specific username/password pair this scanner sends is never visible as a plaintext byte pattern on the wire. Honest absence: this is the first SSH check in this project, and the constraint is structural (the protocol itself), not a sourcing gap."
+    patterns: []
+  broad:
+    description: "Repeated SSH authentication attempts against this device family from a single source in a short window — the vulnerability class (a credential-guessing pass), not a specific guessed value, since SSH's encryption prevents matching the actual username/password on the wire"
+    patterns:
+      - context: request
+        regex: "SSH-2\\.0-"
+references:
+  - "Schneider Electric FAQ000242942, \"How do I update my Smart-UPS firmware using the command line interface of my Network Management Card?\" (user-supplied)"
+  - "https://iportal.se.com/Contents/docs/UPS-PMAR-9LLJMN_R0_EN.PDF"
+  - "UPS-PMAR-9LLJMN_R4_EN.pdf, p.12, \"Types of user accounts\" (user-supplied)"
+description: >
+  APC (American Power Conversion) UPS Network Management Card 2 (AP9630, AP9631) ships with
+  factory-default SSH logins for its 2 CLI-capable default account roles — Administrator
+  (apc:apc) and Device User (device:apc) — the same account system used by the sibling FTP,
+  Telnet, and (pending) Web UI services on this device. The Read-Only role (readonly:apc) is
+  documented as UI-only and is deliberately not tested here. No CVE, documented factory-default
+  behavior confirmed via a real Schneider support-article worked SSH login transcript.

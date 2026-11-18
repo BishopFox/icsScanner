@@ -1,0 +1,34 @@
+# Candidate stub — default-credentials sweep, Phase 15. NOT executable (no `kind`). Consolidates
+# 6 SCADAPASS rows sharing the same blocking reason: a real, sourced credential but NO port or
+# protocol given anywhere checked (source row and/or a follow-up search) — same standard already
+# applied to Phase 9's Yokogawa DeltaV-adjacent case and Phase 14's SAMSON TROVIS 5590, i.e. an
+# implied surface ("Web Interface" in a product/blog title, "SCADA" as a product-type label)
+# isn't treated as a confirmed port.
+#
+# - Argus Messenger (ArgusAdmin:masterkey) and Argus Address Manager (argus:argus) — citing a
+#   dedicated Darius Freamon post, but no port given; "Messenger"/"Address Manager Software"
+#   reads more like enterprise IT paging/directory software than ICS/OT, worth confirming the
+#   product's actual nature before pursuing further.
+# - Carlo Gavazzi PowerSoft (admin:admin, user:user) — "modular software," no port.
+# - NOVUS AUTOMATION SuperView (superview:superview) — "SCADA" software, no port.
+# - NOVUS Automation AirGate-3G (admin:admin) — "Dual SIM Industrial Cellular VPN Router," no
+#   port given despite clearly being a network device — likely just a data-omission, worth a
+#   dedicated follow-up search specifically for this one.
+# - Ouman EH-net server (admin:admin) — "HMI Software," no port.
+# - Stulz WIB 8000 (ganymed/kallisto/europa, 3 privilege tiers) — sourced from a dedicated
+#   Freamon post titled "...Web Interface Board – Multiple Vulnerabilities," strongly implying
+#   HTTP, but a follow-up search explicitly could not confirm a port number anywhere.
+
+check_id: candidate-phase15-no-port-confirmed-family
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_only: true
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+description: >
+  Argus Messenger/Address Manager, Carlo Gavazzi PowerSoft, NOVUS SuperView/AirGate-3G, Ouman
+  EH-net, Stulz WIB 8000 — all have a real sourced credential but no confirmed port/protocol.
+  AirGate-3G and WIB 8000 are the strongest individual leads (clearly network devices/services)
+  and worth a dedicated follow-up search each before the rest.

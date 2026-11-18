@@ -1,0 +1,51 @@
+# Sourced 2026-08-17 from Schneider Electric's own official support FAQ FA212757 ("How to
+# upgrade firmware on an EGX100/200/300/400, PM8ECC or ECC21 via the command prompt using FTP" —
+# currently maintained, last modified 4/11/2025), read directly, including a real captured FTP
+# session screenshot: "User (IP:(none)): Administrator" / "331 User Administrator OK, send
+# password" / password "Gateway" (case-sensitive) / "230 Password OK." Uses the standard
+# checks/ftp/native/ftp_default_creds.py executor — Administrator is a real, non-empty username,
+# unlike the EGX200/400/ECC21 blank-username mechanism, so stdlib ftplib.login() works fine here.
+#
+# Real cross-service corroboration: this is the SAME Administrator/Gateway credential pair
+# already shipped for EGX100's HTTP web-UI login
+# (checks/http/schneider-powerlogic-egx100-default-creds.yaml, sourced independently from
+# Schneider's FAQ FA299649 and the EGX100 User Guide) — same admin account reused across both
+# services on this device, not a coincidence.
+
+check_id: ftp-schneider-powerlogic-egx100-default-creds
+protocol: ftp
+kind: native
+module: checks.ftp.native.ftp_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  credentials:
+    - ["Administrator", "Gateway"]
+  default_port: 21
+detection_hints:
+  transport: tcp
+  app_protocol: ftp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own FTP USER/PASS login attempt(s) using the documented factory credential(s) (Administrator:Gateway)"
+    patterns:
+      - context: request
+        bytes: "USER Administrator\r\nPASS Gateway\r\n"
+  broad:
+    description: "Any FTP USER/PASS login attempt on this device — the vulnerability class (default/weak credentials on this product's FTP server), not the specific guessed credential"
+    patterns:
+      - context: request
+        regex: "^USER \\S*\\r\\nPASS \\S*\\r\\n"
+references:
+  - "https://www.se.com/us/en/faqs/FA212757/"
+description: >
+  Schneider Electric PowerLogic Ethernet Gateway EGX100 ships with FTP server access (port 21)
+  via factory-default credential Administrator/Gateway — confirmed directly from Schneider's own
+  official support FAQ FA212757, including a real captured FTP session. Same credential pair
+  already confirmed for this model's HTTP web-UI login, from an independent source. No CVE —
+  documented factory-default behavior, not a disclosed vulnerability.

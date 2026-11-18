@@ -1,0 +1,45 @@
+# Default-credentials sweep, Phase 14 (TAC AB, Contemporary Control Systems, Electro
+# Industries/GaugeTech, LOYTEC, ProSoft Technology, Tecomat — continuing the SCADAPASS pass).
+# Uses the generic checks/telnet/native/telnet_default_creds.py executor.
+#
+# Covers the TAC Xenta building-automation controller family (Xenta 500/700/911/913/511/527) —
+# TAC AB was later absorbed into Schneider Electric's building-automation line, but these
+# specific controllers ship/shipped under the TAC brand and OUI.
+#
+# Sources (2 independent): SCADAPASS, citing an official TAC Xenta 911/511 manual PDF;
+# corroborated by an independent WebSearch citing the TAC Xenta 511 Handbook (ManualsLib-hosted)
+# confirming root:root specifically for Telnet access.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: telnet-tac-xenta-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "TAC AB"
+params:
+  credentials:
+    - ["root", "root"]
+  default_port: 23
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet username+password login attempt(s) using the documented factory credential(s) (root:root)"
+    patterns:
+      - context: request
+        bytes: "root\r\nroot\r\n"
+  broad:
+    description: "Any Telnet login attempt (a username followed by a password, both CRLF-terminated) on this device — the vulnerability class (default/weak credentials on this product's Telnet server), not the specific guessed credential"
+    patterns: []  # generic "any-line" pattern removed 2026-11-11 (real-traffic validation); no device-specific signature beyond the narrow probe/credential bytes. See lab-notes/zeek-detection-validation-pnnl-2026-11.md
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.manualslib.com/manual/1340206/T-A-C-Tac-Xenta-511.html"
+description: "TAC Xenta building-automation controllers (500/700/911/913/511/527) ship with a factory-default root/root Telnet login — no CVE, documented factory-default behavior."

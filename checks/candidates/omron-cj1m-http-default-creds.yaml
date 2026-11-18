@@ -1,0 +1,59 @@
+# Candidate stub — default-credentials sweep. NOT executable (no `kind`). FTP half RESOLVED and
+# BLOCKER TAG (2026-09-22 triage pass): live-hardware-gap -- The form-POST executor now exists; only the exact `name=` attribute for the Login Password field is unconfirmed -- the manual shows the field's label but not its underlying HTML; needs a live device or fuller manual.
+# PROMOTED 2026-08-19 to checks/ftp/omron-cj1m-ftp-default-creds.yaml — this stub now covers the
+# HTTP half only.
+#
+# RESOLVED 2026-08-19: user supplied Omron's own official "CJ-Series CPU Units with Ethernet
+# Functions Operation Manual" (W441), read directly via pdftotext. Original ambiguity (whether
+# "ETHERNET"/"CONFIDENTIAL" were usernames, passwords, or access codes) is fully resolved:
+#   - FTP: Login = None (blank username), Password = "CONFIDENTIAL", port 21 — PROMOTED, see
+#     checks/ftp/omron-cj1m-ftp-default-creds.yaml.
+#   - HTTP: password-only "ETHERNET" (all uppercase), port 80, default IP 192.168.250.1. The
+#     manual's own "Using the Web Function" walkthrough (§2-3) shows the real mechanism: browse
+#     to http://<ip>/0, navigate Settings > 1. IP address and Protocols > System, which displays
+#     a "Login Password" field + "Login" Button — an HTML FORM login, NOT HTTP Basic Auth (no
+#     browser-native credential popup, no username field at all — password-only, matching the
+#     FTP side's password-only shape but a completely different protocol mechanism).
+#
+# NOT BUILT (HTTP half): this was the THIRD candidate this session to hit the identical
+# missing-capability gap, after MHI SC-WBGW256 (mhi-sc-wbgw256-web-default-creds.yaml) and
+# Yaskawa V1000 (yaskawa-v1000-ethernetip-config-tab-password.yaml).
+#
+# EXECUTOR NOW BUILT 2026-08-19 (user: "plan and build the post http executor"):
+# checks/http/native/form_post_default_creds.py — supports both username+password and
+# password-only forms, tested against a real http.server mock (tests/smoke_test_form_post_default_creds.py,
+# 15 assertions). This candidate's remaining blocker is now PURELY the exact HTML form field
+# name for the "Login Password" field on the CJ1M's System settings page — the manual's own
+# walkthrough shows the FIELD exists and its label, but not its underlying `name=` attribute.
+# Once found (a live device or a fuller manual read), this is a
+# `kind: native, module: checks.http.native.form_post_default_creds` check with
+# `password_only: true`, `path: "/0"` (or the actual settings-page POST target, not yet
+# confirmed to be the same as the browse-to URL).
+
+check_id: candidate-omron-cj1m-http-default-creds
+protocol: http
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Omron Corporation"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "W441 — Omron's own official CJ-Series CPU Units with Ethernet Functions Operation Manual, user-supplied local copy"
+description: >
+  Omron CJ1M CPU Units with Ethernet Functions ship with a password-only HTTP web-function login
+  ("ETHERNET", uppercase, port 80, default IP 192.168.250.1) — confirmed directly from Omron's
+  own Operation Manual (W441), including the full click-through login walkthrough. The form-POST
+  HTTP executor now exists (checks/http/native/form_post_default_creds.py) — not buildable yet
+  only because the exact form field name for this device's Login Password field is still
+  unconfirmed.
+
+not_automatable_reference:
+  credential: "(password-only) ETHERNET  [HTTP half; FTP half shipped separately]"
+  source: "Omron CJ-Series CPU Units with Ethernet Functions Operation Manual (W441), sec 2-3"
+  category: "form-login-fields-unconfirmed"
+  reason: >-
+    The CJ1M web System-settings page uses a password-only HTML form login (Login Password field +
+    Login button), not HTTP Basic Auth. The form-POST executor exists; the one remaining unknown is
+    the field's underlying HTML name= attribute (the manual shows the field's label, not its
+    markup) — needs a live device or fuller manual. The FTP half (blank user / CONFIDENTIAL) was
+    automatable and shipped as checks/ftp/omron-cj1m-ftp-default-creds.yaml.

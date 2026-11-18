@@ -1,0 +1,61 @@
+# Candidate stub — 2026-09-22. Vertiv/Liebert GXT5/PSI5 UPS ingest batch. Confirmed no prior
+# candidate/check for "GXT5" existed before writing this file.
+#
+# THE FINDING: `GXT5LI-1-3k-LVI-2025-June.zip`'s bundled "GXT5 Lithium 1-3K LV-I Model Firmware
+# Update Procedure_RevB.pdf" (read directly via `pdftotext`, not paraphrased) states, VERBATIM,
+# two separate factory defaults:
+#   1. RS-232 serial CLI access: "The factory defaults are: Username: user (case-sensitive),
+#      Password: 123456 (case-sensitive)."
+#   2. Front-panel LCD Settings menu PIN: "The default password is 111111."
+# Both are vendor-documented, publicly-stated defaults -- not discovered by cracking a hash or
+# reverse-engineering a binary. BOTH require physical access: the CLI explicitly over a direct
+# RS-232 serial connection (not network), and the LCD PIN via the unit's own front panel -- NEITHER
+# is remotely/network exploitable.
+#
+# ADJACENT, NOT INDEPENDENTLY CONFIRMED: the same document notes the UPS's optional RDU101 network
+# card requires "the administrator username and password" for its web interface, but does NOT
+# state a default value in this specific document. `rdu101-image-1.9.3.0_00003.fl` (the RDU101's
+# own firmware, present elsewhere in this same ingest batch) was checked separately this session
+# and found genuinely resistant to extraction (no filesystem signature found despite a real,
+# sustained effort) -- so whether the RDU101 web interface has its own default credential remains
+# an OPEN QUESTION, not confirmed either way. Do not assume it shares the CLI/LCD defaults above.
+#
+# SAME SHAPE AS EXISTING CANDIDATES: architecturally identical to
+# `candidates/avocent-alterpath-pm-loopback-password-reset-backdoor.yaml` and
+# `candidates/avocent-dtx-ecms-transmitter-console-default-password.yaml` -- vendor-documented,
+# physical-access-only defaults. Filed using the same `protocol: local-only` +
+# `physical_access_reference` pattern.
+#
+# SEVERITY: CVSS NOT SCORED, matching the established convention for this candidate shape -- a
+# physical-access-only finding is better represented as Field Reference data than a network-facing
+# CVSS score. No CVE exists or is expected -- vendor-documented intended functionality (a serial
+# CLI recovery credential and a front-panel settings PIN), not an undisclosed vulnerability.
+#
+# NOT BUILDABLE AS A LIVE NETWORK CHECK -- no network-observable signal exists for either
+# physical mechanism. disclosure_status: public, since this is already vendor-published
+# documentation, same reasoning as the sibling physical-access candidates.
+
+check_id: candidate-liebert-gxt5-lithium-factory-default-cli-and-lcd-pin
+protocol: local-only
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Vertiv / Liebert"
+  product: "GXT5 Lithium 1-3K LV-I UPS"
+references:
+  - "User-supplied ingest: GXT5LI-1-3k-LVI-2025-June.zip -- bundled 'GXT5 Lithium 1-3K LV-I Model Firmware Update Procedure_RevB.pdf' read directly via pdftotext, both default values quoted verbatim"
+physical_access_reference:
+  summary: "Vertiv's Liebert GXT5 Lithium 1-3K LV-I UPS ships two vendor-documented physical-access-only defaults: an RS-232 serial CLI login (user/123456) and a front-panel LCD Settings-menu PIN (111111)."
+  steps:
+    - "For CLI access: connect via the unit's RS-232 serial port with a terminal program at the documented settings."
+    - "Log in with username 'user' and password '123456' (both case-sensitive)."
+    - "For the front-panel LCD Settings menu: at the unit's own display/keypad, enter the default PIN '111111' when prompted."
+description: >
+  Vertiv's Liebert GXT5 Lithium 1-3K LV-I UPS ships two vendor-documented, physical-access-only
+  defaults -- an RS-232 serial CLI login (user/123456) and a front-panel LCD Settings-menu PIN
+  (111111) -- confirmed directly from the vendor's own firmware-update procedure document, not
+  inferred or cracked. Neither is remotely exploitable. An adjacent question (whether the optional
+  RDU101 network card's web interface has its own default) is explicitly left open, not assumed.
+  Filed as protocol: local-only with a physical_access_reference entry, matching this project's
+  existing local-panel-passcode pattern. No CVE exists or is expected -- vendor-documented intended
+  functionality, hence disclosure_status:public.

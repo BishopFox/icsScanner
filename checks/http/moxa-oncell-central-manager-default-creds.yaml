@@ -1,0 +1,54 @@
+# Default-credentials sweep, Phase 10. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Sources (2 independent): SCADAPASS, citing the official Moxa OnCell Central Manager user
+# manual (moxa.ru mirror); corroborated by an independent WebSearch confirming admin:admin and
+# the port-8080 web console URL pattern (host:8080), plus a dedicated defaultpassword.net entry
+# for this exact product.
+#
+# No CVE — documented factory-default behavior. Note: Moxa's own manual reportedly prompts a
+# forced password change on first login (per the corroborating search) — this check will only
+# ever confirm against an out-of-box or reset device that hasn't completed that first-login flow.
+#
+# UPDATE 2026-09-18 (10th Moxa batch): user-supplied `moxa-oncell-central-manager-manual-v1.4.pdf`
+# fetched/read directly via pdftotext, confirming verbatim: "Default user name and password:
+# Username: admin / Password: admin... You will be prompted to change the default password after
+# your first login." — this is now a DIRECT primary-source read (not a secondary search summary
+# or an unread cited URL), confirming both the credential and the forced-first-login-change
+# caveat already noted above. Confidence raised to high.
+
+check_id: http-moxa-oncell-central-manager-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Moxa Technologies"
+params:
+  path: "/"
+  default_port: 8080
+  credentials:
+    - ["admin", "admin"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (admin:admin)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46YWRtaW4="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.moxa.com/getmedia/223e84f2-13df-4c09-942b-2714ae908757/moxa-oncell-central-manager-manual-v1.2.pdf"
+  - "moxa-oncell-central-manager-manual-v1.4.pdf, user-supplied, fetched/read directly via pdftotext"
+description: "Moxa OnCell Central Manager (cellular management software) ships with a factory-default admin/admin web-UI login on port 8080 — no CVE, documented factory-default behavior."

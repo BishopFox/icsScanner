@@ -1,0 +1,74 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ FAQ000191073 ("What is the
+# firmware password to be used on EcoStruxure Automation Device Maintenance to update Modicon
+# M340/M580 modules?") directly.
+#
+# The FAQ's own screenshot of EcoStruxure Automation Device Maintenance (EADM) shows a Modicon
+# M580 CPU's "Service Endpoint" listed as "FTP" — confirming the firmware-update mechanism is a
+# real FTP service on the module itself, not just an abstraction inside the PC tool.
+#
+# SCOPE BROADENED 2026-08-31 — check_id kept as-is to avoid breaking existing cross-references
+# (detection-gen, memory, lab-notes), but this is CONFIRMED GENERAL, not V3.99-migration-specific
+# as originally scoped. User supplied Schneider's own official "Modicon M580 Firmware
+# Installation Guide" (EIO0000004992-02) directly — read in full. The same "Device User Name:
+# loader" credential appears FOUR separate times across genuinely different procedures in this
+# guide, not just the V3.99 migration section:
+#   - "Firmware Update Between Versions Superior/Equal to v4.x" (a general, non-migration-
+#     specific procedure): "Device User Name: loader" / "Device password: The Firmware Password
+#     configured in your EcoStruxure Control Expert application" — confirming "loader" is the
+#     username for ordinary v4.x+ firmware updates, not just the V3.99 migration path.
+#   - A separate general procedure states explicitly: "Device password: your application
+#     password, if set.; otherwise, the default password: fwdownload" — directly confirming
+#     loader:fwdownload as the FACTORY DEFAULT for the general case once no application password
+#     has been configured, resolving the original candidate's exact blocker (the missing
+#     username for the general M340/M580 case, tracked in
+#     checks/candidates/schneider-modicon-m340-m580-firmware-password-general.yaml, now deleted).
+#   - The V3.99-migration-specific section (originally the only source for this check) is ALSO
+#     present in this same guide, unchanged: "Device User Name: loader" / "Device password:
+#     fwdownload", explicitly noted there as "used only for this Modicon M580 migration firmware
+#     V3.99" — i.e. this guide itself distinguishes the migration-specific case from the general
+#     case, and confirms BOTH use the identical loader:fwdownload pair as their factory default.
+#   - BONUS FINDING, not built here: the same guide states "If the controller has never been
+#     configured, select Authentication Type anonymous" — meaning a factory-fresh, never-
+#     configured M580 may accept plain anonymous FTP for this same service, an even more
+#     permissive default than loader:fwdownload. Not pursued as a separate check in this pass —
+#     flagged for a future session (anonymous FTP is a different, if related, finding).
+#
+# M340 coverage: confirmed only via the original FAQ (which names M340/M580 together); this
+# specific Installation Guide is M580-only and does not independently corroborate M340. Kept as
+# a combined finding per the original FAQ's own scope, not narrowed to M580-only.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: ftp-schneider-modicon-m580-migration-firmware-default-creds
+protocol: ftp
+kind: native
+module: checks.ftp.native.ftp_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  credentials:
+    - ["loader", "fwdownload"]
+detection_hints:
+  transport: tcp
+  app_protocol: ftp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own FTP USER/PASS attempt using the documented factory credential (loader:fwdownload) for Modicon M340/M580 firmware-update services (general case and the V3.99 migration case, both confirmed to share this credential)"
+    patterns:
+      - context: request
+        bytes: "USER loader\\r\\nPASS fwdownload\\r\\n"
+  broad:
+    description: "Any FTP USER/PASS pair using 'loader' as the username against this device family — the vulnerability class (a factory-default firmware-update credential), not the specific guessed password"
+    patterns:
+      - context: request
+        regex: "USER loader\\r\\nPASS .*\\r\\n"
+references:
+  - "Schneider Electric FAQ FAQ000191073, \"What is the firmware password to be used on EcoStruxure Automation Device Maintenance to update Modicon M340/M580 modules?\" (user-supplied)"
+  - "Schneider Electric FAQ, \"[BMENOC03x1] What is the default firmware password of BMENOC03x1?\" (user-supplied, corroborates the fwdownload password value for a third module family)"
+  - "EIO0000004992-02, \"Modicon M580 Firmware Installation Guide\", Schneider Electric, user-supplied — confirms loader:fwdownload for both the general firmware-update case and the V3.99 migration case"
+description: "Schneider Electric Modicon M340/M580 PLC CPUs and modules (including BMENOC03x1) expose an FTP-based firmware-update service with a factory-default login of loader:fwdownload — confirmed for both general firmware updates and the V3.99 migration-specific case via Schneider's own FAQs and official Installation Guide. No CVE, documented factory-default behavior."

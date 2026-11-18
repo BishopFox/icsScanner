@@ -1,0 +1,72 @@
+# Built check 2026-10-06 (XGT research/build pass), promoted from
+# candidates/CVE-2023-22803-CVE-2023-22804-ls-electric-xbc-dn32u-missing-authentication.yaml.
+# Confirms the MISSING-AUTHENTICATION class behind CVE-2023-22803 (change operation mode) and
+# CVE-2023-22804 (create user) — CISA ICSA-23-040-02, CWE-306 — by sending a single BENIGN,
+# READ-ONLY XGT dedicated-protocol read (one word at %MW0) and treating a valid XGT read response as
+# proof the device processed an unauthenticated request. It NEVER sends the consequential create-user
+# / change-mode operations (so it is safe to fire unsupervised, same as the project's Modbus-read and
+# ENIP-identity probes). NOT a live-exploit of the specific CVEs — it confirms the shared root cause.
+#
+# WIRE FORMAT cross-verified WITHOUT a live device (multi-source, same rigor as the Schneider UMAS
+# check), and additionally corroborated device-side:
+#   - VENDOR SPEC: LS Electric "XGT FEnet I/F Module User's Manual" V2.30 (dedicated protocol, TCP 2004).
+#   - golanglsplc (github song9063/golanglsplc): Go frame builder, header "LSIS-XGT".
+#   - ciaoly/PLC-XGT-protocol-for-Wireshark (xgb.lua): Lua dissector (parser side); XGT is also in
+#     mainline Wireshark.
+#   - DEVICE-SIDE: the XBL-EMTA FEnet module firmware (LS_XBL-EMTA_Firmware_V260,
+#     XBL_EMTA_V2.60_20241202.bin, user-supplied ingest) embeds the literal "LSIS-XGT" company-ID and
+#     a "This PLC is Dedicated PLC" handler, with NO auth/login/protect strings in the dedicated-
+#     protocol path — corroborating both the frame and the missing-authentication root cause.
+# Frame (header numeric fields LITTLE-ENDIAN): "LSIS-XGT"+0x0000 (10B id) | PLC-info(2) | CPU(1) |
+# source 0x33 req / 0x11 resp | invoke(2) | app-len(2) | position(1) | BCC(1); app read: cmd 0x0054
+# (resp 0x0055) | data-type 0x0002 word | reserved | var-count 1 | name-len(2) + ASCII name. Response
+# error-status word 0x0000 = success. Built against checks/xgt/native/xgt_unauth_read.py (smoke test
+# locks the request vector + drives a mock XGT server).
+check_id: ls-electric-xgt-dedicated-protocol-unauthenticated-read
+protocol: xgt
+kind: native
+module: checks.xgt.native.xgt_unauth_read
+cve_id: CVE-2023-22804
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H (9.1 CRITICAL per CISA ICSA-23-040-02 for CVE-2023-22804; THIS check confirms the shared CWE-306 missing-authentication condition via a safe read, not the create-user exploit)"
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  # Gated by the XGT protocol-identity probe (core/fingerprint.py probe_xgt_identity): the scanner
+  # confirms an XGT dedicated-protocol stack (LSIS-XGT response, dir byte 0x11, echoed invoke) on the
+  # port before this check runs. Target: LS Electric XBC-DN32U + XGT/XGB-family PLCs on TCP 2004.
+  protocol_probe: xgt_identity
+params:
+  default_port: 2004
+  variable: "%MW0"
+  timeout: 5.0
+references:
+  - "CISA ICSA-23-040-02 (CVE-2023-22803 missing-auth operation-mode change, CVE-2023-22804 missing-auth create-user, CWE-306) — LS ELECTRIC XBC-DN32U."
+  - "LS Electric 'XGT FEnet I/F Module User's Manual' V2.30 — XGT dedicated protocol, TCP 2004, LSIS-XGT frame."
+  - "golanglsplc (github.com/song9063/golanglsplc, lsplc.go) + ciaoly/PLC-XGT-protocol-for-Wireshark (xgb.lua) — two independent implementations cross-verifying the read-request/response frame (little-endian numeric fields, command 0x0054/0x0055)."
+  - "Device-side: LS_XBL-EMTA_Firmware_V260 (XBL_EMTA_V2.60_20241202.bin, user-supplied ingest) embeds the literal 'LSIS-XGT' company-ID; no auth strings in the dedicated-protocol path."
+detection_hints:
+  transport: tcp
+  app_protocol: xgt
+  mitre_attack_id: T0855
+  analytic_story: "ICS Unauthorized Command"
+  narrow:
+    description: "This scanner's own XGT dedicated-protocol read-single-word request for %MW0 (application bytes: command 0x0054 word read, var-count 1, name '%MW0')."
+    patterns:
+      - context: request
+        bytes: "\\x54\\x00\\x02\\x00\\x00\\x00\\x01\\x00\\x04\\x00\\x25\\x4d\\x57\\x30"
+  broad:
+    description: "Any LS Electric XGT dedicated-protocol frame on TCP 2004 — the 10-byte 'LSIS-XGT' company-ID header leads every request/response in cleartext (the protocol is unauthenticated and unencrypted)."
+    patterns:
+      - context: request
+        bytes: "\\x4c\\x53\\x49\\x53\\x2d\\x58\\x47\\x54"
+description: >
+  LS Electric XBC-DN32U (and XGT/XGB-family PLCs exposing the FEnet dedicated protocol on TCP 2004)
+  enforce NO authentication on the XGT dedicated protocol (CWE-306), the root cause of CVE-2023-22803
+  (unauthenticated operation-mode change) and CVE-2023-22804 (unauthenticated create-user; CVSS 9.1).
+  This check sends a single benign READ-ONLY XGT read for one word at %MW0 and confirms the device
+  answered an unauthenticated request (valid LSIS-XGT read response) — demonstrating the missing-
+  authentication condition without performing the consequential create-user / mode-change operations.
+  The wire format is cross-verified across the vendor FEnet manual V2.30, two independent open-source
+  implementations, and the XBL-EMTA FEnet firmware itself. Built against
+  checks/xgt/native/xgt_unauth_read.py.

@@ -1,0 +1,51 @@
+# Default-credentials sweep, Phase 9 (Mitsubishi/ABB/Omron/Yokogawa/Hirschmann/Wago/Tridium/
+# HollySys — new vendors surfaced by the SCADAPASS cross-reference, no prior phase). Uses the
+# generic checks/http/native/basic_auth_default_creds.py executor.
+#
+# Sources (2 independent): SCADAPASS lists user:public / admin:private across MULTIPLE
+# Hirschmann product families (RS20/RS30/MICE over HTTP, MACH family, OCTOPUS/RSP over Telnet —
+# see the sibling checks/telnet/ and checks/http/hirschmann-eagle-20-default-creds.yaml checks),
+# each citing an official Hirschmann quick-start/install guide PDF; corroborated by an
+# independent WebSearch converging on admin:private specifically (with "public"/"private"
+# glossed as the read-only/read-write password tier names, matching SCADAPASS's own framing).
+# This exact credential scheme recurring across so many product lines within one vendor is
+# itself corroborating — a vendor-wide convention, not a one-off device quirk.
+#
+# Sibling checks: checks/telnet/hirschmann-switch-router-default-creds.yaml,
+# checks/http/hirschmann-eagle-20-default-creds.yaml (HTTPS, different port/product).
+# No CVE — documented factory-default behavior.
+
+check_id: http-hirschmann-switch-router-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Hirschmann Automation"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "private"]
+    - ["user", "public"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (admin:private, user:public)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic (YWRtaW46cHJpdmF0ZQ==|dXNlcjpwdWJsaWM=)"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.192-168-0-1login.org/router/hirschmann/rs20-rs30/13682/"
+description: "Hirschmann RS20/RS30/MICE and MACH-family industrial switches ship with a factory-default admin/private (full access) + user/public (read-only) web-UI login scheme, consistent across the product line — no CVE, documented factory-default behavior."

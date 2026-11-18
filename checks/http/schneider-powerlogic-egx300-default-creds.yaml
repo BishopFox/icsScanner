@@ -1,0 +1,45 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ FA299649 ("What are the
+# default User name and Password for the EGX, Link, and Com'X gateway devices?") directly.
+#
+# EGX300's webpage login (Administrator:Gateway) — a genuinely separate finding from the already-
+# built FTP check for the same product (checks/ftp/schneider-powerlogic-egx300-ftp-default-creds.yaml),
+# which uses the SAME credential pair on a different service (real cross-service corroboration,
+# same pattern already seen for EGX400 and PM8ECC).
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention — EGX100
+# already ships this exact same Administrator:Gateway pair via basic_auth_default_creds.py.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-powerlogic-egx300-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["Administrator", "Gateway"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory credential (Administrator:Gateway) for the EGX300 gateway webpage"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic QWRtaW5pc3RyYXRvcjpHYXRld2F5"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ FA299649, \"What are the default User name and Password for the EGX, Link, and Com'X gateway devices?\" (user-supplied)"
+description: "Schneider Electric EGX300 Ethernet gateway ships with a factory-default webpage login of Administrator:Gateway — the same credential pair already confirmed for this device's FTP service (checks/ftp/schneider-powerlogic-egx300-ftp-default-creds.yaml). No CVE, documented factory-default behavior per Schneider's own FAQ."

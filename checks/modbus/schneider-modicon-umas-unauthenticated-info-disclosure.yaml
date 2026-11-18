@@ -1,0 +1,62 @@
+# Built check 2026-10-06 (Schneider sweep follow-up, lab-notes/secondary-firmware-sourcing-register.md).
+# Complements checks/modbus/schneider-m221-umas-reservation-no-auth.yaml: that one tests the no-auth
+# RESERVATION (which newer M340/M580/Quantum GATE with a signed SHA256 hash, so it does NOT apply to
+# them); THIS one tests the UMAS READ_ID (fn 0x02 "Get PLC info"), which stays UNAUTHENTICATED across
+# the whole Modicon UMAS line -- engineering tools / modicon_exploit.py / modicon-info.nse call it
+# before any reservation. So this covers M221/M251/M340/M580/Quantum alike.
+#
+# FINDING (CWE-306 missing authentication / CWE-200 info disclosure): a Modicon PLC answers an
+# unauthenticated UMAS READ_ID over Modbus/TCP fn 0x5A, disclosing PLC model / firmware / hardware id
+# / device+project name with no credential. READ-ONLY (no reservation, no write, no mode change),
+# safe to fire unsupervised (same discipline as the project's Modbus-read / SLMP / XGT probes).
+#
+# WIRE FORMAT cross-verified (no live PLC / no EcoStruxure installer needed; XGT/SLMP playbook):
+# Kaspersky ICS-CERT UMAS paper (2022) + kushfj/se-umas (se_umas_dissector.lua fn table: 0x02 = Get
+# PLC info) + 0xedh/schneider_plc_exploit (modicon_exploit.py: read_id=b"\x00\x02", get_idinfo()
+# parses model/FW/HW, called pre-auth) + Orange-Cyberdefense awesome-industrial-protocols umas.md /
+# Redpoint modicon-info.nse. Request = MBAP + 0x5A + 0x00 (pairing) + 0x02; response = MBAP + 0x5A +
+# 0xFE (success) + id data. Built against checks/modbus/native/modicon_umas_unauth_info.py (smoke test
+# locks the request vector + drives a mock UMAS server). Gated by the umas_identity protocol probe.
+check_id: schneider-modicon-umas-unauthenticated-info-disclosure
+protocol: modbus
+kind: native
+module: checks.modbus.native.modicon_umas_unauth_info
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N (7.5 HIGH) -- unauthenticated PLC identity/firmware/project info disclosure over UMAS; the same UMAS surface also exposes (separately authed on newer CPUs) reservation/write"
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  # Gated by the UMAS protocol-identity probe (core/fingerprint.py probe_umas_identity): the scanner
+  # confirms a Modicon UMAS stack (Modbus fn 0x5A response) on the port before this check runs.
+  # Target: Modicon M221/M251/M340/M580/Quantum (and UMAS-speaking comms modules), Modbus/TCP 502.
+  protocol_probe: umas_identity
+params:
+  default_port: 502
+  unit_id: 0x00
+  timeout: 5.0
+references:
+  - "Kaspersky ICS-CERT 'The secrets of Schneider Electric's UMAS protocol' (2022): UMAS over Modbus fn 0x5A; function 0x02 = Get PLC info (READ_ID), unauthenticated."
+  - "kushfj/se-umas (se_umas_dissector.lua function table) + 0xedh/schneider_plc_exploit (modicon_exploit.py: mbtcp_fnc=0x5A, read_id=b'\\x00\\x02', get_idinfo() parses model/FW/HW pre-auth) + Orange-Cyberdefense awesome-industrial-protocols umas.md + Redpoint modicon-info.nse -- cross-verification of the READ_ID request/response frame. Cloned into ."
+detection_hints:
+  transport: tcp
+  app_protocol: modbus
+  mitre_attack_id: T0888
+  analytic_story: "ICS Information Discovery"
+  narrow:
+    description: "This scanner's own UMAS READ_ID (Modbus fn 0x5A + pairing 0x00 + UMAS fn 0x02) -- the PDU bytes after the MBAP header."
+    patterns:
+      - context: request
+        bytes: "\\x5a\\x00\\x02"
+  broad:
+    description: "Any Modbus/TCP PDU carrying function code 0x5A (Schneider UMAS) -- the UMAS protocol in general (anchor to the Modbus PDU offset in the IDS to avoid 0x5A false hits)."
+    patterns: []  # generic "any-line" pattern removed 2026-11-11 (real-traffic validation); no device-specific signature beyond the narrow probe/credential bytes. See lab-notes/zeek-detection-validation-pnnl-2026-11.md
+description: >
+  Schneider Electric Modicon PLCs (M221/M251/M340/M580/Quantum and UMAS-speaking comms modules)
+  answer an UNAUTHENTICATED UMAS READ_ID (Modbus/TCP function 0x5A, UMAS function 0x02 "Get PLC info")
+  that discloses the PLC model, firmware version, hardware id, and device/project name with no
+  credential -- the pre-authentication info read that engineering tools and modicon-info.nse use.
+  Unlike the UMAS reservation (which newer M340/M580/Quantum gate with a signed SHA256 hash), READ_ID
+  is unauthenticated across the whole Modicon UMAS line (CWE-306 / CWE-200). This check sends one
+  benign READ_ID and confirms a UMAS success response (0x5A + 0xFE). CVSS 3.1 7.5 HIGH. Built against
+  checks/modbus/native/modicon_umas_unauth_info.py; wire format cross-verified across the Kaspersky
+  UMAS paper + OSS UMAS dissectors/exploit tooling.

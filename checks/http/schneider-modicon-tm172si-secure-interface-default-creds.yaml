@@ -1,0 +1,97 @@
+# PROMOTED 2026-09-14 from checks/candidates/schneider-modicon-tm172si-secure-interface-default-
+# creds.yaml, via this project's firmware-extraction methodology (01-METHODOLOGY-AND-CHECKLISTS.md,
+# "Extracting the vendor's own firmware/binary") — the TM172SI pilot for that methodology, run
+# after the original SCALANCE S615 pilot candidate hit a genuine encryption blocker (documented in
+# that candidate's own file) and the user chose to fall back to this device instead.
+#
+# Credential itself (admin:SE_SecureInterface) was already confirmed directly, twice, in
+# Schneider's own official "Modicon TM172SI Secure Interface User Guide" (EIO0000004649.03,
+# 02/2026) — see the candidate stub for that sourcing. What was missing was the actual wire
+# mechanism: the manual only showed a screenshot of a "Sign in" web form, which this project's
+# sourcing discipline correctly refused to guess a mechanism for (a rendered login screen doesn't
+# prove HTML form-POST vs. Basic Auth vs. a JSON REST call).
+#
+# RESOLVED by direct firmware inspection, not guessed: user supplied the official TM172SI firmware
+# update package (`m172si-v0.5.0_signed.raucb`, downloaded via se.com's own download center,
+# se.com/uk/en/download/document/Secure_Interface_TM172SIx/). The ".raucb" extension is a RAUC
+# (Robust Auto-Update Controller) bundle — its "signed" (not "crypt") format is a plain SquashFS
+# image plus a detached CMS signature appended for authenticity verification, NOT an encrypted
+# payload; unpacked cleanly with plain `unsquashfs`, no bypass of anything. Inside:
+# `manifest.raucm` (plaintext, confirms Vendor=Schneider-Electric;ProductCode=DI) and
+# `prod-image-rzn1d400-bestla.fitubi.img`, a raw UBI (flash) image containing a UBIFS volume with
+# an embedded rootfs SquashFS (`unblob` + `ubi_reader` for the UBI/UBIFS layer, then plain
+# `unsquashfs` again for the inner rootfs — no encryption anywhere in this chain). The rootfs's own
+# `/etc/nginx/sites-available/default_server` proxies `/api/` to a backend on 127.0.0.1:8080 behind
+# TLS (443) — confirming this is a REST API, not a CGI/PHP form handler.
+#
+# The exact mechanism is readable directly out of the real Angular frontend bundle shipped in that
+# same rootfs (`/var/www/webapp/html/en/main.320a91db26ab1049464d.js`, un-obfuscated enough to
+# read directly, not reverse-engineered by disassembly — this never needed radare2, matching this
+# project's own "grep first, disassemble only if needed" methodology note). The AuthService's
+# `login()` method, quoted verbatim from the extracted JS:
+#   login(re,Q){...const he=window.btoa(re+":"+Q);return this.http.get(`${apiURL}/user`,
+#   {headers:{Authorization:`Basic ${he}`}})...}
+# with `apiURL` itself defined elsewhere in the same bundle as the literal string `"/api/v1"`. This
+# is genuine, standard RFC 7617 HTTP Basic Auth against `GET /api/v1/user` over HTTPS — NOT the
+# custom HTML form this project's sourcing discipline had assumed from the manual's screenshot
+# alone (that assumption is now corrected, not confirmed, by direct evidence). This means the
+# existing generic checks/http/native/basic_auth_default_creds.py executor (built for exactly this
+# mechanism, already used by several other checks in this project) applies directly — no new
+# executor code needed.
+#
+# Risk tier: grepped the same frontend bundle for any lockout/attempt-counting language
+# ("lockout", "locked", "attempts", "too many", "blocked") — none found. The only rate control
+# found anywhere in the rootfs is a generic nginx `limit_req_zone` (10 req/s, burst 50) applied to
+# ALL API traffic uniformly, not a failed-login-specific account lockout — a plain anti-flood
+# throttle, not the kind of per-credential lockout mechanism that pushed the SCALANCE S615
+# candidate to DESTRUCTIVE tier. Classified as the standard adverse "login" risk_reason other
+# default-credential checks in this project use, not destructive.
+#
+# NOT covered by this check: a separate FTP service exists on the same device (up to 3
+# configurable accounts, FTPS port 990) — the original candidate's own sourcing already noted the
+# manual describes HTTP and FTP as two SEPARATE account pools cleared independently on factory
+# reset, so FTP is not assumed to share this credential. Firmware/hygiene note: neither the .raucb
+# bundle nor the extracted rootfs tree is committed to this repo — only this derived finding and
+# its citation, per the methodology's own hygiene rule.
+
+check_id: http-schneider-modicon-tm172si-secure-interface-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no lockout mechanism found in the extracted firmware
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+  product: "TM172SI"
+params:
+  path: "/api/v1/user"
+  https: true
+  credentials:
+    - ["admin", "SE_SecureInterface"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory REST-API credential (admin:SE_SecureInterface) against GET /api/v1/user"
+    patterns:
+      - context: request
+        regex: "GET /api/v1/user HTTP/1\\.[01]\\r\\n[^\\r\\n]*\\r\\nAuthorization: Basic YWRtaW46U0VfU2VjdXJlSW50ZXJmYWNl"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's /api/v1/user endpoint — the vulnerability class (factory-default credentials on this product), not the specific guessed value (this device's web UI uses HTTPS — these bytes are only visible on the wire if TLS is terminated/inspected at the monitoring point, not to a passive plaintext capture)"
+    patterns:
+      - context: request
+        regex: "GET /api/v1/user HTTP/1\\.[01]\\r\\n[^\\r\\n]*\\r\\nAuthorization: Basic"
+references:
+  - "EIO0000004649.03, \"Modicon TM172SI Secure Interface User Guide\", Schneider Electric, 02/2026, user-supplied"
+  - "m172si-v0.5.0_signed.raucb — official TM172SI firmware update package, se.com/uk/en/download/document/Secure_Interface_TM172SIx/, user-supplied, extracted and inspected directly (RAUC bundle -> UBI/UBIFS -> SquashFS rootfs -> Angular frontend bundle source)"
+description: >
+  Schneider Electric Modicon TM172SI "Secure Interface" (an edge/IIoT gateway, distinct from the
+  M171/M172 HVAC controller range) ships with a factory-default REST API login of
+  admin:SE_SecureInterface — confirmed directly, twice, in Schneider's own current (Feb 2026) User
+  Guide, and confirmed by mechanism (standard HTTP Basic Auth against GET /api/v1/user over HTTPS)
+  via direct inspection of the vendor's own shipped firmware. A separate FTP service exists on the
+  same device but is not confirmed to share this credential.

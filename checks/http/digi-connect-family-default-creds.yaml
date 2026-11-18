@@ -1,0 +1,64 @@
+# Default-credentials sweep, Phase 12. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor. Covers the whole Digi Connect/
+# ConnectPort family per SCADAPASS's own multiple rows (all root:dbps, HTTP port 80, citing the
+# same official Digi PDF, 90000565_P1.pdf): Digi Connect SP/Wi-SP/ME/ME 4MB/Wi-ME/EM/Wi-EM, Digi
+# Connect ES 4/8 SB (with/without switch), ConnectPort TS 4x4/4x2/W/8/8 MEI/16, Digi Connect
+# WAN/WAN GPRS/GSM-R/VPN/IA/3G/3G IA/4G, DigiOne IAP Serial.
+#
+# Sources (2 independent, one being Digi's OWN support channel): SCADAPASS's citation of the
+# official Digi manual; corroborated by Digi's OWN technical support forum thread ("Digi Connect
+# ME web interface Default User and Password") and Digi's OWN current documentation site
+# (docs.digi.com) confirming root:dbps.
+#
+# IMPORTANT CAVEAT, stated honestly rather than omitted: per Digi's own "Digi Device Unique
+# Default Passwords" support page, MANY Digi devices ship with a UNIQUE per-unit password printed
+# on the device label rather than a universal default — "dbps" is specifically the FALLBACK used
+# when no unique label password applies (e.g., older units, or when the label is missing/
+# illegible). This is NOT the same situation as Omicron's per-device-serial-derived WiFi password
+# (Phase 6, ruled fully out of scope) — dbps is a real, universal, testable value in its own
+# right, just with a narrower real-world hit rate than most checks in this sweep. Shipped with
+# that caveat documented rather than silently overstating expected coverage.
+#
+# No CVE — documented factory-default/fallback behavior.
+#
+# KNOWN FINGERPRINT-GATE GAP (2026-08-15, same pattern as Phase 11's eWON check): a dedicated
+# search of the official IEEE OUI registry found NO entry for "Digi International" or any close
+# variant, despite Digi being a long-established networking vendor — this check's
+# `vendor: "Digi International"` precondition currently has no OUI table entry to match against
+# in core/fingerprint.py, so it loads and runs correctly but can't yet pass the fingerprint gate
+# against real hardware. No OUI was guessed to paper over this.
+
+check_id: http-digi-connect-family-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Digi International"
+params:
+  path: "/"
+  credentials:
+    - ["root", "dbps"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (root:dbps)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic cm9vdDpkYnBz"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://forums.digi.com/t/digi-connect-me-web-interface-default-user-and-password/4402"
+  - "https://www.digi.com/support/knowledge-base/unique-default-passwords"
+description: "Digi Connect/ConnectPort/DigiOne family devices fall back to a factory-default root/dbps web-UI login when no unique per-device label password applies — no CVE, documented (by Digi's own support site) factory-default/fallback behavior."

@@ -1,0 +1,38 @@
+# Default-credentials sweep, Phase 15. Telnet sibling of
+# checks/http/deif-awc500-default-creds.yaml — see that file for the full source trail,
+# including the note that Telnet access reportedly works even after the root password has been
+# changed via the web interface (per the source manual) — flagged there for future follow-up,
+# not re-litigated here.
+
+check_id: telnet-deif-awc500-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "DEIF A/S"
+params:
+  credentials:
+    - ["root", "deif7800"]
+    - ["default", "1234"]
+  default_port: 23
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet username+password login attempt(s) using the documented factory credential(s) (root:deif7800, default:1234)"
+    patterns:
+      - context: request
+        regex: "root\\r\\ndeif7800\\r\\n|default\\r\\n1234\\r\\n"
+  broad:
+    description: "Any Telnet login attempt (a username followed by a password, both CRLF-terminated) on this device — the vulnerability class (default/weak credentials on this product's Telnet server), not the specific guessed credential"
+    patterns: []  # generic "any-line" pattern removed 2026-11-11 (real-traffic validation); no device-specific signature beyond the narrow probe/credential bytes. See lab-notes/zeek-detection-validation-pnnl-2026-11.md
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://dariusfreamon.wordpress.com/2015/05/15/deif-wind-power-technology-awc-500-wind-turbine-multiple-default-accounts/"
+description: "DEIF AWC 500 Advanced Wind Turbine Controller ships with factory-default root/deif7800 (administrator) and default/1234 (user) Telnet logins — no CVE, documented factory-default behavior."

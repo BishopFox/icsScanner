@@ -1,0 +1,96 @@
+# Candidate stub — 2026-09-22. Red Lion/HMS Networks ingest batch (vendor firmware ingest
+# red-lion/). Confirmed no prior candidate/check for N-Tron/Red Lion switch CLI defaults existed
+# before writing this file (`grep -rli "ntron\|n-tron" checks/` returned nothing).
+#
+# THE FINDING, from Red Lion's/N-Tron's own official product manuals, read directly via
+# pdftotext, not paraphrased:
+#   - "308-9-16-17-n-series-user-guide.pdf" ("N-Tron Series 300 TX/FX Models User Guide",
+#     covering the 308FX2/309/316/317 industrial Ethernet switches): "Access using the CLI is
+#     password-protected... Note: The admin password is admin... Login: enter username 'admin'...
+#     Password: enter password 'admin'."
+#   - "500-series-product-manual.pdf" ("500 Series Industrial Ethernet Switches"): "Access using
+#     the CLI is password-protected... Note: The factory defaults admin password is admin."
+# Both manuals document the SAME default (username admin, password admin) for the same CLI
+# management mechanism, on two separate, separately-numbered product lines under the same
+# vendor -- filed as one candidate since the finding shape and evidence are identical, matching
+# this project's convention of bundling closely-related models under one candidate when the
+# underlying finding is uniform (e.g. the DA-660/DA-661/DA-660A Moxa candidate this session).
+#
+# ACCESS MECHANISM, confirmed physical/local-only, not network-reachable: both manuals describe
+# CLI access exclusively via a direct RS-232 serial connection at 9600 baud, 8 data bits, no
+# parity, 1 stop bit, no flow control ("Set COM Parameters to: 9600, 8, none, 1, none" / "COM
+# Parameters: 9600, 8, none, 1, none"). Neither manual mentions Telnet, SSH, a web server, HTTP,
+# or any other network-reachable management surface anywhere in the entire document (confirmed
+# by an exhaustive grep of both extracted texts for "telnet"/"web server"/"http"/"IP address" --
+# the only IP-address hits in either document are for an unrelated IGMP Query Source IP Address
+# feature on the 500-series, not a management interface). This is a materially different
+# reachability shape from the vendor's OTHER product line already covered in this project
+# (`checks/crimson/redlion-crimson-cve-2020-27285-unauth-read.yaml`, Crimson protocol over
+# TCP/789) -- these N-Tron-branded switches appear to be a simpler, non-Crimson product family
+# with no IP stack for management at all, not just a different default on the same network
+# surface. Filed as `protocol: local-only` with a `physical_access_reference` entry, matching
+# this project's established pattern for vendor-documented, physical-access-only defaults (e.g.
+# `candidates/liebert-gxt5-lithium-factory-default-cli-and-lcd-pin.yaml`,
+# `candidates/avocent-alterpath-pm-loopback-password-reset-backdoor.yaml`).
+#
+# ADDITIONAL CONTEXT, not itself part of this finding: the 500-series manual documents an
+# OPTIONAL user-defined password override (`upwd` command, 4-8 characters, firmware 8.09+) that
+# replaces the "admin" factory default going forward -- a real mitigation path exists, but the
+# out-of-box/unconfigured state is still the documented admin/admin default above. The N-Tron
+# 300-series manual's `restore` command resets back to this same factory default after a power
+# cycle -- noted for completeness (relevant to a field technician's recovery workflow, not a
+# vulnerability in itself).
+#
+# CROSS-BATCH CORROBORATION, not itself part of this finding: the same ingest batch's
+# "dspzr-product-manual.pdf" (Red Lion "Data Station Plus" datasheet) confirms this is the same
+# product family Pen Test Partners' own published research (already cited in the existing
+# Crimson candidate's references) analyzed for TCP:789 -- that datasheet advertises "BUILT-IN
+# WEBSERVER ALLOWS REMOTE VIEW OR CONTROL" as a DSPzR-specific feature, a genuinely different,
+# IP-reachable surface from the serial-only N-Tron switches this candidate covers. The datasheet
+# itself is pure marketing/spec content (922 lines, no operational/login detail) -- not itself a
+# source of any credential, just confirms the Data Station Plus product family and its web
+# server are real and distinct from the switches covered here. Not pursued further this pass
+# (no DSPzR firmware or operational manual was in this ingest batch to characterize its own web
+# server's default access, if any).
+#
+# SEVERITY: CVSS NOT SCORED, matching this project's established convention for a
+# physical-access-only finding -- better represented as Field Reference data than a network-
+# facing CVSS score. No CVE exists or is expected -- vendor-documented intended functionality (a
+# serial CLI factory-default credential with a documented override path), not an undisclosed
+# vulnerability.
+#
+# NOT BUILDABLE AS A LIVE NETWORK CHECK -- no network-observable signal exists for a serial-only
+# mechanism. disclosure_status: public, since this is already vendor-published documentation,
+# same reasoning as every other physical_access_reference candidate this session.
+
+check_id: candidate-redlion-ntron-300-500-series-switch-admin-admin-serial-cli-default
+protocol: local-only
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Red Lion Controls / N-Tron (HMS Networks)"
+  product: "N-Tron Series 300 TX/FX (308FX2/309/316/317) and 500 Series Industrial Ethernet Switches"
+references:
+  - "User-supplied ingest: 308-9-16-17-n-series-user-guide.pdf ('N-Tron Series 300 TX/FX Models User Guide'), read directly via pdftotext, 'Logging In (password protection)' section quoted verbatim"
+  - "User-supplied ingest: 500-series-product-manual.pdf ('500 Series Industrial Ethernet Switches'), read directly via pdftotext, 'Logging In (password protection)' section quoted verbatim"
+physical_access_reference:
+  summary: "Red Lion/N-Tron 300-series (308FX2/309/316/317) and 500-series industrial Ethernet switches ship a vendor-documented factory-default CLI login (admin/admin), reachable only via a direct RS-232 serial connection (9600 8N1) -- no network management interface (Telnet/SSH/web/SNMP) is documented for either product line."
+  steps:
+    - "Connect via the switch's RS-232 console port with a terminal program set to 9600 baud, 8 data bits, no parity, 1 stop bit, no flow control."
+    - "On a 308FX2, press <Escape> first to reach the Management Console Function; other models present the login prompt directly."
+    - "Log in with username 'admin' and password 'admin' (both case as documented)."
+    - "If a user-defined password has since been set via the 'upwd' command (500-series, firmware 8.09+), this factory default will have been overridden -- not assumed still valid on a configured unit."
+description: >
+  Red Lion/N-Tron 300-series (308FX2/309/316/317) and 500-series industrial Ethernet switches
+  ship a vendor-documented, physical-access-only factory-default CLI login (admin/admin) --
+  confirmed directly from both product lines' own official user manuals, not inferred or
+  cracked. Access is exclusively via a direct RS-232 serial console (9600 8N1); neither manual
+  documents any network-reachable management surface (no Telnet, SSH, web server, or SNMP
+  management found anywhere in either document). A different product in the same vendor
+  family, the Crimson-configured Data Station Plus (DSPZR), IS network-reachable and already has
+  separate coverage in this project (candidates/../checks/crimson/
+  redlion-crimson-cve-2020-27285-unauth-read.yaml, TCP/789) -- not the same finding, noted only
+  as cross-batch corroboration that the Data Station Plus product line is real. Filed as
+  protocol: local-only with a physical_access_reference entry, matching this project's existing
+  local-console-default pattern. No CVE exists or is expected -- vendor-documented intended
+  functionality, hence disclosure_status:public.

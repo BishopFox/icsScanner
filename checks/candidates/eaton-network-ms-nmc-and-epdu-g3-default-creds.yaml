@@ -1,0 +1,57 @@
+# Candidate stub — 2026-09-16. User-supplied ingest: Eaton knowledgehub PDF cache (see sibling
+# PXGX/PXGMS candidate for context). Confirmed no prior Eaton Network-MS/NMC/ePDU candidate/check
+# existed before this file. Two related NMC-family products recorded together since both are
+# reached the same way (RS232/serial terminal) in every source checked this pass.
+#
+# THE FINDINGS, confirmed via pdftotext from user-supplied PDFs:
+#
+#   "Network-MS (NMC) password reset.pdf": full serial-console procedure — RJ-45-to-serial cable
+#   into the NMC's Settings/Sensor port, 9600/8/1/none/none terminal settings, "Login as
+#   admin/admin," reset via serial menu, "Login to web interface using admin/admin. You may be
+#   forced to change the password depending upon NMC firmware." -- explicitly confirms the SAME
+#   admin/admin credential gates BOTH the serial console AND the web interface on this card.
+#
+#   "Reset MS card to factory defaults.pdf": a second, independent article for the same MS-card
+#   family, confirming "the default password and username on the terminal emulation will be
+#   'admin'" via the identical serial-console procedure.
+#
+#   "ePDU G3 How to reset the logon password for the Network Management Card(NMC).pdf": a
+#   DIFFERENT product (rack PDU, not UPS) sharing the "NMC" card branding, with its own explicit
+#   firmware-version-gated table: "early firmware (less than 4.01.0003) the default username admin
+#   was password admin. For (greater than 5.00.0001) any current firmware the default credential
+#   admin will use the SERIAL NUMBER as the password" -- a THIRD distinct derived-credential
+#   scheme in this same Eaton ingest batch (after PXGX/PXGMS's MAC-derivation and PX-EMD-G's
+#   partial-serial-number derivation recorded in the sibling candidate file) -- serial-number-as-
+#   password, not MAC-based. Also documents a 3-failed-attempts recovery flow: entering the ePDU's
+#   own serial number as a "Recovery Key" after 3 wrong passwords resets the password.
+#
+# NOT YET A REAL CHECK: the confirmed, primary access method described in every source this pass
+# is RS232 SERIAL CONSOLE, not a documented network protocol wire format -- while "Login to web
+# interface using admin/admin" is explicitly mentioned for the MS/NMC card, no source checked
+# shows the actual HTTP/Telnet request shape for that web interface, the same single missing piece
+# blocking the sibling PXGX/PXGMS and Network-M2 candidates. The ePDU G3's current-firmware serial-
+# number-derived scheme is well-documented in principle but also has no confirmed wire protocol.
+
+check_id: candidate-eaton-network-ms-nmc-and-epdu-g3-default-creds
+protocol: unknown
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Eaton"
+  product: "Network-MS (NMC) UPS card / ePDU G3 rack PDU (NMC card)"
+references:
+  - "Network-MS (NMC) password reset.pdf, user-supplied Eaton knowledgehub export, read directly via pdftotext"
+  - "Reset MS card to factory defaults.pdf, user-supplied Eaton knowledgehub export, read directly via pdftotext"
+  - "ePDU G3 How to reset the logon password for the Network Management Card(NMC).pdf, user-supplied Eaton knowledgehub export, read directly via pdftotext"
+description: >
+  Eaton Network-MS (NMC) UPS cards and the related ePDU G3 rack PDU's own NMC card both ship
+  admin/admin default credentials, confirmed directly across three of Eaton's own official
+  support documents. The NMC UPS card's own documentation explicitly confirms admin/admin gates
+  BOTH its serial console AND its web interface. The ePDU G3 (a distinct rack-PDU product sharing
+  the NMC branding) documents a firmware-version-gated scheme: admin/admin on firmware before
+  4.01.0003, admin/<device serial number> on firmware 5.00.0001 and later -- a third distinct
+  derived-credential pattern in this Eaton research thread, alongside PXGX/PXGMS's MAC-derivation
+  and PX-EMD-G's partial-serial derivation. Not yet a check: every confirmed access-method
+  description in this pass is RS232 serial console, and while a web interface using the same
+  credential is explicitly mentioned for the NMC card, no source checked shows its actual wire
+  protocol shape.

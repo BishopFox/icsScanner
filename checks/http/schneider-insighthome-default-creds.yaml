@@ -1,0 +1,50 @@
+# Default-credentials sweep, 2026-08-25 — user supplied the official InsightHome Quick Start
+# Guide (990-6342A, PN 865-0330) directly. Brand-new product for this project: InsightHome
+# (Schneider Electric Solar Inverters), a residential power-monitoring gateway bridging a Xanbus
+# network of solar/battery inverters to Modbus and a web application.
+#
+# The guide's own "Logging in to the InsightHome Web Application" section states the login is at
+# https://192.168.100.1 (Wi-Fi AP mode) or the device's LAN address, User Name "Admin", initial
+# Password "Admin123" — the user is prompted to change this immediately on first login, but the
+# initial factory-shipped value is exactly this pair, same pattern as several other checks in
+# this sweep that also document a forced-first-login password change (e.g. the PM5500 Guest
+# account).
+#
+# Login mechanism (HTTP Basic Auth over HTTPS) assumed per this project's established
+# convention — no contrary signal (custom form, dropdown) found in this guide.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-insighthome-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  https: true
+  credentials:
+    - ["Admin", "Admin123"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTPS Basic Auth attempt using the documented factory credential (Admin:Admin123) for the InsightHome web application"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic QWRtaW46QWRtaW4xMjM="
+  broad:
+    description: "Any HTTP(S) Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "InsightHome Quick Start Guide, 990-6342A (user-supplied)"
+description: "Schneider Electric Solar Inverters InsightHome, a residential Xanbus/Modbus-to-web power-monitoring gateway, ships with a factory-default HTTPS web application login of Admin:Admin123 (forced password change on first login). No CVE, documented factory-default behavior per the official Quick Start Guide."

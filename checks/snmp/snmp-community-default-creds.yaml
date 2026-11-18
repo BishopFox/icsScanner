@@ -1,0 +1,59 @@
+# Generic SNMP v1/v2c default community-string check, requested directly by the user
+# ("has the snmp module been built, there should be a candidate for snmp community strings
+# public/public, private/private at a minimum"). Corrected in discussion before building: SNMP
+# v1/v2c has no username:password pair — the "community string" is a single value, and "public"/
+# "private" are the two classic factory defaults (public = read-only GET access, private =
+# read-write, more severe since it also permits SET). Not vendor-specific — SNMP is used by
+# hundreds of ICS/OT vendors' gear with no single hardware tie, so unlike most checks in this
+# project this one narrows on the protocol itself via `protocol_probe: snmp_identity` (the
+# active probe added earlier this session in core/fingerprint.py) rather than a vendor/product
+# pair — `protocol_only: true` is disallowed for destructive checks precisely to require this
+# kind of real narrowing, same reasoning already established by
+# checks/s7comm/snap7-count-max-crash.yaml (protocol_probe: s7comm_identity).
+#
+# No CVE — "public"/"private" are the RFC-era SNMPv1 factory-convention defaults, not a
+# disclosed vulnerability in any one product. Documented ambiguity (see the native module's own
+# docstring): SNMP silently drops a GetRequest carrying a wrong community string rather than
+# rejecting it, so this check's NOT_APPLICABLE result is a weaker negative than this project's
+# other default-creds checks (FTP/SSH/Telnet all get an explicit rejection) — it means "no
+# response to any tested community," which cannot distinguish "all communities really rejected"
+# from "device unreachable" or "SNMP disabled/firewalled."
+
+check_id: snmp-community-default-creds
+protocol: snmp
+kind: native
+module: checks.snmp.native.snmp_community_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_probe: snmp_identity
+references:
+  - "https://www.rfc-editor.org/rfc/rfc1157"
+detection_hints:
+  transport: udp
+  app_protocol: snmp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own SNMP v1 GetRequest (sysDescr OID, request-id 0x1C15) using the two factory-default community strings 'public' and 'private' — verified by executing the module's own _get_request() BER encoder directly, not hand-derived (BER/ASN.1 TLV nesting is easy to get subtly wrong by hand)"
+    patterns:
+      - context: request
+        regex: "\\x30\\x29\\x02\\x01\\x00\\x04\\x06\\x70\\x75\\x62\\x6c\\x69\\x63\\xa0\\x1c\\x02\\x04\\x00\\x00\\x1c\\x15\\x02\\x01\\x00\\x02\\x01\\x00\\x30\\x0e\\x30\\x0c\\x06\\x08\\x2b\\x06\\x01\\x02\\x01\\x01\\x01\\x00\\x05\\x00|\\x30\\x2a\\x02\\x01\\x00\\x04\\x07\\x70\\x72\\x69\\x76\\x61\\x74\\x65\\xa0\\x1c\\x02\\x04\\x00\\x00\\x1c\\x15\\x02\\x01\\x00\\x02\\x01\\x00\\x30\\x0e\\x30\\x0c\\x06\\x08\\x2b\\x06\\x01\\x02\\x01\\x01\\x01\\x00\\x05\\x00"
+  broad:
+    description: "No safe broader byte signature applies beyond the two specific default community strings above — generalizing further would mean either (a) matching ANY SNMP GetRequest for sysDescr regardless of community string, which fires on all legitimate SNMP monitoring traffic (the same false-positive problem as the EtherNet/IP List Identity check elsewhere in this project), since community content isn't otherwise distinguishable from a byte-pattern standpoint, or (b) enumerating a longer wordlist of equally-specific literal guesses, which isn't a structurally broader signature the way 'any username+password pair' is for Telnet/FTP — it's just more narrow patterns concatenated"
+    patterns: []
+params:
+  communities:
+    - "public"
+    - "private"
+  default_port: 161
+description: >
+  SNMP v1/v2c GetRequest test of the classic factory-default community strings "public"
+  (read-only) and "private" (read-write — SET-capable, more severe). No single vendor tie;
+  narrowed instead by the snmp_identity active protocol probe. A CONFIRMED result means a
+  well-formed GetResponse-PDU came back for a tested community (unambiguous positive); a
+  NOT_APPLICABLE result only means no response was seen for any tested community, which SNMP's
+  silent-drop-on-bad-community behavior makes a weaker negative than this project's other
+  default-creds checks.

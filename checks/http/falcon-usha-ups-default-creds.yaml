@@ -1,0 +1,48 @@
+# Default-credentials sweep, Phase 16 (Falcon, Hitachi, Sinapsi — continuing the SCADAPASS
+# pass). Uses the generic checks/http/native/basic_auth_default_creds.py executor.
+#
+# Sources (2 independent): SCADAPASS, citing a dedicated Darius Freamon post ("Falcon USHA UPS
+# SNMP HTTP Agent Default Admin Credentials"); corroborated by the official Falcon USHA
+# IX900/EX900 Series User's Manual (falconups.com-hosted) confirming USHA/admin on port 80.
+#
+# KNOWN FINGERPRINT-GATE GAP (same pattern as eWON/Digi/Heatmiser, Phases 11/12/15): no
+# Falcon-specific OUI entry was found in the official IEEE registry — loads and runs correctly
+# but can't yet pass the fingerprint gate against real hardware. No OUI was guessed.
+#
+# No CVE — documented factory-default behavior. IT/facilities power infrastructure (UPS), same
+# OT/IT-boundary reasoning already applied to Emerson's Liebert/MPH2 checks in Phase 11.
+
+check_id: http-falcon-usha-ups-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Falcon"
+params:
+  path: "/"
+  credentials:
+    - ["USHA", "admin"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (USHA:admin)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic VVNIQTphZG1pbg=="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://dariusfreamon.wordpress.com/2016/01/28/falcon-usha-ups-snmp-http-agent-default-admin-credentials/"
+  - "https://www.falconups.com/wp-content/pdfs/USHA%20IX900%20Series_UM-v2.00_20211229.pdf"
+description: "Falcon USHA UPS SNMP/HTTP Agent ships with a factory-default USHA/admin web-UI login — no CVE, documented factory-default behavior."

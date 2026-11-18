@@ -1,0 +1,79 @@
+# Built 2026-11-10 (TSA sweep §7 Automatic Tank Gauge lead -- the strongest net-new transportation/fuel
+# lead; see lab-notes/industry-gap-sweep-2026-11.md). Net-new: no prior Veeder-Root / ATG / TLS-350
+# candidate or check existed in this project.
+#
+# FINDING (CWE-306 missing authentication): Veeder-Root TLS-300/350/450/4 Automatic Tank Gauge consoles
+# expose a "Serial Command Port" over TCP (default 10001). The TLS-350 command protocol has NO
+# authentication of its own -- access is gated only by an OPTIONAL, operator-enabled security code, off
+# in common deployments. When off, any network-reachable client can read inventory/config (I-series) AND
+# change console configuration (S-series: tank geometry, alarm thresholds), which Bitsight + CISA's 2024
+# ATG advisories tie to a fuel-leak safety impact. Veeder-Root's own TLS4 security notification
+# (576047-407) documents the mitigation (enable the security code / disable the port), confirming this is
+# a documented exposure class -- the same shape as the Omron FINS / MELSEC SLMP / SECS-GEM-HSMS / Opto 22
+# OptoMMP exposure checks here -> disclosure_status: public.
+#
+# This check reuses core/fingerprint.py probe_atg_tls350_identity, which sends ONE benign TLS-350 I90200
+# (system software version) read -- the least-sensitive command (console software/type, no tank or fuel
+# data). It issues NO S-series set command and reads no inventory. Non-destructive, safe to fire
+# unsupervised (same discipline as the FINS / SLMP / HSMS / OptoMMP exposure checks).
+#
+# WIRE FORMAT grounded in sources: default port 10001 from the Veeder-Root TCP/IP Interface Module guide
+# (577013-776) + TLS-3XX setup manual (576013-623); the command bytes (SOH 0x01 + "I90200" version
+# report) and the 9999FF1B "command not understood" error sentinel from the public Rapid7 Metasploit ATG
+# module (rapid7/metasploit-framework modules/auxiliary/admin/atg/atg_client.rb). A TLS-350 computer-
+# format response echoes the command code; the probe fails CLOSED, so a framing mismatch is
+# NOT_APPLICABLE, never a false positive. ⚠ Live-device confirmation of the exact response framing is
+# advisable before treating a CONFIRMED as definitive (built against a mock in
+# tests/smoke_test_atg_serial_command_port_exposed.py that replays the version-report + error responses).
+#
+# CVSS: scored for the underlying capability a confirmed unauthenticated Serial Command Port enables
+# (same convention as the OptoMMP / SLMP / FINS checks). Unauth TLS-350 permits config change (S-series)
+# with a documented fuel-leak safety impact, so AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H; this check confirms
+# the exposure via a safe version READ only.
+check_id: veeder-root-tls-atg-serial-command-port-exposed
+protocol: atg
+kind: native
+module: checks.atg.native.atg_serial_command_port_exposed
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H (9.8 CRITICAL) -- the Veeder-Root TLS / ATG Serial Command Port (TCP/10001) accepts TLS-350 commands with no security code; I-series read + S-series config change (tank geometry / alarms, a documented fuel-leak safety impact) are reachable. This check confirms the exposure via the benign I90200 version READ only."
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  # Gated by the ATG TLS-350 identity probe (core/fingerprint.py probe_atg_tls350_identity): the scanner
+  # confirms a TLS-350 Serial Command Port (version report or 9999 error) on the port before this check
+  # runs. Target: Veeder-Root TLS-300/350/450/4 ATG console exposing the Serial Command Port (TCP, 10001).
+  protocol_probe: atg_tls350_identity
+params:
+  default_port: 10001
+  timeout: 5.0
+references:
+  - "Veeder-Root TLS4 Series Security Settings, Technical Support Notification 576047-407: the Serial Command Port / security code are operator-enabled; default username/password should be replaced -- documents the exposure + mitigation."
+  - "Veeder-Root TCP/IP Interface Module Installation Guide 577013-776 + TLS-3XX Console System Setup Manual 576013-623: the Serial Command Port is reachable over TCP/IP, default port 10001."
+  - "github.com/rapid7/metasploit-framework modules/auxiliary/admin/atg/atg_client.rb -- OSS source of the exact TLS-350 command bytes (SOH 0x01 + I90200 version report), RPORT 10001, and the 9999FF1B error sentinel this probe/check use."
+  - "Bitsight + CISA 2024 ATG advisories (e.g. CVE-2024-8310 OPW SiteSentinel auth bypass 9.8, CVE-2024-45066 Franklin Fueling MagLink LX OS command injection 10.0; Veeder-Root CVE-2025-58428) -- the ATG internet-exposure class and its fuel-leak impact."
+detection_hints:
+  transport: tcp
+  app_protocol: atg
+  mitre_attack_id: T0855
+  analytic_story: "ICS Unauthorized Command"
+  narrow:
+    description: "This scanner's own TLS-350 I90200 system-software-version read: a single SOH byte (0x01) followed by the ASCII command code 'I90200' on TCP/10001 -- a read-only information report."
+    patterns:
+      - context: request
+        bytes: "\\x01I90200"
+  broad:
+    description: "Any TLS-350 computer-format command reaching TCP/10001 -- a leading SOH (0x01) followed by a command code (I-series read reports or S-series set commands). S-series writes are the control primitive this exposure permits."
+    patterns:
+      - context: request
+        bytes: "\\x01[IS][0-9A-Z]"
+description: >
+  Veeder-Root TLS-300/350/450/4 Automatic Tank Gauge consoles expose a Serial Command Port over TCP
+  (default 10001) whose TLS-350 command protocol has NO authentication of its own -- access is gated only
+  by an optional, operator-enabled security code (CWE-306). This check sends one benign TLS-350 I90200
+  system-software-version read and confirms the console answered an unauthenticated command, proving the
+  Serial Command Port accepts commands with no security code; TLS-350 S-series config changes (tank
+  geometry, alarm thresholds -- a documented fuel-leak safety impact per Bitsight/CISA) are reachable the
+  same way. The command bytes + port are grounded in Veeder-Root's own manuals and the public Rapid7 ATG
+  module; the probe fails closed and reads only the version (no set command, no inventory). CVSS 3.1 9.8
+  CRITICAL for the enabled capability. disclosure_status: public -- a documented exposure class (like
+  FINS / SLMP / HSMS / OptoMMP), not a new finding.

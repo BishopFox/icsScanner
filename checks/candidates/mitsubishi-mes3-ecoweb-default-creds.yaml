@@ -1,0 +1,45 @@
+# Candidate stub — default-credentials sweep, Phase 9. NOT executable (no `kind`).
+# Network-surface question, same shape as the Phase 5 InTouch/WinCC candidates — NOT a
+# credential-confirmation gap.
+#
+# Credential itself IS confirmed: ecoV:ecopass (management) and guest:user (data-acquisition
+# login) for the Mitsubishi Energy Saving Data Collecting Server (EcoWebServer III)
+# MES3-255C-EN, per a dedicated Darius Freamon blog post (a real primary disclosure, not an
+# aggregator) — the strongest single-source tier already used elsewhere in this sweep (e.g. the
+# Honeywell XL Web II "remad-1234" finding).
+#
+# RESOLVED-NEGATIVE 2026-08-18 (Metoree Protective-Relays/switchgear-monitoring pivot session):
+# read Mitsubishi Electric's own official EcoWebServer III hardware/installation manual directly
+# (ib63652z.pdf, dl.mitsubishielectric.com — a live, current URL, found via a
+# fresh WebSearch since the originally-cited Freamon blog post and old manual link had both gone
+# unreachable), via pdftotext, not search-summarized. CONFIRMED the exact concern this stub
+# already flagged: "ecopass" (the only password documented anywhere in this manual — "ecoV" does
+# not appear in it at all) is explicitly a "maintenance password" gating a step INSIDE the
+# separate Windows desktop app ("Model MES3-255C-EN Setting software ver3", launched from the
+# Start Menu on a client PC) used to push a new IP address to the device — not a login for the
+# device's own network-facing web server. The manual's own "View the graph (Web browser)" flow
+# (the actual HTTP interface, confirmed as a real live service — "HTTP (view by web browser)" is
+# explicitly listed as a LAN CH1 server-section protocol) shows NO login step at all: "All the
+# software programs necessary to view collected data are built in the product... Client PC"
+# browses straight to the graph view. This is a DIFFERENT, more interesting finding than a
+# missing default-credentials check — an apparently UNAUTHENTICATED data-viewer HTTP interface —
+# but it's the wrong vulnerability class for this project's default-creds checks (same pattern as
+# AutomationDirect's CVE-2022-2003 in Phase 18: real finding, wrong check type). Not building the
+# credential check. Worth a note in side-quests.md if this project ever adds an
+# unauthenticated-service-exposure check category; not pursued further here.
+
+check_id: candidate-mitsubishi-mes3-ecoweb-default-creds
+protocol: http
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Mitsubishi Electric"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://dl.mitsubishielectric.com/dl/fa/document/manual/ems/ib63652/ib63652z.pdf"
+description: >
+  Mitsubishi EcoWebServer III MES3-255C-EN — RESOLVED-NEGATIVE. The "ecopass" credential
+  (confirmed directly from Mitsubishi's own official manual) gates a step inside separate PC
+  configuration software, not the device's own web-viewer interface, which the same manual shows
+  as unauthenticated by design (a different, wrong-vuln-class finding, not built here). Do not
+  promote this credential as a default-creds check.

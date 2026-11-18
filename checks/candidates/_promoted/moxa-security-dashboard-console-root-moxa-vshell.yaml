@@ -1,0 +1,83 @@
+# Candidate stub — 2026-09-18. Ingest triage, 10th (final) Moxa batch. Confirmed no prior
+# BLOCKER TAG (2026-09-22 triage pass): firmware-gap -- No firmware/software for Security Dashboard Console was available in this ingest batch to investigate further (manual-only source).
+# candidate/check for Security Dashboard Console existed before writing this file.
+#
+# NOTABLE IRONY, same category already flagged for MXsecurity/DLM in an earlier batch: Moxa's own
+# "Security Dashboard Console" — a security-MANAGEMENT platform — ships a hardcoded root SSH
+# account by default, per Moxa's own official manual (v1.2, user-supplied, fetched/read directly
+# via pdftotext):
+#     "The default administrator credentials are: Username: root / Password: moxa"
+# reachable "On a local machine" OR "On a remote machine over SSH" — this is a genuine ROOT
+# account (not just an "admin" web-console role), a more severe account tier than most other
+# findings this session.
+#
+# MECHANISM, distinctive and directly quoted: this root/moxa account gates a restricted shell
+# called "vShell." On first login, the shell displays a repeated warning ("Caution: please type
+# the command ```oobe``` to active the vShell.") and requires running an `oobe` (out-of-box-
+# experience) command, re-entering the SAME default password "moxa" at that prompt, THEN setting
+# a genuinely new password — i.e. this is a FORCED first-login change, same enforcement shape as
+# the Industrial Linux 4.x/MXsecurity findings, not a persistent default like the MX-ROS switch
+# family. Until that `oobe` flow is completed, `root`/`moxa` grants access to vShell as shipped.
+#
+# NETWORK EXPOSURE: explicitly documented as reachable over SSH from a remote machine, not just
+# local console access.
+#
+# NOT YET BUILDABLE AS A LIVE CHECK: `checks/ssh/native/ssh_default_creds.py` already exists and
+# could test `root`/`moxa` with zero new code once disclosed -- the same open question already
+# flagged for the Industrial Linux 4.x candidate applies here too: whether a forced-password-
+# change account reports SSH authentication SUCCESS or a distinct failure mode through paramiko's
+# plain `client.connect()` call is unverified without live hardware. No firmware/software for
+# Security Dashboard Console was available in this ingest batch to investigate further (manual-
+# only source).
+#
+# SEVERITY: CVSS v3.1 scored via the same scripted formula used throughout this session:
+#   Vector: CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
+#   Base Score: 9.8 (CRITICAL) -- root shell access via SSH using a vendor-documented default
+#   credential, scored for the vulnerability class as documented; exploitability against a
+#   genuinely never-yet-activated instance specifically (the forced-change caveat above).
+#
+# UPDATE 2026-09-22 (Moxa re-pass): SOURCING ATTEMPTED, CONFIRMED GENUINELY LOGIN-GATED. Fetched
+# Moxa's own "Software & Documentation" page for Security Dashboard Console directly (not
+# assumed) -- only documentation (datasheet, manual, QIG, Software License Portal manual) is
+# publicly listed; the page itself displays "Please sign in" and no software/firmware download is
+# shown even to an unauthenticated fetch, unlike several other Moxa products this pass where a
+# direct CDN URL worked despite the page's own login UI (DLM, MXview, SMG, ThingsPro, MXIO) --
+# here there is no visible file at all to construct a direct URL from. Genuine, confirmed
+# negative; still manual-only sourced, unchanged from before this update.
+
+check_id: candidate-moxa-security-dashboard-console-root-moxa-vshell
+protocol: ssh
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Moxa Technologies"
+  product: "Security Dashboard Console"
+references:
+  - "Moxa Security Dashboard Console manual, v1.2, user-supplied, 'Changing the Default Password to Activate vShell' section"
+detection_hints:
+  transport: tcp
+  app_protocol: ssh
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "No narrow wire-level signature is possible for this check — SSH encrypts the session immediately after key exchange, so the specific username/password pair sent is never visible as a plaintext byte pattern on the wire."
+    patterns: []
+  broad:
+    description: "Repeated SSH authentication attempts against this device family from a single source in a short window — the vulnerability class (a credential-guessing pass), not the specific credential, since SSH's encryption prevents matching the actual username/password on the wire"
+    patterns:
+      - context: request
+        regex: "SSH-2\\.0-"
+description: >
+  Moxa's Security Dashboard Console (a security-management platform — a notable irony already
+  flagged for MXsecurity/DLM elsewhere this session) ships a hardcoded root SSH account by
+  default, root/moxa, documented directly in Moxa's own official manual, gating a restricted
+  shell ("vShell") reachable both locally and remotely over SSH. Enforced as a forced first-login
+  change (via an `oobe` command re-entering the same default password before a new one can be
+  set) — the same enforcement shape as the Industrial Linux 4.x/MXsecurity findings, narrower in
+  exploit window than the persistent MX-ROS switch-family default. CVSS 3.1: 9.8 CRITICAL
+  (AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H). Disclosure status: public (sourced from Moxa's own
+  manual). Not yet built as a live check — no Security Dashboard Console software was available
+  this pass, and whether SSH auth against a forced-must-change root account reports success via
+  this project's existing paramiko-based executor is unverified without live hardware.
+
+# PROMOTED 2026-10-06 (Phase 1) -> checks/ssh/moxa-security-dashboard-console-root-moxa-default-password.yaml

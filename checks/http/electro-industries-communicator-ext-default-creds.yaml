@@ -1,0 +1,44 @@
+# Default-credentials sweep, Phase 14. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor. Different Electro Industries/
+# GaugeTech product from the Nexus 1500 meters (checks/http/electro-industries-nexus-1500-
+# default-creds.yaml) — Communicator EXT 3.0 is labeled "Power Monitoring Software" in the
+# source but its own SCADAPASS row explicitly lists HTTP port 80, same treatment already applied
+# to Moxa's OnCell Central Manager (Phase 10) — a "Software" label doesn't necessarily mean no
+# network surface when a specific port/protocol is also given.
+#
+# Source: SCADAPASS, citing the official Electro Industries/GaugeTech Communicator EXT 3.0
+# manual PDF directly. Single-source-tier — confidence: low.
+
+check_id: http-electro-industries-communicator-ext-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Electro Industries/Gauge Tech"
+params:
+  path: "/"
+  credentials:
+    - ["eignet", "inp100"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (eignet:inp100)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic ZWlnbmV0OmlucDEwMA=="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "http://www.electroind.com/pdf/11_13_12_pdf/E107707_ComEXT_Manual.pdf"
+description: "Electro Industries/GaugeTech Communicator EXT 3.0 (power monitoring software with a web interface) ships with a factory-default eignet/inp100 login — no CVE, documented factory-default behavior."

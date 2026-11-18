@@ -1,0 +1,79 @@
+# Default-credentials sweep. Ingest triage, 2026-09-17 (5th Moxa batch). New protocol coverage
+# for an ALREADY-PUBLIC credential — siblings: checks/telnet/moxa-ia240-241-default-creds.yaml,
+# checks/ftp/moxa-ia240-241-default-creds.yaml (root/root, SCADAPASS-sourced + firmware-verified).
+#
+# THE FINDING: direct firmware analysis across FIVE Moxa "IA-series" ARM embedded-computer
+# firmware images (all JFFS2, all extracted with `jefferson`) found the exact SAME DES-crypt
+# `/etc/shadow` root hash, byte-for-byte identical, in every one:
+#   root:gs5hdcM0NRKeI:...
+# confirmed in: moxa-ia240-series-linux-firmware-v1.10.zip (2019), moxa-ia260-series-linux-
+# firmware-v1.1.zip (2012), moxa-ia261-i-ia262-i-series-for-ia261-firmware-v1.1.zip (2012),
+# moxa-ia261-i-ia262-i-series-for-ia262-firmware-v1.1.zip (2012), and moxa-ia3341-series-linux-
+# firmware-v1.0.zip (2010) — 2010 through 2019, five distinct product models, one shared image.
+# This hash CRACKS TO THE LITERAL STRING "root" (first candidate tried via Python's `crypt`
+# module) — already known from the IA240/241 telnet/ftp checks, now confirmed to be the SAME
+# credential shared across the entire IA-series line, not just IA240/241.
+#
+# NEW HERE: `moxa-ia3341-series-linux-firmware-v1.0.zip`'s `/etc/inetd.conf` runs `ssh` (in
+# addition to `ftp`) as root via `/bin/sshd -i`, started unconditionally at boot (`S20inetd` in
+# `etc/rc.d/rcS.d`, no config gate) — the other four IA-series samples checked this pass have
+# ftp+telnet in inetd.conf but no ssh entry. Filing this as its own SSH check (rather than adding
+# a 3rd credential-attempt to an existing file) since the sibling telnet/ftp checks are titled
+# specifically "ia240-241" and this is scoped to the wider "ia-series" naming instead, reflecting
+# the broader confirmed applicability found this pass.
+#
+# NOT CONFIRMED: whether IA240/260/261/262 (the four samples without an ssh entry in this specific
+# firmware version) ever ship SSH enabled on some other version/configuration — not claimed here,
+# scoped to what was directly observed (IA3341 specifically, this firmware version).
+#
+# UPDATE 2026-09-17 (ingest batch 7): SCOPE EXTENDS TO A NEW PRODUCT CATEGORY -- Moxa's ioPAC
+# industrial Programmable Automation Controller line, not just the IA-series embedded computers.
+# Four more firmware images (all JFFS2/ARM, same extraction technique) independently confirmed
+# the EXACT byte-identical root hash (`gs5hdcM0NRKeI`, cracks to "root"):
+# `moxa-iopac-8500-series-8500-c-models-firmware-v1.9.hfm`,
+# `moxa-iopac-8500-series-iec-models-firmware-v1.4.hfm`,
+# `moxa-iopac-8020-series-firmware-v1.5.hfm`, and
+# `moxa-iopac-5500-series-5542-c-firmware-v1.4.0.hfm`. Unlike most IA-series samples, EVERY one of
+# these ioPAC images has SSH enabled by default too (`S21sshd` in `etc/rc.d/rcS.d`, alongside
+# `S20inetd` for ftp+telnet) -- i.e. this credential is reachable over SSH, Telnet, AND FTP
+# simultaneously on the ioPAC line by default, the broadest confirmed exposure for this shared
+# credential so far. Nine Moxa embedded-Linux product models (5 IA-series + 4 ioPAC) now
+# independently confirmed sharing this one root/root credential.
+#
+# Same underlying credential/vulnerability class as the disclosed IA240/241 telnet+ftp checks —
+# not a novel undisclosed finding, so filed public like its siblings, not undisclosed.
+
+check_id: ssh-moxa-ia-series-default-creds
+protocol: ssh
+kind: native
+module: checks.ssh.native.ssh_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Moxa Technologies"
+params:
+  credentials:
+    - ["root", "root"]
+detection_hints:
+  transport: tcp
+  app_protocol: ssh
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "No narrow wire-level signature is possible for this check — SSH encrypts the session immediately after key exchange, so the specific username/password pair this scanner sends is never visible as a plaintext byte pattern on the wire."
+    patterns: []
+  broad:
+    description: "Repeated SSH authentication attempts against this device family from a single source in a short window — the vulnerability class (a credential-guessing pass), not a specific guessed value, since SSH's encryption prevents matching the actual username/password on the wire"
+    patterns:
+      - context: request
+        regex: "SSH-2\\.0-"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "moxa-ia3341-series-linux-firmware-v1.0.zip, user-supplied ingest, JFFS2 extracted via jefferson, /etc/shadow root hash cracked directly (root/root), ssh enabled via /etc/inetd.conf + rcS.d"
+  - "moxa-ia240-series-linux-firmware-v1.10.zip, moxa-ia260-series-linux-firmware-v1.1.zip, moxa-ia261-i-ia262-i-series-*-firmware-v1.1.zip — same byte-identical root hash confirmed across all 5 samples, corroborating shared IA-series lineage"
+  - "moxa-iopac-8500-series-8500-c-models-firmware-v1.9.hfm, moxa-iopac-8500-series-iec-models-firmware-v1.4.hfm, moxa-iopac-8020-series-firmware-v1.5.hfm, moxa-iopac-5500-series-5542-c-firmware-v1.4.0.hfm, user-supplied ingest — same byte-identical root hash confirmed across all 4 ioPAC samples, all with ssh+ftp+telnet enabled by default"
+  - "moxa-uc-7100-series-uc-7112-lx-plus-firmware-v1.8.zip, user-supplied ingest (10th/final batch), same byte-identical root hash confirmed, ftp+telnet via inetd + ssh via rcS.d, 10th independently-confirmed product model"
+  - "moxa-w311-series-linux-firmware-v2.4.zip, user-supplied ingest (10th/final batch), same byte-identical root hash confirmed (2009 firmware), ftp+telnet via inetd, 11th independently-confirmed product model -- moxa-w406-series-linux-firmware-v1.2.zip (same era/architecture) is a plausible sibling, not individually re-verified"
+description: "Moxa's IA-series ARM embedded computers (IA240/241, IA260, IA261, IA262, IA3341, UC-7112-LX Plus, W311) AND ioPAC industrial PACs (ioPAC 8500-C, ioPAC 8500-IEC, ioPAC 8020, ioPAC 5500) — 11 product models confirmed directly across 11 firmware images spanning 2009-2019 — share a single hardcoded root account whose password cracks to the literal string 'root'. IA3341 and every checked ioPAC sample ship SSH enabled unconditionally at boot via inetd/rcS.d (alongside Telnet and FTP on the ioPAC line), making this same already-public credential (see the sibling IA240/241 telnet/ftp checks) reachable over SSH. No CVE, documented/previously-disclosed default credential now confirmed via direct firmware analysis for a wider product set and an additional protocol."

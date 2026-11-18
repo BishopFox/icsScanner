@@ -1,0 +1,121 @@
+# BUILT AS A SCRIPTS/-TIER TOOL 2026-09-14 (user: "build as script tier") — see
+# BLOCKER TAG (2026-09-22 triage pass): live-hardware-gap -- The bypass-form-JS call path was not tested against a live device this pass (none on hand).
+# scripts/dahua_888888_derived_password.py. NOT a checks/ entry (the password is date-derived,
+# not static — matches the existing scripts/mac_derived_password.py /
+# scripts/rt1_sitemanager_mac_password.py precedent exactly). Implements the full 2-step Dahua
+# "global.login" RPC2 handshake (DH_Superencipherment obfuscation + realm/random digest),
+# transcribed directly from this firmware's own js/loginEx.js and jsCore/rpcLogin.js — not
+# guessed. Date-derivation formula verified against the public worked example (2014-11-27 ->
+# password 956304) and the full 2-step handshake verified against a hand-rolled mock RPC2 server
+# before trusting it. `DISCLOSURE_STATUS = "public"` set (the "888888" mechanism has been public
+# since CVE-2013-6117, 2013) — already correctly included in a demo export by the
+# export-demo-repos.py filtering built earlier this same day.
+#
+# Candidate stub — 2026-09-14. User supplied a Bosch Security Systems (video surveillance —
+# genuinely distinct division from Bosch Rexroth industrial automation, the vendor of every
+# other Bosch item reviewed this session) firmware batch: DIVAR hybrid/network recorder firmware
+# (5 files), older DVR firmware (4 files), CPP IP-camera firmware (9 files, not yet reviewed —
+# see below), an IR illuminator accessory, and assorted SDK/OS installers. New vendor division
+# for this project. NOT executable (no `kind`). Confirmed no prior Bosch Security/Dahua candidate
+# existed before writing this file.
+#
+# ACQUISITION NOTE, itself a real finding: every .bin firmware file in this set has its first 2
+# bytes altered from the standard ZIP local-file-header magic (`PK\x03\x04`) to `DH\x03\x04` —
+# confirmed by direct byte inspection (only offset 0-1 differ; the file's own End-Of-Central-
+# Directory record elsewhere is untouched, real `PK\x05\x06`). This is a trivial, purely
+# cosmetic obfuscation defeating naive `file`/`unzip` auto-detection — patching those 2 bytes
+# back to `PK` makes every one of these files open as a completely standard ZIP archive. Not a
+# security control of any kind, just noted for anyone else who touches this file set.
+#
+# THE FINDING — CONFIRMED on the older DVR line (spot-checked DVR-V2.6.0.R.20180330.bin in full,
+# same "DH\x03\x04" ZIP wrapper, unpacks to a genuine embedded-Linux (Analog Devices Blackfin)
+# recorder firmware with a dedicated `web-x.cramfs.img` web-server filesystem, extracted directly
+# with `fsck.cramfs --extract`):
+#   `js/loginEx.js` (the real, shipped client-side login logic, read directly, not guessed):
+#     function loginWeb(a,b,c){if(a=="888888")return-8; ... }
+#     ...(new RPCLogin).loginDVR(a,g_autoPassword,c,isMac?"Dahua3.0-Web3.0-NOTIE":"BOSCH-Web3.0",...)
+#   `jsCore/rpcLogin.js` implements the exact, standard Dahua "global.login" JSON-RPC handshake
+#   over `/RPC2_Login` (challenge-response: empty-password probe -> server returns a `realm`+
+#   `random` nonce -> client computes `MD5(user:realm:MD5(user:realm:pass))`), and a
+#   `DH_Superencipherment()` password-obfuscation function (MD5 + a custom base62-style
+#   transform) — this is the well-documented, publicly reverse-engineered Dahua "OldDigest"
+#   scheme, not something reverse-engineered fresh here.
+#   The literal string `"Dahua3.0-Web3.0-NOTIE"` (an alternate client-type identifier, used
+#   verbatim alongside the rebranded `"BOSCH-Web3.0"` string) is UNAMBIGUOUS, direct proof this
+#   Bosch-branded firmware is built on an OEM'd **Dahua Technology** DVR platform — independently
+#   corroborated by a public IPVM report ("Bosch Divar NVR Tested vs Dahua") stating Bosch
+#   historically OEM'd Dahua-manufactured recorder lines, reportedly discontinuing Dahua as an
+#   OEM/contract manufacturer for at least the US market around 2020.
+#
+# THE "888888" ACCOUNT — a extremely well-known, PUBLICLY DOCUMENTED Dahua hidden/backdoor
+# superuser account (security researcher "bashis," CVE-2013-6117 and related later CVEs, covered
+# by ExploitDB, Depth Security, IPVM, BleepingComputer — not a novel discovery, all independently
+# corroborated this pass via WebSearch): the account's password is DERIVABLE from the current
+# date via a documented formula (8888 x day x month x last-2-digits-of-year, last 6 digits of the
+# product = the password), not a fixed static string, and the vulnerability's essence (per
+# bashis's own research) is that the "local-only" restriction on this account is enforced
+# CLIENT-SIDE, not by the device — a crafted remote request can present itself as local. The
+# client-side `if(a=="888888")return-8;` check in this firmware's own loginEx.js is best read as
+# a superficial UI-layer patch blocking the username from the WEB FORM specifically — it says
+# nothing about whether the underlying `/RPC2_Login` endpoint itself still honors "888888" when
+# called directly (bypassing the form's own JS), which was NOT tested against a live device this
+# pass (no device on hand).
+#
+# SCOPE, genuinely version-dependent, checked rather than assumed across the product line:
+#   - CONFIRMED present: DVR-V2.6.0.R.20180330.bin (full check). The 3 older DVR firmware
+#     versions in this same batch (V2.3.6/V2.4.0/V2.5.0, 2017) were NOT individually re-verified
+#     but share the same "DH\x03\x04"-wrapped format and near-identical file sizes — plausible
+#     but not independently confirmed.
+#   - CONFIRMED ABSENT (a real, positive finding, not just "not found"): DIVAR_hybrid_v3.4.0.R.
+#     20240103.bin's web UI (a substantially different, apparently rewritten front-end —
+#     different directory layout, no "Component/" structure in the old firmware) was directly
+#     checked and its own loginEx.js has NEITHER the literal "888888" string NOR any
+#     "Dahua"/"BOSCH-Web" client-type string anywhere — consistent with the IPVM report's own
+#     "Bosch dropped Dahua ~2020" timeline. The underlying RPC2 `global.login`/
+#     `DH_Superencipherment` protocol SKELETON is still present (same function names, same wire
+#     shape) — inherited codebase lineage, not necessarily evidence the "888888" backdoor itself
+#     survives; not independently proven either way for the RPC endpoint itself.
+#   - NOT YET CHECKED: DIVAR_hybrid_V3.3.0/V3.3.1 (2021, 2023) and DIVAR_network_V3.3.1/v3.4.0 —
+#     the real version boundary where this stops applying was not pinned down precisely.
+#
+# NOT A checks/ ENTRY — deliberately, permanently: the "888888" date-derived password is COMPUTED
+# live from the current date, not a fixed value — per this project's own established "Scanner
+# Check vs. Standalone Script" convention (checks/ only tries a fixed, pre-known credential list;
+# DERIVED/computed credentials go in scripts/, same tier as mac_derived_password.py and
+# rt1_sitemanager_mac_password.py), this is scripts/-tier, not a checks/ entry.
+#
+# BUILT 2026-09-14: scripts/dahua_888888_derived_password.py — computes the date-derived password
+# and its Dahua "Superencipherment" client-side obfuscation, and optionally (--try) attempts the
+# real two-step global.login JSON-RPC handshake over POST /RPC2_Login. Safe by default (password
+# computation needs no network I/O at all; --try sends exactly one login handshake, no
+# brute-forcing). Smoke-tested in tests/smoke_test_dahua_888888_derived_password.py (derivation
+# formula against the public worked example, superencipherment structure, and the full two-step
+# RPC handshake against a mock server covering CONFIRMED/NOT_APPLICABLE/ERROR paths).
+# Still unresolved (unchanged from the note below): the exact affected-firmware-version boundary
+# — only 2 of 9 firmware files in this batch were actually opened, so the script's own docstring
+# does not claim version-wide applicability beyond the one sample confirmed.
+
+check_id: candidate-bosch-security-divar-dvr-dahua-888888-backdoor-account
+protocol: http
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Bosch Security Systems"
+references:
+  - "Bosch Security's own official firmware download packages (user-supplied): DVR-V2.6.0.R.20180330.bin, DIVAR_hybrid_v3.4.0.R.20240103.bin — js/loginEx.js and jsCore/rpcLogin.js, read directly after undoing a trivial 2-byte ZIP-magic obfuscation"
+  - "https://www.depthsecurity.com/blog/dahua-dvr-authentication-bypass-cve-2013-6117/ — CVE-2013-6117, the original public disclosure of this account/mechanism class"
+  - "https://ipvm.com/reports/bosch-dahua-nvr — independent third-party confirmation that Bosch DIVAR recorders were a genuine Dahua OEM product line"
+description: >
+  Older Bosch Security DVR firmware (confirmed: V2.6.0, 2018) is built on an OEM'd Dahua
+  Technology recorder platform and carries forward Dahua's well-documented "888888" hidden
+  superuser account (CVE-2013-6117 and related) and its standard RPC2 "global.login" digest-auth
+  protocol — the account's password is date-derived (8888 x day x month x year-last-2-digits,
+  last 6 digits), not a fixed string, and the "local-only" restriction is enforced client-side
+  only per prior public research, not verified against this firmware's server-side RPC handling
+  this pass. A client-side JS check blocks the literal username "888888" from the web login FORM
+  specifically — the underlying /RPC2_Login endpoint's own behavior was not tested live. Newer
+  DIVAR firmware (confirmed: v3.4.0, 2024) has a substantially different web UI with no trace of
+  the Dahua-specific strings, consistent with Bosch's reported ~2020 move away from Dahua as an
+  OEM — the precise version boundary is not yet pinned down. Not yet buildable: the password is
+  date-computed, not static, making this a scripts/-tier tool (matching mac_derived_password.py's
+  precedent), not a checks/ entry — needs an explicit go-ahead.

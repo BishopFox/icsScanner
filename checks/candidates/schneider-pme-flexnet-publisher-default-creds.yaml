@@ -1,0 +1,34 @@
+# Candidate stub — 2026-08-25. User supplied Schneider FAQ FA230648 ("How to reset the password
+# of the FlexNet Publisher back to default") directly. NOT executable (no `kind`).
+#
+# What's confirmed: FlexNet Publisher (FNP) is a web interface hosted ON the Power Monitoring
+# Expert (PME) server for configuring licensing components — a real, separate network-facing web
+# service riding alongside PME itself (relevant to the also-open
+# checks/candidates/schneider-ion-spm-pme-default-creds.yaml candidate, a different login on the
+# same product family). Default username and password stated plainly: admin/admin. Scoped
+# explicitly by Schneider to PME 7.2.x and 8.x — "Does NOT apply to PME 9.0 and greater."
+#
+# What's blocking it: FlexNet Publisher (branded "FNP", part of Flexera's FlexNet licensing
+# suite, not a Schneider-authored component) is a well-known third-party product whose web admin
+# console (commonly "lmadmin") is understood to use its own custom HTML login form rather than
+# HTTP Basic Auth — unlike the embedded-device webservers elsewhere in this sweep where Basic
+# Auth has been a safe default assumption. Not independently confirmed here (no screenshot/HTML
+# source seen), so not shipped as a Basic-Auth guess.
+#
+# Action needed: confirm the actual FlexNet Publisher/lmadmin login form's field names (a
+# screenshot of the login page, browser dev-tools-level HTML source, or a live instance) before
+# this can be built with the form_post_default_creds.py executor.
+
+check_id: candidate-schneider-pme-flexnet-publisher-default-creds
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_only: true
+references:
+  - "Schneider Electric FAQ FA230648, \"How to reset the password of the FlexNet Publisher back to default\" (user-supplied)"
+description: >
+  FlexNet Publisher (FNP), the licensing web console hosted on Schneider Electric Power
+  Monitoring Expert (PME) 7.2.x/8.x servers, ships with a factory-default web login of
+  admin:admin (does not apply to PME 9.0+). Not built — likely a custom login form (Flexera's
+  own lmadmin product), not confirmed HTTP Basic Auth. See this file's own header comment.

@@ -1,0 +1,57 @@
+# PROMOTED from checks/candidates/galil-dmc-rio-program-space-unlocked-by-default.yaml,
+# 2026-09-14 (user: "create the new-protocol for galil"). See checks/telnet/native/
+# galil_program_space_unlocked.py's own docstring for the full technical detail, and
+# core/fingerprint.py's probe_galil_identity for the new protocol-identity probe this check's
+# fingerprint_precondition now gates on (built this same pass — genuinely new protocol support,
+# not a params-only reuse of an existing executor).
+#
+# No CVE — documented factory-default behavior, confirmed directly from Galil Motion Control's
+# own official "DMC-40x0 Firmware Command Reference" (01/25/2017 edition): the `PW` command's own
+# documented default is an empty string, so the separate `^L^K` lock (which uses whatever
+# password PW last set) is never meaningfully engaged on a fresh/never-configured controller —
+# the ED/UL/LS/TR commands (create, read, list, modify the stored motion-control program) are
+# reachable over Telnet with no authentication until an operator explicitly sets a password and
+# engages the lock.
+#
+# Non-destructive by design: sends only the documented read-only query form ("^L^K ?"), never
+# ED/UL/LS/TR itself and never PW. Confirmed applicable to 8 of the 14 originally-supplied
+# firmware packages by the manual's own product-applicability line (DMC40x0/42x0/41x3/18x6/
+# 30010/500x0/52xx0, RIO47xxx) — the fingerprint_precondition below is a protocol-level probe
+# (galil_identity), not restricted to those specific families, since the ^L^K query itself is a
+# universal command in this ASCII shell and a device that answers it meaningfully is exhibiting
+# the actual condition regardless of exact model.
+
+check_id: telnet-galil-dmc-rio-program-space-unlocked-by-default
+protocol: telnet
+kind: native
+module: checks.telnet.native.galil_program_space_unlocked
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  protocol_probe: galil_identity
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Galil ^L^K lock-status query (literal Ctrl-L Ctrl-K bytes followed by ' ?\\r') on TCP/23"
+    patterns:
+      - context: request
+        bytes: "\\x0c\\x0b ?\\r"
+  broad:
+    description: "Any Galil ^L^K command (lock-status query or the lock/unlock form itself) on TCP/23 — the underlying vulnerability class (program-space lock left disengaged by default), not just this scanner's own specific query"
+    patterns:
+      - context: request
+        regex: "^\\x0c\\x0b"
+references:
+  - "https://loen.ucolick.org/K1DM3/docs/SelectedVendorDocs/Galil/DMC40x0-CmdRef-2017-01.pdf — Galil's own official DMC-40x0 Firmware Command Reference, 01/25/2017 edition, fetched and read directly via pdftotext"
+description: >
+  Galil Motion Control DMC-40x0/42x0/41x3/18x6/30010/500x0/52xx0 and RIO-47xxx controllers ship
+  with NO password configured by default (the PW command's own documented default is an empty
+  string) and consequently NO program-space lock engaged — the ED/UL/LS/TR commands (create,
+  read, list, and modify the controller's stored motion-control program) are reachable with no
+  authentication over the Telnet-style TCP:23 interface until an operator explicitly sets a
+  password and engages the lock. This check confirms the condition via a single documented
+  read-only status query ("^L^K ?") — it never sends ED/UL/LS/TR itself and never sets PW.

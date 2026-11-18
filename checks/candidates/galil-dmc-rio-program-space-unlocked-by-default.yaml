@@ -1,0 +1,96 @@
+# PROMOTED 2026-09-14 — see checks/telnet/galil-dmc-rio-program-space-unlocked-by-default.yaml
+# BLOCKER TAG (2026-09-22 triage pass): code-gap -- This project has no Galil ASCII-command fingerprint probe yet, needed to gate fingerprint_precondition safely before the (otherwise simple) confirmation query can fire.
+# (real, executable check) and checks/telnet/native/galil_program_space_unlocked.py (executor).
+# Built after the user's explicit go-ahead ("create the new-protocol for galil"): a new
+# protocol-identity probe (core/fingerprint.py's probe_galil_identity, registered in
+# PROTOCOL_PROBES as "galil_identity", sends the documented read-only `ID` command and confirms
+# the response contains "Connector" — the vocabulary that command's output always includes) now
+# gates the check's fingerprint_precondition, and the check itself sends only the documented
+# read-only `^L^K ?` status query, never ED/UL/LS/TR or PW. This stub is kept for its sourcing
+# history (the S-Record decode process, the primary-source verification of PW/^L^K byte values).
+#
+# Candidate stub — 2026-09-14. User supplied 14 official Galil Motion Control firmware packages
+# (icselect... no, galil.com-distributed — dmc-{1405,1806,2103,2105,2200,4000,4103,4200,30000,
+# 50000,52000}-r*.zip, edd-37000-r20c.zip, rio-{47000,57000}-r*.zip). Galil Motion Control (now
+# part of Novanta) is a genuinely new vendor for this project — real, widely-deployed motion
+# controllers/distributed I/O used across industrial automation, lab/research instrumentation, and
+# semiconductor equipment. NOT executable (no `kind`). Confirmed no prior candidate/check existed
+# for this vendor before writing this file.
+#
+# ACQUISITION/FORMAT — all 14 packages are plain zips, no gating. Firmware images are Motorola
+# S-Record (`file` auto-identifies this correctly; `.hex` extension is misleading — these are NOT
+# Intel HEX despite the name), a fully open, unencrypted, directly-decodable ASCII text format —
+# decoded directly with a small Python S1/S2/S3-record parser, no disassembly needed. Two of the
+# 14 (rio-47000/rio-57000) use a binary variant that wasn't decoded this pass (not needed — see
+# below, the finding was confirmed from the vendor's own official documentation instead of RE).
+#
+# CONFIRMED, directly from Galil's own official "DMC-40x0 Firmware Command Reference" (01/25/2017
+# edition, fetched and read directly via pdftotext, not search-summarized — a WebSearch pass first
+# surfaced this as a plausible finding, then was independently verified against the primary
+# source before writing anything here, per this project's sourcing discipline):
+#   - The `PW` command sets a password; its own documented default value is the EMPTY STRING
+#     (parameter table: "str 0 chars 8 chars Default: \"\""). A fresh/never-configured controller
+#     has NO password set.
+#   - The SEPARATE `^L^K` (Lock) command is what actually engages protection, using whatever
+#     password PW last set: "Locks user access to the application program. When locked, the ED,
+#     UL, LS, and TR commands will give privilege error #106." Since no password exists by
+#     default, `^L^K` was never meaningfully engaged either — a fresh controller's ED/UL/LS/TR
+#     commands (which create, read, list, and modify the stored motion-control program) are
+#     reachable with NO authentication of any kind.
+#   - `^L^K` ALSO provides a genuinely SAFE, read-only, documented QUERY form: "^L^K ? will
+#     return a 0 if the controller is not locked, and a 1 if it is locked." This is the natural
+#     confirmation primitive — it never touches the program space, never risks the
+#     create/destroy capability ED itself carries, and is explicitly described as a plain status
+#     query by the vendor.
+#   - Transport: TCP port 23, an interactive Telnet-style ASCII command shell (confirmed:
+#     "IHA TCP PORT 23..." example, and ED's own description: "used when using Telnet style
+#     interface"). No static factory-default IP — "The controller defaults to DHCP."
+#   - The manual's own product-applicability line names the EXACT affected family directly:
+#     "PW applies to DMC40x0,DMC42x0,DMC41x3,RIO47xxx,DMC18x6,DMC30010,DMC500x0,DMC52xx0" —
+#     matching, by direct cross-reference, 8 of the 14 supplied packages: dmc-4000 (DMC40x0),
+#     dmc-4200 (DMC42x0), dmc-4103 (DMC41x3), rio-47000 (RIO47xxx), dmc-1806 (DMC18x6), dmc-30000/
+#     dmc-31000 firmware (DMC30010 family), dmc-50000 (DMC500x0), dmc-52000 (DMC52xx0). The
+#     REMAINING 6 (dmc-1405, dmc-2103, dmc-2105, dmc-2200, edd-37000, rio-57000) are NOT named on
+#     this line — older/simpler controller families that may use a different (or no) Ethernet/
+#     security model; NOT assumed to share this finding without their own confirmation. Their own
+#     decoded firmware images were grepped for "password"/"telnet"/"http"/"ftp"/"admin" for
+#     completeness — the same generic "Invalid password"/"Passwords not identical" error-table
+#     strings appear (this is a shared firmware error-code table across the whole DMC family, not
+#     independent evidence), nothing product-specific beyond what the manual itself already
+#     confirms for the 8 named families.
+#
+# NOT YET BUILDABLE — genuinely new protocol support needed, not just a params-only reuse of an
+# existing module: this project has NO Galil ASCII-command fingerprint probe yet (needed to gate
+# `fingerprint_precondition` safely — sending even a benign query to an unrelated Telnet-speaking
+# device without first confirming it's actually a Galil controller would be irresponsible). The
+# actual confirmation primitive itself is simple and safe once that gate exists: open TCP:23, send
+# `^L^K ?\r` (literal Ctrl-L Ctrl-K bytes, 0x0C 0x0B, followed by " ?\r" per the command's own
+# documented usage), read the response — "0" confirms the finding (unlocked, no auth), "1" means
+# a password IS configured and engaged (NOT_APPLICABLE). Risk tier, once built: this queries
+# read-only state and never touches ED/UL/LS/TR itself, so ADVERSE tier (`risk_reason: ["login"]`)
+# or even a non-destructive disclosure-style check is plausible — needs the same kind of explicit
+# go-ahead this session has required for every new-protocol executor addition (SNMPv3, the
+# LPE9403 JSON-POST executor, the M221 UMAS check, the ICS Electronics reachability check).
+#
+# Firmware/hygiene note: none of the 14 zip archives or decoded firmware images is committed to
+# this repo, per this project's standing hygiene rule.
+
+check_id: candidate-galil-dmc-rio-program-space-unlocked-by-default
+protocol: telnet
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Galil Motion Control"
+references:
+  - "https://loen.ucolick.org/K1DM3/docs/SelectedVendorDocs/Galil/DMC40x0-CmdRef-2017-01.pdf — Galil's own official DMC-40x0 Firmware Command Reference, 01/25/2017 edition, fetched and read directly via pdftotext"
+description: >
+  Galil Motion Control DMC-40x0/42x0/41x3/18x6/30010/500x0/52xx0 and RIO-47xxx controllers ship
+  with NO password configured by default (the PW command's own documented default is an empty
+  string) and consequently NO program-space lock engaged — the ED/UL/LS/TR commands (create,
+  read, list, and modify the controller's stored motion-control program) are reachable with no
+  authentication over the Telnet-style TCP:23 interface until an operator explicitly sets a
+  password and engages the lock. Confirmed directly from Galil's own official Command Reference,
+  which also documents a genuinely safe, read-only status query for confirming this ("^L^K ?"
+  returns 0 if unlocked, 1 if locked) rather than exercising the write-capable ED command itself.
+  Not yet buildable: this project has no Galil protocol fingerprint probe yet — real new protocol
+  support work, not a params-only reuse of an existing executor.

@@ -1,0 +1,52 @@
+# Default-credentials sweep, Phase 8 — surfaced by the SCADAPASS cross-reference against
+# Honeywell (already "closed out" in Phase 4). Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor, HTTPS mode.
+#
+# Sources: SCADAPASS, citing the official Honeywell Access NetAXS user manual PDF — that exact
+# URL now redirects to a generic Honeywell landing page (link rot, confirmed 2026-08-14: both the
+# original URL and a newer security.honeywell.com NetAXS-123 manual URL found via search
+# redirect to the same generic page in this environment) so the manual itself could not be
+# re-confirmed directly. Corroborated instead by THREE independent secondary sources converging
+# on admin:admin: hardreset.info, justanswer.com (a real user support thread, not a scraped
+# aggregator), and cleancss.com's router-default database.
+#
+# ASSUMPTION FLAGGED: HTTPS Basic Auth assumed per the SCADAPASS row's stated auth mechanism
+# ("HTTPS") — not independently confirmed against real hardware (same caveat class as every
+# other Basic-Auth-assumed check in this sweep). No CVE — documented factory-default behavior.
+
+check_id: http-honeywell-netaxs-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Honeywell International"
+params:
+  path: "/"
+  https: true
+  default_port: 443
+  credentials:
+    - ["admin", "admin"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (admin:admin) (this device's web UI uses HTTPS — these bytes are only visible on the wire if TLS is terminated/inspected at the monitoring point, not to a passive plaintext capture)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46YWRtaW4="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s) (this device's web UI uses HTTPS — these bytes are only visible on the wire if TLS is terminated/inspected at the monitoring point, not to a passive plaintext capture)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.hardreset.info/devices/honeywell/honeywell-netaxs/faq/default-password/default-password/"
+  - "https://www.justanswer.com/home-security-systems/8xclb-honeywell-netaxs-system-administrator-account.html"
+description: "Honeywell NetAXS access-control units ship with a factory-default admin/admin HTTPS web-UI login — no CVE, documented factory-default behavior."

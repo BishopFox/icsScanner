@@ -1,0 +1,61 @@
+# CODESYS WebVisu unauthenticated-exposure detection — built 2026-10-13, promoted from
+# checks/candidates/abb-ac500-ckit-codesys-webvisu-no-login.yaml (kept as the research record), which
+# was blocked solely on "no CODESYS WebVisu probe/executor exists in this project yet". Both now exist
+# (probe codesys_webvisu_identity + the generic unauthenticated_http_json_get executor), so this
+# promotes.
+#
+# WHAT IT DETECTS: CODESYS V3's HTML5 WebVisu runtime serves webvisu.cfg.json (a JSON config carrying
+# the PlcAddress the visualization connects to) at its web root. A single unauthenticated GET of it
+# returning HTTP 200 + that JSON shows the WebVisu endpoint is reachable with NO credential -- the
+# exposure indicator for a WebVisu deployed without a visualization-level login (CWE-306). On the
+# confirmed ABB AC500 PM5650-2ETH case (from firmware: USERDATA/.../visu/webvisu.cfg.json + the
+# unauthenticated webvisu.htm canvas) this means full unauthenticated HMI reach. CODESYS WebVisu ships
+# in many PLC brands (ABB AC500, WAGO, Berghof, Schneider M2xx, Eaton XC, ...), so this is scoped to
+# the WebVisu runtime via the probe, not one vendor.
+#
+# READ-ONLY + SAFE: one unauthenticated GET of a config file; destructive:false; never interacts with
+# the visualization controls. Driven by the generic unauthenticated_http_json_get executor.
+#
+# disclosure_status: public -- "WebVisu without a visu login" is a documented CODESYS configuration/
+# hardening class (CODESYS publishes guidance to set a WebVisu user), not a novel vuln. confidence:
+# low -- the served path (/webvisu.cfg.json) and port (8080, the common CODESYS V3 webserver port) are
+# taken from the ABB firmware + CODESYS norms, NOT a live capture, and both are overridable params;
+# also note the honest nuance that webvisu.cfg.json being fetchable confirms the WebVisu endpoint is
+# unauth-reachable, which on a login-less deployment equals unauth HMI, but a deployment that DID set
+# a visu login could still serve this static config -- so treat CONFIRMED as "WebVisu exposed
+# unauthenticated", verify visu-login state on follow-up. No CVE.
+
+check_id: codesys-webvisu-unauthenticated
+protocol: http
+kind: native
+module: checks.http.native.unauthenticated_http_json_get
+destructive: false
+risk_reason: []
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_probe: codesys_webvisu_identity
+params:
+  path: "/webvisu.cfg.json"
+  json_markers: ["PlcAddress", "UpdateRate"]   # CODESYS WebVisu config keys
+  success_status: 200
+  https: false
+  default_port: 8080     # common CODESYS V3 webserver port; override per deployment
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0822   # External Remote Services / unauth HMI reach
+  analytic_story: "ICS Unauthenticated Access"
+  narrow:
+    description: "This scanner's single unauthenticated HTTP GET /webvisu.cfg.json against a CODESYS WebVisu runtime -- no Authorization header. A 200 + WebVisu JSON config (PlcAddress) proves the WebVisu endpoint is reachable with no credential."
+    patterns:
+      - context: request
+        regex: "GET /webvisu\\.cfg\\.json"
+  broad:
+    description: "Unauthenticated GETs for webvisu.htm / webvisu.cfg.json against a PLC web server -- enumeration of an exposed CODESYS WebVisu; read-only and indistinguishable from a legitimate browser loading the visualization."
+    patterns:
+      - context: request
+        regex: "GET /webvisu\\."
+references:
+  - "checks/candidates/abb-ac500-ckit-codesys-webvisu-no-login.yaml -- ABB AC500 PM5650-2ETH firmware: USERDATA/USERPRG/PlcLogic/visu/webvisu.cfg.json (JSON, PlcAddress field) + unauthenticated webvisu.htm HTML5 canvas = unauthenticated WebVisu."
+  - "CODESYS: WebVisu authentication is an operator-set visualization user; a deployment without one exposes the WebVisu unauthenticated (documented hardening class)."

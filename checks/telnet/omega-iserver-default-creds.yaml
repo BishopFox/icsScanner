@@ -1,0 +1,60 @@
+# Default-credentials sweep, Phase 19 (first phase sourced from Metoree — the new
+# vendor-discovery source confirmed this session at us.metoree.com/categories/100066, PLC
+# manufacturers by click-share). Uses the generic
+# checks/telnet/native/telnet_default_creds.py executor, password_only mode (same pattern
+# established for Rockwell Stratix 5700, Phase 2).
+#
+# Sources (strong, multi-document tier): the exact same two-tier default (Login password
+# 12345678, Administrator password 00000000) recurs consistently across MANY different official
+# Omega Engineering iSeries/iServer product manuals (M3629, M2549, M3860, M4224, M4120, M4050V6,
+# CNi16, iServer MicroServer guides) — a vendor-wide convention across their whole iServer/
+# iSeries product line, not a one-off. One of these manuals (the iServer MicroServer User's
+# Guide, cross-referenced via ManualsLib) explicitly documents that this same password is
+# prompted "when Telnet to port 2002 is made" for device configuration — the specific detail
+# this check relies on.
+#
+# password_only mode: sources describe these as bare "passwords" with no separate username
+# field mentioned anywhere across the many manuals checked — consistent with the device
+# presenting a single password prompt over Telnet, matching the same architecture Stratix 5700
+# already established this mode for.
+#
+# Two tiers shipped, both real per the sources: Login (12345678, general web/telnet access) and
+# Administrator (00000000, gates the SECURITY configuration page specifically) — not assumed to
+# be the same account.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: telnet-omega-iserver-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Omega Engineering Inc."
+params:
+  password_only: true
+  credentials:
+    - ["", "12345678"]
+    - ["", "00000000"]
+  default_port: 2002
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet password-only (no username exchange) login attempt(s) using the documented factory credential(s) ('':12345678, '':00000000)"
+    patterns:
+      - context: request
+        regex: "12345678\\r\\n|00000000\\r\\n"
+  broad:
+    description: "Any single-token password sent immediately after connecting with no username exchange — the vulnerability class (this device's line-password Telnet login model), not the specific guessed password(s)"
+    patterns: []  # generic "any-line" pattern removed 2026-11-11 (real-traffic validation); no device-specific signature beyond the narrow probe/credential bytes. See lab-notes/zeek-detection-validation-pnnl-2026-11.md
+references:
+  - "https://www.manualslib.com/manual/1360738/Omega-Iserver-Microserver.html"
+  - "https://manualzz.com/doc/41987072/user-s-guide---omega-engineering"
+  - "https://assets.omega.com/manuals/M2549.pdf"
+description: "Omega Engineering iServer/iSeries Ethernet monitors ship with factory-default Login (12345678) and Administrator (00000000) passwords, prompted over Telnet on port 2002 — no CVE, documented factory-default behavior consistent across the whole product line."

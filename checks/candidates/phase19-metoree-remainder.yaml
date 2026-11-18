@@ -1,0 +1,55 @@
+# Candidate stub — default-credentials sweep, Phase 19 (Metoree PLC category, closing out this
+# batch). NOT executable (no `kind`). Consolidates the remaining vendors from
+# us.metoree.com/categories/100066/'s top-10-plus list not otherwise built or individually
+# stubbed this phase.
+#
+# CONFIRMED METOREE MISCATEGORIZATIONS — not actually PLC manufacturers, despite ranking in
+# Metoree's "PLC" category (a real, useful new source overall, but not perfectly curated —
+# same "don't take the category label at face value" caveat already noted when this source was
+# added):
+# - The MD-Kinney company — confirmed via direct research to be a blower/vacuum-pump
+#   manufacturer (M-D Pneumatics blowers, Kinney vacuum pumps/boosters); likely ranked here
+#   because their engineered systems incorporate PLCs from OTHER vendors, not because they
+#   manufacture PLCs themselves.
+# - Cincinnati Fan — confirmed to be an industrial fan/blower manufacturer (70+ years in
+#   business), no PLC products found anywhere.
+# - LKH PRECICON PTE LTD — confirmed to be a Singapore-based DISTRIBUTOR/reseller of other
+#   brands (ABB, Omron, Schneider Electric, Weidmuller, and others), not a manufacturer itself.
+#
+# RESEARCHED, NO DEFAULT-CREDENTIAL FINDING (different vuln class or genuine null):
+# - Panasonic Corporation of North America (FP-series PLCs) — no default credential found;
+#   real CVEs exist (CVE-2016-4496 through -4499) but for the FPWIN Pro programming SOFTWARE
+#   (heap/stack memory-safety bugs), not the PLCs' own network services — wrong vuln class,
+#   same reasoning as the FATEK/AutomationDirect Milestone-4 candidates above.
+# - ifm efector, inc. (AS-Interface EtherNet/IP gateways, AC1421/AC1422 and related) — no
+#   default credential found across the official device/programming manuals checked. A real,
+#   different-vuln-class advisory exists instead: VDE-2024-061 — a specially-crafted HTML
+#   request can trigger the safety state on ifm AC4xxS PLCs due to missing authentication on an
+#   exposed endpoint. Wrong vuln class (missing-auth-for-function, not default credentials) —
+#   same category as GE Multilin/Turck's already-excluded crypto/auth-bypass findings.
+#
+# NOT YET RESEARCHED (deferred, lower priority):
+# - Shenyang Vhandy Technology Co., Ltd. — confirmed real (operates PLC/CAN-bus products under
+#   the "GCAN" brand since 2012, also a separate industrial-ceramics business line) but small/
+#   niche with thin English-language documentation availability in this pass — deprioritized
+#   rather than dug into further this phase.
+# - PARTS SUPER CENTER, shengyuic, JINAN YUEFENG MACHINERY CO., LTD — read as
+#   resellers/parts-marketplace listings or unclear/unverified entities rather than PLC
+#   manufacturers in their own right (same shape as the LKH PRECICON miscategorization above),
+#   not independently confirmed either way in this pass.
+
+check_id: candidate-phase19-metoree-remainder
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_only: true
+references:
+  - "https://us.metoree.com/categories/100066/"
+description: >
+  Remainder of Metoree's PLC-category vendor list (Phase 19): 3 confirmed miscategorizations
+  (MD-Kinney and Cincinnati Fan are blower/fan manufacturers, LKH PRECICON is a reseller, none
+  actually make PLCs), 2 researched-with-no-default-credential-finding vendors (Panasonic FP
+  series, ifm efector — both have real CVEs of a different vulnerability class instead), and 4
+  deferred/unverified entities (Shenyang Vhandy — real but niche/thin documentation; PARTS
+  SUPER CENTER, shengyuic, JINAN YUEFENG MACHINERY — likely resellers, not confirmed).

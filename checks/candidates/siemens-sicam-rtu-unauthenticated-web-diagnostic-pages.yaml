@@ -1,0 +1,65 @@
+# Candidate stub — Siemens deep-dive sweep (2026-09-12). NOT executable (no `kind`). WRONG VULN
+# BLOCKER TAG (2026-09-22 triage pass): live-hardware-gap -- Would need a second, protocol-specific manual or a live device to pin down what a probe would actually request.
+# CLASS for this project's normal default-credentials check shape — this is an
+# unauthenticated-disclosure finding (data exposed with no credential attempt at all), not a
+# credential-acceptance finding. Same category as the Mitsubishi MES3/Yaskawa V1000/GE POWER
+# LEADER/Honeywell HICC-1100PT findings tracked in `lab-notes/side-quests.md`'s "Unauthenticated-
+# disclosure check category" thread (this is that thread's 5th data point) — flagged there, not
+# pursued as a check here, pending a real scoping decision on whether this project builds a
+# distinct check category for this vuln class at all.
+#
+# Source: Siemens's own official "SICAM RTUs/A8000 Series TOOLBOX II Device Manager
+# Administrator Security Manual" (cache.industry.siemens.com/dl/files/707/109757707), fetched
+# and read directly (pdftotext, not a search summary). States, verbatim, FOUR separate times
+# across the document: "Some SICAM RTUs protocols and some SICAM A8000 protocols support a WEB
+# server for diagnostic purposes (access via WEB browser). Authentication for these WEB pages is
+# not provided for."
+#
+# Real caveat, not glossed over: the same manual separately states the main HTTP/HTTPS
+# parameterization web server on current CP-8000/CP-802x hardware is "disabled by default" — but
+# this appears to be a DIFFERENT web server than the diagnostic-pages one the no-auth statement
+# describes. The manual never cleanly states whether the no-auth diagnostic pages are reachable
+# by default on a factory-configured device, or only after a protocol/parameter is explicitly
+# enabled — genuinely unresolved, not assumed either way.
+#
+# Not built for two independent reasons: (1) the vuln-class/scoping question above, unresolved
+# project-wide; (2) even if that were resolved, the exact diagnostic-page URL path(s) and which
+# specific "SICAM RTUs protocols"/"SICAM A8000 protocols" expose this were not named in this
+# manual passage — would need a second, protocol-specific manual or a live device to pin down
+# what a probe would actually request.
+#
+# UPDATE 2026-09-14 (user supplied 5 real SICAM A8000 CP-8000/CP-8021/CP-8022 firmware update
+# packages, V16.52 builds 2602/2607): unpacked and directly reviewed the SICAM WEB module itself
+# (SWEB0026.F20 — a plain, unsigned/unencrypted OpenEmbedded .ipk containing an Angular SPA,
+# `sicweb.tar`). This is almost certainly the "main HTTP/HTTPS parameterization web server"
+# this candidate's own text above already distinguished from the "diagnostic pages" — and it is
+# NOT an unauthenticated-disclosure case: the client implements a real Cmd_LogOn XML command
+# (`POST /sicweb-ajax/auth`, Content-Type application/xml, body
+# `<Cmd_LogOn><authentication user="U" pwd="P".../><language id="ID"/></Cmd_LogOn>`), a 3-role
+# RBAC model (administrator/guest/toolbox), and a client-enforced password policy (i18n strings:
+# "The minimum length for the password is 8 characters," configurable complexity rules). No
+# hardcoded/default credential of any kind was found in the client bundle. This is consistent
+# with the manual's own "disabled by default" language for this specific server (an admin must
+# create the first account before it's usable at all) — a genuine clean negative for the SICAM
+# WEB (SWEB) component specifically, NOT a resolution of the separate "diagnostic pages...
+# authentication...not provided for" statement, which remains unidentified: it likely refers to
+# a different, simpler status page served by individual protocol modules (ET84/ET85/DNPiT1/etc.,
+# all separate .bin files in the same firmware packages) rather than the SWEB Angular app — not
+# pursued further this pass (would mean disassembling one of ~28 separate protocol-module
+# binaries with no web-serving code confirmed present in any of them yet).
+
+check_id: candidate-siemens-sicam-rtu-unauthenticated-web-diagnostic-pages
+protocol: http
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Siemens AG"
+references:
+  - "https://cache.industry.siemens.com/dl/files/707/109757707/att_1109388/v1/SICAM_A8000_Series_RTUs_TOOLBOX_II_DeviceManager_ADMIN_SECURITY_ENG.pdf"
+description: >
+  Siemens SICAM RTUs and SICAM A8000 substation-automation devices, for some protocols, expose a
+  diagnostic web server with no authentication at all — confirmed verbatim, repeated four times,
+  in Siemens's own official Administrator Security Manual. Not a default-credentials finding
+  (wrong vuln class for this project's checks/ shape — see lab-notes/side-quests.md's
+  "Unauthenticated-disclosure check category" thread) and not yet buildable even in that
+  category: the exact diagnostic-page path and default-reachability state are unconfirmed.

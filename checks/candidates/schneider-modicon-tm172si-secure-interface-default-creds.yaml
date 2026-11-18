@@ -1,0 +1,60 @@
+# PROMOTED 2026-09-14 to checks/http/schneider-modicon-tm172si-secure-interface-default-creds.yaml
+# — the HTTP mechanism blocker described below is RESOLVED (firmware RE confirmed standard HTTP
+# Basic Auth against GET /api/v1/user; see that file's own header for the full chain). This stub
+# is kept for its original sourcing history. Still NOT covered by the promoted check: the FTP
+# service noted below remains unconfirmed to share this credential.
+#
+# Candidate stub — 2026-08-31. User supplied Schneider's own current official "Modicon TM172SI
+# Secure Interface User Guide" (EIO0000004649.03, Feb 2026) directly. NOT executable (no `kind`).
+#
+# GENUINELY DIFFERENT PRODUCT from the already-built
+# checks/http/schneider-modicon-m172-webserver-default-creds.yaml — that check covers the
+# M171/M172 HVAC controller range (administrator:password). TM172SI "Secure Interface" is a
+# distinct, newer product (edge/IIoT-style gateway — mentions AWS cloud connection, FTP client
+# library functions, RNDIS USB networking) with its OWN default credential, confirmed directly:
+#
+#   "Once the first connection between PC and TM172SI... starts, Webapp asks you to enter the
+#   default password (USER: admin — PASSWORD: SE_SecureInterface) of the web-server and to
+#   replace it by a new different one."
+#
+# Stated plainly, twice, in the manual's own "First Commissioning" chapter (initial setup AND the
+# password-reset/"Forgot your password?" recovery procedure both restore this same default) —
+# about as clean a primary-source confirmation as this sweep gets, on a CURRENT (Feb 2026) manual.
+#
+# NOT BUILT: the login is a custom HTML "Sign in" web form (Username/Password fields, a "Log in"
+# button, a "Forgot your password?" link) shown in an actual screenshot in the manual — NOT HTTP
+# Basic Auth (a native browser Basic Auth dialog has no room for a password-reset link). This
+# project's checks.http.native.form_post_default_creds module exists and could express this
+# exactly, but it requires the actual HTML form field names (username_field/password_field) and
+# an explicit success signal (success_status or success_indicators) — none of which are
+# determinable from a PDF screenshot. Same class of gap already flagged for ENTES, Bosch ctrlX
+# CORE, and Schneider ASCO QEM elsewhere in this project.
+#
+# ALSO NOTED, NOT CONFIRMED: the same manual documents a separate FTP service ("FTP users" list,
+# up to 3 configurable accounts, FTPS on port 990 by default) and states that a factory reset
+# deletes "HTTP and FTP user accounts" as two SEPARATE account pools — meaning FTP is NOT
+# confirmed to share the admin:SE_SecureInterface credential, and shouldn't be assumed to.
+#
+# Action needed: browser dev-tools-level HTML source of the TM172SI login page (View Source or
+# Inspect Element on a real device or a vendor demo/simulator), to get the exact form field names
+# and a reliable success/failure signal — the same specific gap already resolved for other
+# candidates in this project once a live page or capture became available.
+
+check_id: candidate-schneider-modicon-tm172si-secure-interface-default-creds
+protocol: http
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+  product: "TM172SI"
+references:
+  - "EIO0000004649.03, \"Modicon TM172SI Secure Interface User Guide\", Schneider Electric, 02/2026, user-supplied"
+description: >
+  Schneider Electric Modicon TM172SI "Secure Interface" (an edge/IIoT gateway, distinct from the
+  M171/M172 HVAC controller range) ships with a factory-default web-server login of
+  admin:SE_SecureInterface — confirmed directly, twice, in Schneider's own current (Feb 2026)
+  User Guide, including the password-reset procedure which restores this same default. Not
+  built: the login is a custom HTML form, not HTTP Basic Auth, and the exact form field names
+  and success signal are not determinable from the manual alone — needs the actual page HTML
+  source. A separate FTP service exists on the same device but is not confirmed to share this
+  credential.

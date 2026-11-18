@@ -1,0 +1,52 @@
+# Sourced 2026-08-17 from Schneider Electric's own official support FAQ FA212757 ("How to
+# upgrade firmware on an EGX100/200/300/400, PM8ECC or ECC21 via the command prompt using FTP" —
+# currently maintained, last modified 4/11/2025), read directly, including a real captured FTP
+# session screenshot. This independently confirms the SAME mechanism already sourced for EGX400
+# from a completely different Schneider document (the 2002 EGX400 Reference Guide,
+# 63230-314-202/A1): blank username (press Enter for none — "331 User OK, send password"),
+# password "admin" (lowercase, case-sensitive). The FAQ groups EGX200 with EGX400 explicitly
+# ("To upgrade EGX200, EGX400 or ECC21 via the command prompt..."), directly resolving the scope
+# caveat the EGX400 check shipped with ("not verified for EGX200") — kept as its own separate
+# check file rather than folded into the EGX400 one, per this project's 1:1 check_id-to-model
+# convention (see checks/ftp/schneider-powerlogic-egx400-ftp-default-creds.yaml for that check;
+# see checks/ftp/native/ftp_blank_username_default_creds.py for why this mechanism needs its own
+# module rather than the generic ftp_default_creds.py — ftplib.login() can't send a truly blank
+# username).
+
+check_id: ftp-schneider-powerlogic-egx200-default-creds
+protocol: ftp
+kind: native
+module: checks.ftp.native.ftp_blank_username_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  passwords:
+    - "admin"
+  default_port: 21
+detection_hints:
+  transport: tcp
+  app_protocol: ftp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own FTP login attempt(s) with a blank username (USER sent with no argument) and documented factory password(s) (admin)"
+    patterns:
+      - context: request
+        bytes: "USER \r\nPASS admin\r\n"
+  broad:
+    description: "Any FTP login attempt using a completely blank username — the vulnerability class (a device-specific credential shape rarely seen outside factory-default configurations), not the specific guessed password"
+    patterns:
+      - context: request
+        regex: "^USER \\r\\n"
+references:
+  - "https://www.se.com/us/en/faqs/FA212757/"
+description: >
+  Schneider Electric PowerLogic Ethernet Gateway EGX200 ships with FTP server access (port 21)
+  via a blank username and factory-default password "admin" — confirmed directly from
+  Schneider's own official support FAQ FA212757, which documents this exact mechanism (grouped
+  explicitly with EGX400 and ECC21) including a real captured FTP session. No CVE — documented
+  factory-default behavior, not a disclosed vulnerability.

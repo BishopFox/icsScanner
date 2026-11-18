@@ -1,0 +1,36 @@
+# Candidate stub — 2026-08-26. User-supplied URL, RoboDK documentation. NOT executable (no `kind`).
+#
+# What's confirmed: Brooks robot controllers default to IP 192.168.0.1, FTP port 21, remote path
+# typically /flash/projects — RoboDK's own connection dialog only asks for IP+port+path, with no
+# username/password field mentioned in the documented steps at all.
+#
+# What's blocking it: unlike ABB's page (which explicitly says "FTP credentials, anonymous by
+# default"), this source never states whether Brooks' FTP requires credentials, uses a fixed
+# default pair, or is genuinely anonymous — the omission is ambiguous, not evidence of "no auth."
+#
+# RESOLVED NEGATIVE, 2026-08-30: user supplied the official PreciseFlex Controller Software
+# documentation directly (www2.brooksautomation.com/Controller_Software/.../com_ftp_server.htm —
+# Brooks' PreciseFlex product line, which this candidate's FTP/192.168.0.1/RoboDK details match).
+# States plainly: "The FTP server supports a limited level of security based on specifying an
+# unencrypted user name and password. See DataID 427 'FTP user name and password' for information
+# on defining these values." No factory-default value is given anywhere in this page — it's a
+# per-device CONFIGURED credential (DataID 427), not a fixed factory default and not anonymous.
+# Same "skip entirely" shape as this project's other non-static/configured-per-device cases (e.g.
+# CM2000/CM2's MAC-derived password) — there is no default value to build a check against. CLOSED,
+# not pursued further unless a future source states an actual out-of-box DataID 427 value.
+
+check_id: candidate-brooks-ftp-default-creds-unconfirmed
+protocol: ftp
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Brooks"
+references:
+  - "RoboDK documentation, \"Brooks robots\" (robodk.com/doc/en/Robots-Brooks.html) (user-supplied URL)"
+  - "https://www2.brooksautomation.com/Controller_Software/Introduction_To_The_Software/Communications/com_ftp_server.htm (user-supplied URL, official PreciseFlex Controller Software docs)"
+description: >
+  Brooks robot controllers (PreciseFlex Controller software) default to IP 192.168.0.1 with an
+  FTP service on port 21. RESOLVED NEGATIVE: the FTP server's own documentation confirms
+  username/password ARE required (not anonymous), but the value is a per-device configured
+  setting (DataID 427) with no stated factory default — same shape as other non-static
+  credentials in this sweep, not buildable as a default-credentials check.

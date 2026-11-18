@@ -1,0 +1,60 @@
+# Default-credentials sweep, Phase 7 (Schneider Electric). Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Sources (verified 2026-08-14, not recalled): SCADAPASS's Modicon Quantum/M340/Premium entries
+# (citing the digitalbond.com Schneider Modicon Quantum research page and the official Schneider
+# manual), the Darius Freamon blog's Modicon M340 post, and Tenable's dedicated Nessus plugin
+# 23822 "Modicon Quantum HTTP Server Default Credentials" (a vendor-neutral scanner vendor
+# building a standalone plugin for this is itself corroborating evidence the finding is real and
+# distinct from the FTP/Telnet CVE-2011-4859 credential set) — three independent sources
+# agreeing on USER:USER as the web-server default.
+#
+# No CVE — CVE-2011-4859's own NVD description names only Telnet/Windriver-Debug/FTP, not HTTP;
+# this is documented factory-default web-UI behavior, tracked as its own check rather than
+# folded into the CVE-2011-4859 FTP check (see
+# ftp-cve-2011-4859-schneider-modicon-quantum-ftp-default-creds.yaml).
+#
+# ASSUMPTION FLAGGED: sources describe the credential pair, not an independently-confirmed HTTP
+# auth mechanism for every module generation — assumed Basic Auth as the common case for an
+# embedded PLC web diagnostic UI of this vintage (M340/Quantum/Premium web servers predate
+# widespread form-based embedded-web-UI login), not independently confirmed against real
+# hardware. Same caveat pattern as the Siemens SCALANCE X-200 check.
+
+check_id: http-schneider-modicon-quantum-web-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["USER", "USER"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (USER:USER)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic VVNFUjpVU0VS"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://dariusfreamon.wordpress.com/2013/12/08/schneider-modicon-m340-for-ethernet-multiple-default-credentials/"
+  - "https://www.tenable.com/plugins/nessus/23822"
+description: >
+  Schneider Electric Modicon Quantum/Premium/M340 Ethernet modules ship with a factory-default
+  USER:USER web-server login — no CVE, documented factory-default behavior distinct from the
+  Telnet/FTP hardcoded-account set covered by CVE-2011-4859. Confidence=low: HTTP auth mechanism
+  not independently confirmed against real hardware.

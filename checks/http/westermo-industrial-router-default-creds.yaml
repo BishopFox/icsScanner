@@ -1,0 +1,46 @@
+# Default-credentials sweep, Phase 13. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor. Covers two SCADAPASS rows that share
+# the same credential: the MRD-305-DIN/MRD-310/MRD-315/MRD-330/MRD-355/MRD-350/MRD-455 family AND
+# the RedFox/Wolverine/Lynx/Falcon/Viper series — essentially Westermo's whole industrial
+# router/switch lineup (WeOS-based firmware).
+#
+# Sources (2 independent): SCADAPASS, citing official Westermo user-guide PDFs directly for both
+# product families; corroborated by an independent WebSearch converging on admin:westermo,
+# citing the same official Westermo documentation.
+#
+# No CVE — documented factory-default behavior, consistent across the whole product line (same
+# reasoning already applied to Hirschmann/WAGO/B&B Electronics in earlier phases).
+
+check_id: http-westermo-industrial-router-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Westermo Network Technologies AB"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "westermo"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (admin:westermo)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46d2VzdGVybW8="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.westermo.com/-/media/Files/User-guides/westermo_ug_6623-2260_mrd-305-din.pdf"
+description: "Westermo industrial routers/switches (MRD-3xx/4xx family, RedFox/Wolverine/Lynx/Falcon/Viper series — WeOS firmware) ship with a factory-default admin/westermo web-UI login — no CVE, documented factory-default behavior across the whole product line."

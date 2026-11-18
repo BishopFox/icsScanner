@@ -1,0 +1,75 @@
+# PROMOTED from checks/candidates/bosch-rexroth-ctrlx-core-default-creds.yaml, 2026-09-22 --
+# disclosure_status was already `public` (vendor-documented factory-default behavior, not an
+# undisclosed finding this project discovered -- cross-checked against the full 43-advisory
+# Bosch PSIRT set, confirmed the credential is not already a tracked CVE, just intentional
+# factory-default behavior) and the exact login mechanism is now fully characterized, so the
+# only remaining blocker (no JSON-REST-login executor existed) is resolved by
+# checks/http/native/json_rest_login_default_creds.py, built alongside this promotion. See the
+# candidate file's own header for the full multi-source sourcing history.
+#
+# Bosch Rexroth ctrlX CORE (ctrlX AUTOMATION ecosystem — PLC/motion-control/IIoT edge device)
+# ships a factory-default login of boschrexroth:boschrexroth, confirmed from TWO independent
+# official Bosch Rexroth sources:
+#   1. The official "Quick Start Guide, ctrlX CORE" PDF (boschrexroth.com/media/
+#      9b85ec84-4c95-4083-a7ac-3453a9a2c317): "Log in with the initial access data... Username:
+#      boschrexroth / Password: boschrexroth", default IP https://192.168.1.1.
+#   2. Bosch Rexroth's own official OpenAPI specification
+#      (github.com/boschrexroth/rest-api-description,
+#      ctrlx-automation/ctrlx-core/rexroth-deviceadmin/identitymanager/
+#      identitymanager.v2.10.0.openapi.json, "ctrlX OS - Authorization and Authentication API
+#      2.10.0"), which documents the exact wire format independently: `POST /auth/token`,
+#      `Content-Type: application/json`, body `{"name": "...", "password": "..."}` (schema
+#      Credentials), success = HTTP 201 with a bearer token (schema Token), failure = HTTP 401.
+#
+# A separate, unrelated Bosch Security ingest batch also turned up the SAME credential pair on
+# a DIFFERENT surface (the "PR21" hardware platform's local console login after first boot,
+# per its own bundled Installation Guide) -- corroborating evidence this is a vendor-wide
+# convention, not unique to ctrlX CORE, but that local/physical surface is out of scope for this
+# network check.
+
+check_id: http-bosch-rexroth-ctrlx-core-default-creds
+protocol: http
+kind: native
+module: checks.http.native.json_rest_login_default_creds
+destructive: true
+risk_reason: ["login"]
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Bosch Rexroth"
+  product: "ctrlX CORE"
+params:
+  path: "/auth/token"
+  username_field: "name"
+  password_field: "password"
+  credentials:
+    - ["boschrexroth", "boschrexroth"]
+  success_status: 201
+  failure_status: 401
+  https: true
+  default_port: 443
+references:
+  - "Bosch Rexroth official \"Quick Start Guide, ctrlX CORE\" (boschrexroth.com/media/9b85ec84-4c95-4083-a7ac-3453a9a2c317), fetched and read directly via pdftotext"
+  - "Bosch Rexroth official OpenAPI spec (github.com/boschrexroth/rest-api-description, identitymanager.v2.10.0.openapi.json), fetched and parsed directly"
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own JSON POST to /auth/token with the documented factory-default credential ({\"name\":\"boschrexroth\",\"password\":\"boschrexroth\"})"
+    patterns:
+      - context: request
+        regex: "POST /auth/token"
+  broad:
+    description: "Any POST to /auth/token on this device — the vulnerability class (guessable default credential against this specific REST endpoint), not just this scanner's own guessed value"
+    patterns:
+      - context: request
+        regex: "POST /auth/token HTTP/1\\.[01]"
+description: >
+  Bosch Rexroth ctrlX CORE industrial automation/edge-controller platform ships a factory-default
+  login of boschrexroth:boschrexroth over a JSON REST API (POST /auth/token, HTTPS), confirmed
+  from two independent official Bosch Rexroth sources (the product's own Quick Start Guide and
+  its official OpenAPI specification). Not a tracked CVE — confirmed intentional, vendor-
+  documented factory-default behavior. HTTP 201 with a bearer token on success, HTTP 401 on
+  failure, per the vendor's own API spec.

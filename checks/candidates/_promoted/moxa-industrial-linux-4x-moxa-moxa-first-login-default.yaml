@@ -1,0 +1,154 @@
+# Candidate stub — 2026-09-18. Ingest triage, 8th Moxa batch. Confirmed no prior candidate/check
+# BLOCKER TAG (2026-09-22 triage pass): live-hardware-gap -- Whether paramiko's plain connect() reports success, a distinct 'password expired' exception, or hangs against a real must-change account is unverified -- needs a live Moxa Industrial Linux unit or an OpenSSH+PAM test rig.
+# specifically for the "Moxa Industrial Linux" platform's own documented default existed before
+# writing this file. Related but distinct from checks/candidates/moxa-iothinx-4530-moxa-sudo-
+# default-password.yaml (a specific product's firmware-cracked finding, filed before this manual
+# was available) and checks/candidates/moxa-da-681-lx-series-moxa-sudo-default-password.yaml (the
+# older x86 line) -- see the UPDATE note on the ioThinx-4530 file for how this manual reframes
+# that earlier finding's severity, and CROSS-CUTTING NOTE below for why this is filed as its own
+# candidate rather than merged into either.
+#
+# THE FINDING, from Moxa's own official "Moxa Industrial Linux 4.x (Debian 13) Manual for
+# Arm-based Computers" (v1.0, user-supplied, fetched/read directly via pdftotext -- a PLATFORM
+# manual, not one specific product's, covering Moxa's current-generation Arm-based Computer line
+# generally, example device shown in the manual's own CLI output: "UC-3434A-T-LTE-WiFi MIL4
+# version 1.0.0"):
+#     "The default login username and password of Moxa Industrial Linux are both moxa for the
+#     first-time login. You will be prompted to set a new password before you can continue to
+#     login."
+#     "Default Username: moxa / Default Password: moxa"
+#     "The username and password are the same for all serial console and SSH remote log in
+#     actions. Root account login is disabled until you manually create a password for the
+#     account. The user moxa is in the sudo group..."
+# i.e. this is Moxa's OWN DOCUMENTED, INTENTIONAL default for their current embedded-Linux
+# platform, not a novel discovery -- disclosure_status: public.
+#
+# CRUCIAL DIFFERENCE FROM EVERY OTHER "moxa/moxa" FINDING THIS SESSION: this default is
+# EXPLICITLY, DOCUMENTEDLY FIRST-LOGIN-ONLY ("You will be prompted to set a new password before
+# you can continue to login"). This is a mandatory password-change enforcement, not a persistent
+# default -- a genuinely different, narrower risk shape than the DA-681-LX/ioThinx-4530 findings,
+# which (per static firmware analysis alone) could not confirm or rule out this same forced-
+# change behavior. See the CROSS-CUTTING NOTE below.
+#
+# NETWORK EXPOSURE: explicitly both serial console AND SSH ("The username and password are the
+# same for all serial console and SSH remote log in actions").
+#
+# NOT YET BUILDABLE AS A LIVE CHECK, genuinely open technical question rather than a disclosure
+# gate this time: the existing checks/ssh/native/ssh_default_creds.py executor (paramiko-based)
+# tests SSH password authentication generically, but how a MANDATORY-PASSWORD-CHANGE account
+# behaves during SSH password auth is implementation-dependent (OpenSSH can intercept an expired/
+# must-change password mid-exchange via SSH_MSG_USERAUTH_PASSWD_CHANGEREQ rather than simply
+# succeeding) -- whether paramiko's plain `client.connect(username, password)` call reports
+# success, a distinct "password expired" exception, or hangs/fails against a real must-change
+# account was NOT verified this pass (would need a live Moxa Industrial Linux unit or an
+# equivalent OpenSSH+PAM test rig to confirm). Filed as "plausibly zero-new-code buildable, but
+# genuinely unverified" rather than either building blind or assuming it's out of reach.
+#
+# CROSS-CUTTING NOTE, an honest correction/nuance to an earlier finding this session: reviewing
+# this manual prompted a second look at checks/candidates/moxa-iothinx-4530-moxa-sudo-default-
+# password.yaml's own cracked /etc/shadow entry for the "moxa" account:
+#     moxa:$y$j9T$...:0:0:99999:7:::
+# Field 3 (days since epoch password was last changed) is 0 -- per shadow(5), a `lastchg` of 0 is
+# the standard Linux convention for "administratively force a password change at next login"
+# (the same effect as running `chage -d 0 <user>`). This is genuinely consistent with the SAME
+# forced-first-login-change mechanism this manual documents for the platform generally -- meaning
+# the ioThinx-4530 finding was very likely ALSO first-login-only, not a persistent credential as
+# that file's original severity framing implied. That file has been updated with this caveat
+# (not retracted -- a genuinely never-yet-commissioned unit is still exploitable with moxa/moxa,
+# and this project has no way to confirm from static firmware alone how commonly real deployed
+# units skip proper first-boot setup in practice) rather than silently left as originally written.
+#
+# SEVERITY: CVSS v3.1 scored via the same scripted formula used throughout this session, same
+# vector as every other Moxa credential finding (full compromise IF the account is still in its
+# unconfigured first-login state):
+#   Vector: CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
+#   Base Score: 9.8 (CRITICAL) -- scored for the vulnerability class as documented, with the
+#   first-login-only scope explicitly caveated in the description rather than silently assumed
+#   away or silently treated as equivalent to a persistent default.
+
+# UPDATE 2026-09-18 (same batch, firmware corroboration): `moxa-mc-1200-series-linux-firmware-
+# v1.0.img` (a real GPT disk image, EFI+Linux+data partitions; the Linux partition is itself a
+# live-boot layer containing `live/rfs.squashfs`, same DEBIAN_CUSTOM_ISO pattern already seen for
+# DA-681C earlier this session) independently confirms the SAME "moxa" account, cracked directly
+# from its SHA-512 crypt shadow hash (`$6$DrlknQ/u$...`, first candidate tried), sudo-group
+# member (`sudo:x:27:moxa`). This sample's shadow `lastchg` field is a real date (not 0), unlike
+# the ioThinx-4530 sample -- but this is a 2020-dated LIVE/PROVISIONING image, not necessarily
+# representative of final deployed-unit shadow state, so this doesn't change the forced-vs-
+# persistent analysis above one way or the other; noted as an observation, not a contradiction.
+
+# UPDATE 2026-09-18 (same batch, a DIFFERENT enforcement behavior found): Moxa's own "MC-1100
+# Series Linux Software UM" manual (user-supplied) documents the SAME moxa/moxa credential
+# (`Login: moxa` / `Password: moxa`, root disabled by default -- an exact structural match to the
+# Debian 13/MIL4 platform) but with GENUINELY DIFFERENT, WEAKER enforcement language: "Change the
+# default password after the first login to ensure a higher level of security" -- a
+# recommendation, NOT the Debian 13 manual's blocking "You will be prompted to set a new password
+# before you can continue to login." No forced-change wording was found anywhere in the MC-1100
+# manual. This suggests MC-1100 is an OLDER Industrial Linux generation (predating whatever
+# mechanism enforces the change on the newer MIL4/Debian 13 line) where the SAME credential may be
+# a genuinely PERSISTENT default, not first-login-only -- filed here as a scope note rather than a
+# separate candidate, since the underlying credential/account/platform lineage is otherwise
+# identical; a live check targeting this credential should NOT assume the newer platform's forced-
+# change behavior applies uniformly across all "Industrial Linux"-branded products.
+
+# UPDATE 2026-09-18 (10th/final batch, cross-generation confirmation): "Moxa Industrial Linux 1
+# (Debian 9) Manual for Arm-based Computers" (v5.4, user-supplied) contains the IDENTICAL wording
+# found for the current MIL4/Debian 13 generation: "The default login username and password of
+# Moxa Industrial Linux are both moxa for first-time login. You will be prompted to set a new
+# password before you can continue to login." I.e. the forced-first-login moxa/moxa default spans
+# AT LEAST 3 generations of this platform (MIL1/Debian 9 through MIL4/Debian 13) -- a long-
+# standing, deliberate design choice, not a recent addition. Firmware for this generation
+# (`moxa-uc-3100-series-os-image-firmware-v1.8.zip`, labeled "MIL1" in its own filename, and
+# several sibling UC-1200A/2200A/4400A/5100/8100 "os-image" packages in this same batch) was NOT
+# extracted this pass given time budget -- the manual alone is sufficient corroboration given the
+# byte-for-byte-identical wording already established for MIL4.
+#
+# UPDATE 2026-09-18 (10th/final Moxa batch): two more manuals confirm the SAME moxa/moxa account
+# on more Moxa Linux computer lines: "Moxa TC-6110 Series Linux Manual" (v1.0) states plainly
+# "provides a single user account: moxa (in lowercase). The default login and password are
+# moxa/moxa" (no root account mentioned at all for this product, an even more minimal design than
+# the sudo-capable pattern elsewhere); and "Moxa V2201 Series Linux Manual" (v2.0) describes the
+# same sudo-based moxa/moxa pattern ("After you change the default password, remember to type
+# sudo each time you want to run commands..."). Neither manual was checked for forced-vs-
+# persistent enforcement wording this pass given time budget for this large final batch.
+
+check_id: candidate-moxa-industrial-linux-4x-moxa-moxa-first-login-default
+protocol: ssh
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Moxa Technologies"
+  product: "Moxa Industrial Linux 4.x (Debian 13) Arm-based Computer platform (e.g. UC-3434A-T-LTE-WiFi and other MIL4-branded units); MC-1200 series (firmware-confirmed, 2020-dated live-boot image)"
+references:
+  - "Moxa Industrial Linux 4.x (Debian 13) Manual for Arm-based Computers, v1.0, user-supplied, 'Managing User Accounts' / 'Default User Account and Password Policy' section"
+  - "Moxa MC-1100 Series Linux Software UM, v1.0, user-supplied, 'Account Management' section -- same credential, weaker (non-blocking) change-recommendation wording"
+detection_hints:
+  transport: tcp
+  app_protocol: ssh
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "No narrow wire-level signature is possible for this check — SSH encrypts the session immediately after key exchange, so the specific username/password pair sent is never visible as a plaintext byte pattern on the wire."
+    patterns: []
+  broad:
+    description: "Repeated SSH authentication attempts against this device family from a single source in a short window — the vulnerability class (a credential-guessing pass), not the specific credential, since SSH's encryption prevents matching the actual username/password on the wire"
+    patterns:
+      - context: request
+        regex: "SSH-2\\.0-"
+description: >
+  Moxa's current Industrial Linux 4.x (Debian 13) Arm-based Computer platform documents its own
+  factory-default login as moxa/moxa (both serial console and SSH), explicitly enforced as a
+  first-login-only default — the device requires a password change before continuing to log in.
+  The "moxa" account is a sudo-group member (root login itself is disabled until manually
+  configured). Genuinely different risk shape from a persistent default: only genuinely
+  never-yet-commissioned units are exploitable via this credential. Prompted a re-examination of
+  checks/candidates/moxa-iothinx-4530-moxa-sudo-default-password.yaml's own cracked shadow entry
+  (lastchg=0, the standard Linux "force change at next login" convention), which was very likely
+  the SAME mechanism, not a persistent credential as originally framed — that file has been
+  updated with this caveat. CVSS 3.1: 9.8 CRITICAL (AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H), scored
+  for the documented vulnerability class with the first-login-only scope explicitly noted. No CVE
+  — documented, intentional factory-default behavior. Not yet built as a live check: whether
+  SSH password auth against a forced-must-change account reports success or a distinct failure
+  mode through this project's existing paramiko-based executor is unverified without live
+  hardware.
+
+# PROMOTED 2026-10-06 (Phase 1) -> checks/ssh/moxa-industrial-linux-4x-moxa-moxa-first-login-default.yaml

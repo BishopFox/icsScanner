@@ -1,0 +1,38 @@
+# Default-credentials sweep, Phase 9. Telnet sibling of
+# checks/http/hirschmann-switch-router-default-creds.yaml — see that file for the full source
+# trail. Covers the RSP 20/25/30/35 and OCTOPUS 8M/16M/24M industrial router families, which
+# SCADAPASS documents over Telnet (port 23) specifically rather than HTTP, with the SAME
+# admin:private / user:public scheme.
+
+check_id: telnet-hirschmann-switch-router-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Hirschmann Automation"
+params:
+  credentials:
+    - ["admin", "private"]
+    - ["user", "public"]
+  default_port: 23
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet username+password login attempt(s) using the documented factory credential(s) (admin:private, user:public)"
+    patterns:
+      - context: request
+        regex: "admin\\r\\nprivate\\r\\n|user\\r\\npublic\\r\\n"
+  broad:
+    description: "Any Telnet login attempt (a username followed by a password, both CRLF-terminated) on this device — the vulnerability class (default/weak credentials on this product's Telnet server), not the specific guessed credential"
+    patterns: []  # generic "any-line" pattern removed 2026-11-11 (real-traffic validation); no device-specific signature beyond the narrow probe/credential bytes. See lab-notes/zeek-detection-validation-pnnl-2026-11.md
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.192-168-0-1login.org/router/hirschmann/rs20-rs30/13682/"
+description: "Hirschmann RSP/OCTOPUS industrial routers ship with a factory-default admin/private + user/public Telnet login — no CVE, documented factory-default behavior."

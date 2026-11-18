@@ -1,0 +1,30 @@
+# Candidate stub — 2026-08-25. User supplied Schneider FAQ "How to use webgate with Ecostruxure
+# Machine Scada Expert (VijeoXL)" directly. NOT executable (no `kind`).
+#
+# What's confirmed: VijeoXL's webgate (an IIS-hosted mobile/web access add-on to the SCADA
+# software runtime, published under a VXL80 virtual directory) states "by default, the user is
+# 'guest' and no password."
+#
+# What's blocking it: this is an IIS-hosted software portal, not embedded device firmware — the
+# FAQ doesn't describe the actual login form (field names, POST target) needed to drive this
+# project's checks.http.native.form_post_default_creds module, and a blank/empty password is an
+# edge case that module's "no weak fallback, explicit success criteria" design (built for the
+# MHI/Yaskawa/Omron HTTP form checks) hasn't been exercised against yet.
+#
+# Action needed: the actual VXL80 login page's HTML (form field names, POST target path) to
+# confirm the credential is submittable via the existing form-POST executor, and to design a
+# success criterion that doesn't rely on a nonempty password field being present.
+
+check_id: candidate-schneider-vijeoxl-webgate-guest-default-creds
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_only: true
+references:
+  - "Schneider Electric FAQ, \"How to use webgate with Ecostruxure Machine Scada Expert (VijeoXL)\" (user-supplied)"
+description: >
+  Schneider Electric VijeoXL webgate (Ecostruxure Machine Scada Expert), an IIS-hosted mobile/web
+  access add-on, defaults its login to guest with no password. Not built — login form field names
+  and POST target are unconfirmed, and a blank-password success criterion for the existing
+  form-POST executor is undesigned. See this file's own header comment.

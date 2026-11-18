@@ -1,0 +1,40 @@
+# Default-credentials sweep. FTP sibling of checks/http/siemens-scalance-x200-default-creds.yaml
+# (Phase 1) — the HTTP admin/admin + user/user pair was built then; this FTP pair
+# (siemens:siemens) surfaced later cross-referencing SCADAPASS's Scalance X-200 row, which itself
+# cites the same three-source set the original HTTP check used (defaultcredentials.org-style
+# aggregator, the Darius Freamon blog, and the official SCALANCE X-200 configuration manual PDF
+# hosted on cache.industry.siemens.com) — same confidence tier as the original.
+
+check_id: ftp-siemens-scalance-x200-default-creds
+protocol: ftp
+kind: native
+module: checks.ftp.native.ftp_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Siemens AG"
+params:
+  credentials:
+    - ["siemens", "siemens"]
+detection_hints:
+  transport: tcp
+  app_protocol: ftp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own FTP USER/PASS login attempt(s) using the documented factory credential(s) (siemens:siemens)"
+    patterns:
+      - context: request
+        bytes: "USER siemens\r\nPASS siemens\r\n"
+  broad:
+    description: "Any FTP USER/PASS login attempt on this device — the vulnerability class (default/weak credentials on this product's FTP server), not the specific guessed credential"
+    patterns:
+      - context: request
+        regex: "^USER \\S*\\r\\nPASS \\S*\\r\\n"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://dariusfreamon.wordpress.com/2013/10/02/siemens-scalance-x-industrial-ethernet-switches/"
+  - "https://cache.industry.siemens.com/dl/files/728/25508728/att_4008/v1/BA_SCALANCE-X-200_76.pdf"
+description: "SCALANCE X-200 industrial Ethernet switches ship with a factory-default siemens/siemens FTP login — no CVE, documented factory-default behavior."

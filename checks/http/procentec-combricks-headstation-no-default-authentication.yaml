@@ -1,0 +1,70 @@
+# PROMOTED from checks/candidates/procentec-combricks-headstation-no-default-authentication.yaml,
+# 2026-09-23 -- disclosure_status was already `public` (vendor-documented factory-default design,
+# not an undisclosed finding) and the candidate's own blocker (no confirmed admin-page path/
+# response-shape signature) is resolved below by carving the real served HTML directly out of the
+# firmware image. See the candidate file's own header for the full manual-sourcing and
+# product-context detail (PROFIBUS/PROFINET fieldbus infrastructure, not a peripheral).
+#
+# WIRE-LEVEL EVIDENCE, resolved 2026-09-23 by directly carving CB-HS-T1.pkg (the device's own
+# firmware update package, from the same ingest batch): binwalk identified a large region of
+# literal, uncompressed embedded HTML starting ~offset 0x2F9817, in a simple custom container
+# format ("CB_File" markers + a null-terminated internal `\www\<filename>` path immediately
+# followed by that file's raw content, byte-carved directly, not guessed). This confirmed, byte-
+# for-byte from the real served page templates:
+#   - `/cfg_gen.htm` ("General Configuration", a genuine admin settings page) has no conditional
+#     server-side auth gate visible in its own static template before the title renders, matching
+#     the manual's own description of the no-password-set state ("all menu items are accessible
+#     and adjustable").
+#   - A separately-titled "Please log in" page (internally the firmware's own "403" page,
+#     bundling 403.css/403.js) exists as the presumed content served in place of a protected page
+#     when a password IS configured and the client isn't authenticated -- inferred from its
+#     existence and naming, not independently observed against a live password-configured unit
+#     this pass (no live device available). The check below is written to fail closed regardless
+#     of the exact protected-state mechanism (redirect, status-code change, or same-URL content
+#     swap): CONFIRMED requires literally seeing the admin page's own title marker, nothing looser.
+#
+# See checks/http/native/procentec_combricks_unauth_admin_access.py for the full technical detail
+# and the exact marker byte sequences (read directly from the carved firmware, not paraphrased).
+
+check_id: http-procentec-combricks-headstation-no-default-authentication
+protocol: http
+kind: native
+module: checks.http.native.procentec_combricks_unauth_admin_access
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H (9.8 CRITICAL)"
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Procentec (HMS Networks)"
+  product: "ComBricks Head Station (1A/1B/1C), firmware V1.100 and higher"
+references:
+  - "User-supplied ingest: 20231214-combricks-headstation-v1-311.zip and 20260724-combricks-headstation-v1-312.zip, combricks-sdcard-contents.zip:doc/docs/ComBricks-User-Manual1-EN.pdf, Section 4.9 'Password setup and login' and Table 1, fetched and read directly via pdftotext"
+  - "User-supplied ingest: 20260724-combricks-headstation-v1-312/CB-HS-T1.pkg, embedded HTML content region carved directly (binwalk-identified offset, CB_File container format), /cfg_gen.htm and the firmware's own '403'/login page templates read byte-for-byte"
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0886
+  analytic_story: "ICS Unauthorized Command Execution"
+  # T0886 (Remote Services), same reasoning as this project's Node-RED and Smart Install checks:
+  # no credential is guessed (CWE-306/CWE-1188, not CWE-798), so T0812 doesn't fit.
+  narrow:
+    description: "This scanner's own read-only GET /cfg_gen.htm"
+    patterns:
+      - context: request
+        regex: "GET /cfg_gen\\.htm HTTP/1\\.[01]"
+  broad:
+    description: "Any GET to /cfg_gen.htm or any other ComBricks admin cfg_*.htm page on this device — the underlying vulnerability class (no authentication configured), not just this scanner's own specific probe path"
+    patterns:
+      - context: request
+        regex: "GET /cfg_[a-z]+\\.htm HTTP/1\\.[01]"
+description: >
+  Procentec (an HMS Networks brand) ComBricks Head Stations (1A/1B/1C, firmware V1.100 and
+  higher) ship with no authentication configured at all out of the box, per the vendor's own
+  manual — "Passwords are NOT activated when the product is purchased or reset and all menu
+  items are accessible and adjustable." ComBricks is genuine PROFIBUS/PROFINET fieldbus
+  diagnostics/repeater infrastructure, not a peripheral. This check confirms the condition via a
+  single read-only GET /cfg_gen.htm, checking for the real admin-page title marker (carved
+  directly from the device's own firmware) rather than the firmware's separate login-required
+  page content — never submits a credential or changes configuration. CVSS 3.1: 9.8 CRITICAL
+  (AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H). No CVE — vendor-documented, intended factory-default
+  design. disclosure_status: public.

@@ -1,0 +1,47 @@
+# Default-credentials sweep, Phase 17 — final SCADAPASS closeout pass. Uses the generic
+# checks/telnet/native/telnet_default_creds.py executor.
+#
+# SCOPE NOTE: Metrobility Optical Systems (now part of Telco Systems) makes fiber media
+# converters and Ethernet extension gear commonly used in telecom/utility communication
+# networks — infrastructure that can plausibly sit inside an OT network segment, same reasoning
+# already applied to Emerson's Liebert/rack-PDU checks (Phase 11).
+#
+# Sources (2 independent): SCADAPASS, citing a dedicated Darius Freamon post, "NetBeacon Element
+# Management Software Multiple Default Credentials"; corroborated by an independent WebSearch
+# confirming all three accounts (guest, admin, root — each password matching the username).
+#
+# No CVE — documented factory-default behavior.
+
+check_id: telnet-metrobility-netbeacon-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Metrobility"
+params:
+  credentials:
+    - ["guest", "guest"]
+    - ["admin", "admin"]
+    - ["root", "root"]
+  default_port: 23
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet username+password login attempt(s) using the documented factory credential(s) (guest:guest, admin:admin, root:root)"
+    patterns:
+      - context: request
+        regex: "guest\\r\\nguest\\r\\n|admin\\r\\nadmin\\r\\n|root\\r\\nroot\\r\\n"
+  broad:
+    description: "Any Telnet login attempt (a username followed by a password, both CRLF-terminated) on this device — the vulnerability class (default/weak credentials on this product's Telnet server), not the specific guessed credential"
+    patterns: []  # generic "any-line" pattern removed 2026-11-11 (real-traffic validation); no device-specific signature beyond the narrow probe/credential bytes. See lab-notes/zeek-detection-validation-pnnl-2026-11.md
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://dariusfreamon.wordpress.com/2014/09/02/netbeacon-element-management-software-multiple-default-credentials/"
+description: "Metrobility NetBeacon Element Management Software ships with factory-default guest/guest, admin/admin, and root/root Telnet logins — no CVE, documented factory-default behavior."

@@ -1,0 +1,52 @@
+# Candidate stub — default-credentials sweep, Phase 10. NOT executable (no `kind`). RESEARCH GAP
+# — no independent corroboration found.
+#
+# SCADAPASS gives "administrator:blank" (general) and "Telnet on port 9900/9000: root:root" for
+# the Moxa ioLogik W53xx Cellular Micro RTU Controller, citing a toolswatch.org 2013 DPE
+# announcement. A dedicated WebSearch specifically for this device's Telnet-port-9900 root:root
+# detail found no independent confirmation — search results only surfaced generic "admin:admin"
+# claims for unrelated Moxa router product lines, not this specific device/port/account.
+
+# LIKELY NEGATIVE for the Telnet:root:root half, 2026-08-30: user supplied Moxa's own
+# "ioLogik Active GPRS I/O" manual (v3.0) directly. It confirms ports 9900 and 9000 are the
+# "Active OPC server" port and the "Active Message" port respectively — data/messaging ports for
+# a proprietary Moxa protocol, NOT Telnet login services. The manual's own troubleshooting text
+# says "make sure ports 9900, 9500, 9300, and 502 are available. You can use Telnet to test" —
+# this means using a telnet CLIENT as a generic TCP-port-connectivity tester (a routine
+# networking technique), not that the device runs an actual Telnet SERVER with a login prompt on
+# those ports. SCADAPASS's "Telnet on port 9900/9000: root:root" row is very likely a
+# misreading of exactly this troubleshooting instruction, not a real finding — same conclusion
+# this project already reached elsewhere for a mis-transcribed row (e.g. the EGX400/PowerLogic
+# "8000" username case). No Telnet mention anywhere else in this manual.
+#
+# ADMINISTRATOR:BLANK HALF — genuinely confirmed, but for a different, non-network access
+# method: the manual's own "Connecting to ioAdmin via Ethernet Console" section (2.3) states
+# "When you install the ioLogik for the first time, the password will be blank and you can
+# simply click Login" — but this is via "ioAdmin," Moxa's own Windows configuration utility,
+# accessed either through a direct RJ45 Ethernet CONSOLE port cable ("direct connection... to a
+# host computer, rather than remotely over the network") or an auto-search over a normal
+# network using ioAdmin's own proprietary discovery/configuration protocol (not a standard
+# HTTP/Telnet/FTP/Modbus service this project's executors can speak). Not buildable without a
+# reverse-engineered wire format for ioAdmin's own protocol — a genuinely different, larger
+# undertaking than confirming a value for an existing executor.
+#
+# CLOSED: Telnet root:root portion treated as a likely-false SCADAPASS row; administrator:blank
+# portion confirmed but architecturally unreachable by this project's current executors.
+
+check_id: candidate-moxa-iologik-w53xx-cellular-rtu-default-creds
+protocol: telnet
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Moxa Technologies"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "http://www.toolswatch.org/2013/02/new-scada-default-passwords-added-to-dpe-xml-database/"
+  - "Moxa ioLogik Active GPRS I/O User's Manual v3.0, user-supplied, Sections 2.3, 9"
+description: >
+  Moxa ioLogik W53xx Cellular Micro RTU Controller — SCADAPASS's "Telnet on port 9900/9000:
+  root:root" row is very likely a misreading of the manual's own troubleshooting instructions
+  (those ports run an OPC-server/messaging protocol, not Telnet; "use Telnet to test" means using
+  the telnet CLIENT as a generic port tester). The confirmed "administrator:blank" default is
+  real but applies to Moxa's own "ioAdmin" configuration utility and its proprietary discovery
+  protocol, not a standard network service this project can probe. Not buildable either way.

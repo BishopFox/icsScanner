@@ -1,0 +1,33 @@
+# Candidate stub — default-credentials sweep, Phase 13. NOT executable (no `kind`). RESEARCH
+# GAP — access-method ambiguity, not a credential-confirmation gap.
+#
+# SCADAPASS gives PVRemote:PD35010 for PlantWatchPRO, with port/protocol listed as "80/tcp,
+# HTTP" — but the same row's own notes qualify this as "from a remote PC via a telephone
+# connection," suggesting dial-up/modem access rather than (or possibly in addition to) a
+# standard IP-network HTTP login. Genuinely unclear whether this credential applies to the same
+# surface a network scanner would reach, or a serial/modem-gated feature that happens to also be
+# described as "HTTP" internally. Not built without resolving which.
+
+check_id: candidate-carel-plantwatchpro-default-creds
+protocol: http
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Carel s.p.a."
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "http://www.carel.co.th/documents/10191/0/%2B040000021/4b549ef7-3d35-4454-bc04-91ba26aa945d?version=1.0"
+description: >
+  CAREL PlantWatchPRO — PVRemote:PD35010, listed as HTTP port 80 but the source's own notes
+  describe access "via a telephone connection" (dial-up/modem), leaving it unclear whether this
+  reaches the same surface a network scanner would test. Needs the source manual read directly
+  to resolve.
+
+# CHECKED, NOT RESOLVED, 2026-08-30: user supplied a current PlantWatchPRO User manual
+# ("+040000191.pdf") directly — read for password/user-management content. This edition
+# describes "Configuration > Users" (Administrator/Normal user roles) but states passwords are
+# "selected during setup" with no factory-default value given anywhere, and never mentions
+# PVRemote/PD35010 or the dial-up access method SCADAPASS's row describes. Either a newer
+# edition covering a changed security model, or simply a different section than where the
+# original SCADAPASS value came from — doesn't resolve the dial-up-vs-network ambiguity either
+# way. Still blocked.

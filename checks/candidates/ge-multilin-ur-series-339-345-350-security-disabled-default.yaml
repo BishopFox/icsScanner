@@ -1,0 +1,98 @@
+# Candidate stub — 6th ips.us/store.ips.us document batch (371 files, W1001711-W1002131 range),
+# 2026-08-29. NOT executable (no `kind`). HIGH CAUTION: real power-grid/motor protection relays,
+# same review bar as every other GE Multilin candidate/check in this project.
+#
+# RESOLVES A PREVIOUSLY-LOGGED BLOCKER for 345/350 (see `lab-notes/human-review-queue.md`
+# Priority 1's own entry: "genuinely different, more complex mechanism... No prose found yet
+# stating an actual factory-default VALUE for any of these slots — the register table alone
+# isn't enough to build a check responsibly"). This batch supplied full instruction manuals for
+# 339 (net-new to this project), 345, and 350 — all three UR-series-platform relays — and all
+# three state the IDENTICAL factory-default security posture verbatim:
+#
+#   "[Model] devices shipped from the factory are initially set with security disabled. If the
+#   password security feature is to be used, the user must first change the Master Reset
+#   Password from the initial Null setting, this can only be done over communications, not from
+#   the front panel keypad... The Master Access level allows programming of the Remote Setpoint
+#   and Remote Control passwords. These passwords are initially set to a Null value, and can only
+#   be set or changed from a remote user over RS485 or Ethernet communications."
+#
+# Confirmed identically in `ingest/W1002120.pdf` (339 Motor Protection System), `ingest/
+# W1002121.pdf` (345), and `ingest/W1002122.pdf` + `ingest/W1002123.pdf` (350, two revisions) —
+# this is a stable, shared UR-series firmware-platform convention, not a per-model coincidence.
+# All three confirm native Ethernet AND RS-485, plus Modbus RTU/TCP, DNP3.0, IEC 60870-5-103/104,
+# and IEC 61850 GOOSE support (339's own protocol table lists Modbus TCP, DNP3.0, IEC 60870-5-104,
+# and IEC 61850 GOOSE explicitly for its Ethernet-port variant) — genuinely IP-native, not a
+# serial-only relay needing a gateway, unlike several older GE Multilin siblings in this project.
+#
+# THIS IS A MISSING-AUTHENTICATION-BY-DEFAULT FINDING, not a guessable credential: out of the
+# box, Remote Setpoint and Remote Control passwords are simply blank (Null) and password security
+# itself is disabled — full remote write/control access requires no credential at all until an
+# operator deliberately enables the feature and sets a Master Reset Password. This is the same
+# vulnerability CLASS already built for 469/489/850/869 (a "0"/blank factory passcode disables
+# password protection), but confirmed here from much more explicit, unambiguous prose ("shipped...
+# with security disabled") on a different, newer, natively-IP relay sub-family.
+#
+# NOT BUILT — the actual blocker, same shape as 339/369's own still-open gap: none of the four
+# manuals in this batch include a Modbus/DNP3 memory-map table giving the specific register
+# address(es) that would let a scanner check/toggle "is password security enabled" or read the
+# Master/Remote password state remotely. These instruction manuals document the mechanism and
+# default STATE in prose, not the wire-level register addresses — that would need a dedicated
+# "[Model] Communications Guide" document, the same kind of document that separately unblocked
+# 469/489/850/869 in this project's own history. Also: even if a register were known, this
+# candidate's own confirmed scope (Remote Setpoint AND Remote Control, i.e. actual breaker/motor
+# control) keeps it in the same elevated-caution tier as those already-shipped checks — same
+# per-model human-review gate needed before promotion, not a rush job once the register is found.
+#
+# Filed as ONE consolidated file for 339/345/350 (all three share byte-for-byte identical
+# sourcing and status) rather than three separate stubs — acceptable per
+# [[feedback_candidate_status_staleness]] specifically because none of the three has been
+# promoted or is expected to be promoted independently of the others; if any one model's own
+# Communications Guide surfaces first, split that model out into its own file at that time rather
+# than letting this consolidated file's prose drift out of sync (the exact failure mode that
+# memory documents).
+#
+# STILL BLOCKED, 2026-08-30 — user supplied another copy of the 339 Instruction Manual
+# (`ingest/55085587-339man-A1-Motor-Protection-System.pdf`, GEK-113563 rev 1.30, P/N
+# 1601-9106-A1) directly, checked in full: confirms the same security-disabled default again
+# (this copy adds one small detail — the Master Reset Password, once set, must be 8 to 10
+# alphanumeric characters, case-sensitive) but does NOT contain a Modbus Memory Map appendix.
+# Genuinely useful, more precise lead for the actual blocking document: this manual's own
+# Modbus section (Chapter 6, S1 Relay Setup) explicitly cross-references "the Feeder Protection
+# System Communications Guide" by that exact name for "additional details on the Modbus protocol
+# and the Modbus memory map" — a more specific title to search for than this file's earlier
+# generic "[Model] Communications Guide" guess. Not yet confirmed whether this is a 339-specific
+# title, a shared UR-platform document title, or a copy-pasted cross-reference GE reused across
+# manuals without updating the device name (all three are plausible given this vendor's known
+# documentation habits elsewhere in this project) — search for the literal phrase first.
+#
+# REFINED, 2026-08-30: checked the already-on-file 350 Instruction Manual (`ingest/
+# W1002123.pdf`, GEK-113507G) for the same cross-reference -- it names "the 350 Feeder Protection
+# System Communications Guide" (WITH the model number prefixed), unlike the 339 manuals own
+# unprefixed "the Feeder Protection System Communications Guide". This suggests each model has
+# its OWN per-model-titled Communications Guide ("339 Feeder Protection System Communications
+# Guide," "345 Feeder Protection System Communications Guide," "350 Feeder Protection System
+# Communications Guide") rather than one shared UR-platform document -- search for these 3
+# exact, per-model titles specifically, not just the generic phrase.
+
+check_id: candidate-ge-multilin-ur-series-339-345-350-security-disabled-default
+protocol: modbus
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "GE Automation"
+references:
+  - "ingest/W1002120.pdf (GE Digital Energy Multilin 339 Motor Protection System Instruction Manual)"
+  - "ingest/W1002121.pdf (GE Digital Energy Multilin 345 Instruction Manual)"
+  - "ingest/W1002122.pdf (GE Digital Energy Multilin 350 Instruction Manual)"
+  - "ingest/W1002123.pdf (GE Digital Energy Multilin 350 Instruction Manual, second revision)"
+description: >
+  GE Multilin UR-series protection relays (339 Motor Protection System, 345, and 350 — all
+  confirmed identically, likely more of the same platform family) ship from the factory with
+  password security DISABLED and Remote Setpoint/Remote Control passwords set to a blank (Null)
+  value — full remote write/control access over native Ethernet or RS485 (Modbus, DNP3.0, IEC
+  60870-5-103/104, IEC 61850 GOOSE) requires no credential at all until an operator opts in to
+  password security. Resolves a previously-logged blocker for 345/350 (no default value had been
+  found) — the actual blocker now is the missing Modbus/DNP3 register address for remotely
+  checking/toggling this state, not the underlying fact. Not built as an active check or script
+  pending that register-map sourcing gap, same elevated-caution tier as this project's other
+  GE Multilin remote-control candidates.

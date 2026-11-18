@@ -1,0 +1,37 @@
+# Default-credentials sweep, Phase 12. FTP sibling of
+# checks/http/echelon-ilon-smartserver-default-creds.yaml — see that file for the full source
+# trail. SCADAPASS's own row explicitly names FTP and LNS-server access with the same ilon:ilon
+# credential, distinct from the separate HTTP-specific row for the same product family.
+
+check_id: ftp-echelon-ilon-smartserver-default-creds
+protocol: ftp
+kind: native
+module: checks.ftp.native.ftp_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Echelon Corp."
+params:
+  credentials:
+    - ["ilon", "ilon"]
+detection_hints:
+  transport: tcp
+  app_protocol: ftp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own FTP USER/PASS login attempt(s) using the documented factory credential(s) (ilon:ilon)"
+    patterns:
+      - context: request
+        bytes: "USER ilon\r\nPASS ilon\r\n"
+  broad:
+    description: "Any FTP USER/PASS login attempt on this device — the vulnerability class (default/weak credentials on this product's FTP server), not the specific guessed credential"
+    patterns:
+      - context: request
+        regex: "^USER \\S*\\r\\nPASS \\S*\\r\\n"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "http://www.unicom-bg.com/pdf/systemintegration/iLONproducts/i.LON_SmartServer_Freely_Programmable_Modules_User_Guide.pdf"
+description: "Echelon i.LON SmartServer (Freely Programmable Modules) ships with a factory-default ilon/ilon FTP login — no CVE, documented factory-default behavior."

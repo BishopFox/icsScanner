@@ -1,0 +1,68 @@
+# ARMED in checks/ssh/ (not candidates/). Status-verified before arming, per the project's
+# disclosure gate: disclosure_status is PUBLIC (iSMA's own docs + Tridium's Niagara 4 Hardening
+# Guide document the tridium/niagara default — not an undisclosed finding), and no existing built
+# equivalent covers THIS transport+product (the one prior Niagara check,
+# checks/http/tridium-niagaraax-default-creds.yaml, is HTTP Basic Auth on the AX generation; this
+# is the OS-level SSH login on the Niagara-4 embedded-LINUX controller class).
+#
+# Mechanism confirmed DIRECTLY from firmware (this project, 2026-10-15, iSMA-B-MAC36PRO
+# mac36pro-secureboot-imx8mp-var-dart .wic image):
+#   - /etc/shadow: `tridium` is the ONLY account with a live $6$ (sha512-crypt) entry; every other
+#     account (root, niagara, ...) is locked (* or !). The $6$ entry cracks to `niagara` — exactly
+#     the documented default (john, targeted wordlist, instant).
+#   - /etc/passwd: tridium:...:/home/tridium:/bin/sh — a real interactive login shell.
+#   - /etc/ssh/sshd_config: PasswordAuthentication is left at the OpenSSH default (ENABLED), so the
+#     tridium account is reachable over SSH by password.
+# This is the DOCUMENTED factory default, not a separate numbered vulnerability (no CVE) — same
+# posture as the existing NiagaraAX HTTP default-cred check. The credential may be changed at
+# commissioning, so this check flags controllers where it was NOT changed (the normal default-cred
+# use case).
+#
+# SCOPE CAVEAT: the fingerprint gate is the Niagara Fox probe (core/fingerprint.py -> vendor
+# "Tridium"), which identifies Niagara controllers generally. The tridium OS/SSH account is a
+# Niagara-4-on-Linux controller trait (iSMA MAC36, JACE-8000, ...); the older AX/QNX generation does
+# not expose this SSH account, so on an AX unit this is simply a bounded failed SSH login, not a
+# false positive of exposure.
+check_id: ssh-isma-mac36-niagara-tridium-default-creds
+protocol: ssh
+kind: native
+module: checks.ssh.native.ssh_default_creds
+destructive: true
+risk_reason: ["login"]  # single SSH login attempt (documented default); no device write
+disclosure_status: public
+# low (not high): the MECHANISM is firmware-confirmed, but this is a documented default expected to
+# be changed at commissioning and the Fox-vendor gate over-matches the AX generation — so a given
+# unit answering is uncertain. Matches the sibling NiagaraAX HTTP default-cred check's confidence.
+confidence: low
+fingerprint_precondition:
+  vendor: "Tridium"
+params:
+  credentials:
+    - ["tridium", "niagara"]
+detection_hints:
+  transport: tcp
+  app_protocol: ssh
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "No narrow wire-level signature — SSH encrypts the session after key exchange, so the tridium/niagara login this scanner sends is not visible as a plaintext pattern."
+    patterns: []
+  broad:
+    description: "SSH authentication attempts against a Niagara/Tridium controller from a single source in a short window (tridium default-credential login attempt)."
+    patterns:
+      - context: request
+        regex: "SSH-2\\.0-"
+references:
+  - "This project's firmware analysis (iSMA-B-MAC36PRO .wic): /etc/shadow tridium=$6$ cracks to 'niagara'; /etc/passwd login shell; sshd PasswordAuthentication at default (enabled)"
+  - "https://icdocs.ismacontrolli.com/kb/article/faq-mac36"
+  - "https://know.innon.com/startup-mac36nl"
+  - "https://www.tridium.com/content/dam/tridium/en/documents/document-lists/Niagara4-Hardening-Guide-2023.pdf"
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+description: >
+  iSMA-B-MAC36 (and other Niagara-4 embedded-Linux controllers) ship an enabled OS account
+  `tridium` whose password is the documented default `niagara`, with SSH password authentication
+  enabled by default — confirmed directly from the MAC36PRO firmware (/etc/shadow $6$ entry cracks
+  to `niagara`, interactive login shell, sshd PasswordAuthentication at the enabled default). This
+  check attempts a single tridium/niagara SSH login against a fingerprinted Niagara/Tridium
+  controller. No CVE — documented factory-default behavior that iSMA's docs and Tridium's own
+  Niagara 4 Hardening Guide warn about; the check flags units where the default was not changed.

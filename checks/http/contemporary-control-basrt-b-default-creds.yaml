@@ -1,0 +1,43 @@
+# Default-credentials sweep, Phase 14. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Source: SCADAPASS, citing the official Contemporary Control Systems BASRT-B (BACnet router)
+# manual directly. Single-source-tier (no independent second source found in this pass) —
+# confidence: low regardless, consistent with this sweep's usual treatment of single-sourced
+# findings against an official manual.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-contemporary-control-basrt-b-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Contemporary Control Systems"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "admin"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (admin:admin)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46YWRtaW4="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "http://www.ccontrols.com/pdf/TD0712000I2.pdf"
+description: "Contemporary Control Systems BASRT-B BACnet router ships with a factory-default admin/admin web-UI login — no CVE, documented factory-default behavior."

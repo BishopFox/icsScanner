@@ -1,0 +1,63 @@
+# Promoted 2026-11-10 from checks/candidates/opto22-snap-pac-web-ftp-default-exposure.yaml (lead #2
+# of the SNAP PAC / groov EPIC CVE buildability review). Promotion grounded in SNAP PAC S1 firmware
+# R10.7c (user-supplied SNAP_PAC_R10.7c_Firmware.zip): the built-in FTP service greets with the
+# distinctive banner "220 Opto 22 FTP server ready." -- read verbatim from snap-pac-s1-R10.7c.bin.
+#
+# FINDING (ICSA-23-236-02): the Opto 22 SNAP PAC / SNAP I/O built-in FTP management service is open by
+# default on affected firmware (CVE-2023-40708). The same advisory covers a web management server
+# that, on firmware <= R10.3b, had no login-attempt limit and allowed weak/default passwords
+# (CVE-2023-40706) -- remediated in later firmware (R10.7c forces credential setup and rejects default
+# values, confirmed in the firmware). disclosure_status: public (published CISA advisory + CVEs).
+#
+# This check reuses core/fingerprint.py probe_opto22_ftp_identity, which reads ONLY the FTP 220
+# greeting and sends NO USER/PASS. A matching Opto 22 FTP banner confirms the management service is
+# network-reachable (the CVE-2023-40708 exposure). It never logs in or tests credentials -- an
+# exposure/identity detection, not a credential check. Non-destructive, safe to fire unsupervised.
+#
+# CVSS: scored for the exposed-management-service condition this confirms. An exposed FTP management
+# service on a controller enables config/firmware interaction once authenticated; on affected firmware
+# that authentication was also weak. Headlining the conservative exposure vector (the DEMONSTRATED fact
+# is "the Opto 22 FTP management service answers on the network"), not claiming authenticated access.
+check_id: opto22-snap-pac-ftp-management-exposed
+protocol: ftp
+kind: native
+module: checks.ftp.native.opto22_ftp_management_exposed
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N (5.3 MEDIUM) -- an Opto 22 SNAP PAC / SNAP I/O built-in FTP management service is network-exposed (CVE-2023-40708, ICSA-23-236-02); on firmware <= R10.3b the web admin also permitted weak/default credentials (CVE-2023-40706). This check confirms the exposure via the benign FTP greeting only; it does not authenticate."
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  # Gated by the Opto 22 FTP-banner identity probe (core/fingerprint.py probe_opto22_ftp_identity): the
+  # scanner reads the "220 Opto 22 FTP server ready." greeting before this check runs. Target: SNAP PAC
+  # (S1/S2/R1/R2) or SNAP I/O (EB1/EB2) exposing the built-in FTP management service (TCP, default 21).
+  protocol_probe: opto22_ftp_identity
+params:
+  default_port: 21
+  timeout: 5.0
+references:
+  - "Opto 22 SNAP PAC S1, ICSA-23-236-02 (CVE-2023-40708 FTP open by default; CVE-2023-40706 web server no login-attempt limit + weak-password allowed on firmware <= R10.3b, CVSS 7.5): https://www.cisa.gov/news-events/ics-advisories/icsa-23-236-02"
+  - "Identity banner grounded in the artifact: SNAP PAC S1 firmware R10.7c (snap-pac-s1-R10.7c.bin) emits '220 Opto 22 FTP server ready.'; R10.7c also shows the CVE-2023-40706 fix (admin page rejects default user/password, requires /admin/keys setup)."
+detection_hints:
+  transport: tcp
+  app_protocol: ftp
+  mitre_attack_id: T0886
+  analytic_story: "ICS Exposed Management Service"
+  narrow:
+    description: "The Opto 22 FTP service greeting -- the distinctive '220 Opto 22 FTP server ready.' banner returned on TCP/21 connect."
+    patterns:
+      - context: response
+        regex: "220[ -].*Opto 22 FTP server"
+  broad:
+    description: "Any FTP control-channel greeting (220) from an Opto 22 controller reaching TCP/21 -- the exposed built-in FTP management service."
+    patterns:
+      - context: response
+        regex: "^220[ -].*Opto 22"
+description: >
+  Opto 22 SNAP PAC / SNAP I/O controllers run a built-in FTP management service that is open by default
+  on affected firmware (CVE-2023-40708, ICSA-23-236-02). This check reads only the FTP 220 greeting and
+  matches the distinctive "220 Opto 22 FTP server ready." banner (grounded in SNAP PAC S1 firmware
+  R10.7c), confirming the management service is network-reachable; it sends no credentials and never
+  authenticates. The same advisory covers a web management server that, on firmware <= R10.3b, had no
+  login-attempt limit and allowed weak/default passwords (CVE-2023-40706), remediated in later firmware.
+  CVSS 3.1 5.3 MEDIUM for the exposed-service condition confirmed; disclosure_status: public (published
+  advisory + CVEs). Promoted from checks/candidates/_promoted/opto22-snap-pac-web-ftp-default-exposure.yaml.

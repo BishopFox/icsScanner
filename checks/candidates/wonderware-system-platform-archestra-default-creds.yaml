@@ -1,0 +1,71 @@
+# Candidate stub — default-credentials sweep, Phase 8 (SCADAPASS cross-reference). NOT
+# BLOCKER TAG (2026-09-22 triage pass): firmware-gap -- The exact API call/endpoint for the low-privileged-user credential retrieval wasn't characterized in any source checked (CISA/summary-level only) -- needs the actual advisory technical detail or vendor documentation/software.
+# RETAGGED (2026-09-22, same-day sourcing pass): out-of-scope, not firmware-gap -- CVE-2019-6525 confirmed AV:L (local, not remote) from the advisory itself; the separate admin:blank finding confirmed gated behind Windows-domain auth, not a distinct network credential. See resolution note near the bottom of this file.
+# executable (no `kind`). Same shape as the already-flagged InTouch/WinCC 7.x candidates from
+# Phase 5 — credential plausible, network surface unconfirmed.
+#
+# SCADAPASS: administrator:blank for Wonderware System Platform/Archestra IDE, citing a
+# Wonderware community support-ticket page (single source, not independently cross-checked).
+# Archestra IDE is a Windows desktop development environment, not obviously a network-reachable
+# service — unclear whether any remote-access feature of System Platform presents this same
+# credential over the network, or whether this is purely a local Windows-application login.
+
+# UPDATE 2026-09-16 (competitor-vendor CVE/known-issues sweep): a DIFFERENT, real CVE on the same
+# product line, recorded here since it's the same vendor/product rather than a separate file —
+# CVE-2019-6525, CVSS v3 8.8, ICSA-19-029-03. Wonderware System Platform uses an internal
+# "ArchestrA" network user account for inter-node/system-process authentication; a low-privileged
+# user can call an API to RETRIEVE the credentials for that account. This is a credential-
+# DISCLOSURE finding (CWE-522-adjacent), not a default/guessable-credential one — a genuinely
+# different vulnerability shape from the administrator:blank Archestra-IDE finding above, and NOT
+# yet confirmed to be the same "network surface unconfirmed" question that finding is blocked on.
+# NOT YET BUILDABLE for the same underlying reason: the exact API call/endpoint the low-privileged
+# user would invoke to retrieve the ArchestrA account credential wasn't characterized in any
+# source checked this pass (CISA/summary-level description only) — would need the actual ICSA-19-
+# 029-03 advisory's technical detail or vendor documentation to move forward.
+
+check_id: candidate-wonderware-system-platform-archestra-default-creds
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://insource.mindtouch.us/Support_Tickets/Industrial_Application_Server/Installation%2F%2FConfiguration/028076_-_What_is_the_default_Administrator_username_and_password_for_the_Archestra_IDE"
+  - "AVEVA Wonderware System Platform, ICSA-19-029-03 (CVE-2019-6525), https://www.cisa.gov/news-events/ics-advisories/icsa-19-029-03 — fetched and read directly 2026-09-22, not a search summary"
+description: >
+  Wonderware System Platform / ArchestrA IDE default administrator:blank login, single-sourced
+  (a Wonderware community support-ticket page). Same open question as the Phase 5 InTouch/WinCC
+  candidates: unconfirmed whether any network-facing feature presents this credential remotely,
+  or whether it's purely a local Windows-application login. Needs a second independent source
+  and a network-surface answer before building. A SEPARATE, distinct CVE on the same product
+  (CVE-2019-6525, CVSS 8.8) covers a low-privileged user retrieving the internal ArchestrA
+  network-service-account credential via an API — a disclosure shape, not a default-credential
+  one, and also not yet buildable (API/endpoint detail not characterized in any source checked).
+
+# BOTH OPEN QUESTIONS RESOLVED 2026-09-22 (firmware-gap sourcing pass), both to a NEGATIVE —
+# this candidate is now believed OUT OF SCOPE for this project's active-network-scanner charter,
+# not just unbuilt:
+#
+# 1. CVE-2019-6525 (ICSA-19-029-03): fetched and read the CISA advisory directly this pass (not
+#    a search summary). The CVSS vector is explicitly AV:L (local attack vector) and the advisory
+#    states plainly "not exploitable remotely" — this is a local-access-only finding, same
+#    disposition class as this project's other physical/local-only candidates. Not buildable as a
+#    network check by definition, independent of ever learning the exact API endpoint.
+#
+# 2. The administrator:blank ArchestrA-IDE credential's network-surface question: a targeted
+#    search of Wonderware/AVEVA's own technical documentation and support material (archestra.info
+#    port reference, AVEVA System Platform Installation Guide, Tech Note 1010 on ArchestrA network
+#    account restrictions) confirms Galaxy Repository (GR) — the actual networked component of
+#    System Platform, the piece other nodes connect to remotely — authenticates via WINDOWS DOMAIN
+#    credentials passed from the connecting client, not a separate ArchestrA-IDE-specific
+#    admin:blank login. The same documentation notes the ArchestrA service account is explicitly
+#    BLOCKED from interactive/RDP logon by default, reinforcing that this account isn't meant to
+#    be reached as a distinct network-facing login at all. This corroborates (does not just leave
+#    open) the candidate's own original hypothesis: administrator:blank is a local Windows-
+#    application (Archestra IDE) login screen, not a network-facing credential.
+#
+# NET CONCLUSION: neither finding on this product line is buildable as a network-reachable check.
+# Recommend closing this candidate as out-of-scope rather than carrying it forward as "not yet
+# buildable" — no further sourcing would change this conclusion, since both blockers resolved to
+# an architectural "not network-reachable" answer, not a missing-information gap.

@@ -1,0 +1,110 @@
+# Candidate stub — 2026-09-14, found during the deeper pass over the SCALANCE LPE9403 firmware
+# BLOCKER TAG (2026-09-22 triage pass): precondition-gap -- Unconfirmed which of Nozomi's two documented role behaviors (Guardian vs. CMC default-credential state) applies to this specific containerized artifact running on physical LPE9403 hardware.
+# RETAGGED (2026-09-22, same-day sourcing pass): live-hardware-gap, not precondition-gap -- read the exact Remote Collector Installation Guide directly and confirmed documentation research is exhausted; only a live/lab deployment can resolve which behavior applies. See follow-up note below.
+# zip's bundled app images (nozomiV1.26.2.0.swu, alongside the main LPE9403 firmware examined in
+# siemens-scalance-lpe9403-edgebox-web-app-default-creds.yaml). NOT executable (no `kind`).
+#
+# `nozomiV1.26.2.0.swu` is a genuinely different vendor's product, distributed AS AN APP for the
+# LPE9403 edge platform, not part of Siemens's own firmware: Nozomi Networks' "Remote Collector"
+# — a lightweight role of their N2OS (Nozomi Operating System), the same software family behind
+# their well-known Guardian/CMC OT-security-monitoring sensors. Plain, unencrypted SWUpdate/cpio
+# archive (same format as the main LPE9403 firmware) containing a Docker build context
+# (Dockerfile + `n2os-lite_26.2.0_arm64.tbz2`, a plain bzip2 tarball, no encryption anywhere in
+# this chain either).
+#
+# CONFIRMED, directly from the Dockerfile and install scripts:
+#   - `ARG N2OS_HTTP_PORT=80` / `ARG N2OS_HTTPS_PORT=443`, both EXPOSEd — a real web console
+#     (nginx `server_name webconsole;` block, confirmed in the extracted nginx.conf).
+#   - `install-nozomi-deps.sh` patches the compiled nginx binary directly: `perl -pi -wE
+#     "s/Server: nginx/Server: n2osw/g" "/usr/sbin/nginx"` — a genuine, verifiable fingerprinting
+#     fact: a real Nozomi N2OS device's HTTP response Server header reads "n2osw", not "nginx".
+#   - Unlike the SINEMA RC "edge client" app bundled in the SAME firmware zip (which modifies the
+#     LPE9403 host's own `/etc/edgebox_web_app/nginx/includes/config/custom/endpoint.conf` to gate
+#     itself behind the HOST's `/auth/admin` login — confirmed, a clean negative, no separate
+#     credential surface), the Nozomi installer (`lpe_nozomi.sh`) does NOT touch that file — it
+#     only runs `docker build`. This means the Nozomi container runs its OWN independent nginx/web
+#     console, NOT gated behind the LPE9403 host's login.
+#   - `bootstrap-container.sh` creates a Linux system user `admin` (uid 2000) inside the
+#     container, but sets no password on it directly — the web console's own credential (if any)
+#     would live in its application config/database, not this OS-level user-provisioning script,
+#     which this pass did not reach (would need deeper N2OS binary/config analysis).
+#
+# CREDENTIAL VALUE — sourced from Nozomi's own official technical documentation, fetched and read
+# directly (not a search summary): https://technicaldocs.nozominetworks.com/products/n2os/topics/
+# installation/general/t_guardian-cmc_config_basic-3.html states plainly: physical sensors ship
+# with username `admin`, password `nozominetworks`; VIRTUAL sensors have NO default password at
+# all (instantly logged in, forced to choose a password during first-time setup).
+#
+# NOT YET BUILDABLE — real, unresolved ambiguity, not just missing mechanism detail: it is
+# UNCONFIRMED which of Nozomi's two documented behaviors applies to THIS specific artifact. The
+# "Remote Collector" is neither the full "Guardian" nor "CMC" role Nozomi's own docs describe
+# (though the container's startup script aliases both role names via symlinks
+# `/usr/local/sbin/guardian` / `/usr/local/sbin/cmc` -> `startup-container.sh`, suggesting the
+# underlying n2os-lite binary CAN run in either role), and it's containerized (like a "virtual
+# sensor") but running on real, physical Siemens LPE9403 hardware as the actual host (unlike a
+# typical VM-hosted virtual sensor) — neither of Nozomi's own two documented categories maps
+# cleanly onto "N2OS-lite Remote Collector, containerized, on physical third-party host hardware."
+# Getting this wrong in either direction is a real risk: assuming "physical" (nozominetworks
+# applies) could false-negative on a genuinely no-default-password deployment; assuming "virtual"
+# (no default) could miss a real, exploitable finding.
+#
+# Action needed before building: a live/simulated deployment of this SPECIFIC Remote Collector
+# role (not a full Guardian/CMC sensor) to observe first-login behavior directly, or a Nozomi
+# support/documentation source that specifically addresses the Remote Collector role's own
+# default-credential behavior (not found this pass — Nozomi's public docs discuss Guardian/CMC,
+# not Remote Collector, in this context). If confirmed as "physical sensor" behavior, this would
+# reuse checks/http/native/basic_auth_default_creds.py or form_post_default_creds.py depending on
+# N2OS's actual login mechanism (not determined this pass either — would need the same kind of
+# frontend-bundle read that resolved TM172SI/LPE9403's own mechanisms).
+#
+# FOLLOW-UP 2026-09-22 (firmware-gap sourcing pass): found and read the EXACT document this
+# candidate said didn't exist — Nozomi's own "Remote Collector Installation Guide" (N2OS v26.4.0,
+# 2026-08-17, technicaldocs.nozominetworks.com/out/pdf-output/Remote%20Collector-Installation%20
+# Guide.pdf, downloaded and read directly via pdftotext, not a search summary). Genuinely
+# Remote-Collector-specific, not the generic Guardian/CMC doc cited before.
+#
+# STILL NOT RESOLVED, honestly: even this exact, role-specific, most-authoritative-possible
+# document does NOT disambiguate the container-deployment case. Its own "Basic configuration"
+# chapter (ch. 5, applies uniformly after any of ch. 2/3/4 "Physical installation"/"Virtual
+# installation"/"Container installation") states the login-credential split ONLY as a two-way
+# physical-vs-virtual choice: "In a virtual sensor, you are instantly logged in, as no password is
+# set by default. In physical sensors, nozominetworks is the default password." Access-method
+# framing reinforces this is a genuine two-way split, not three-way: "You can use either a serial
+# console (for physical sensors) or the text hypervisor console (for virtual sensors)" — a
+# container deployment (accessed via ioxclient/Docker exec, neither a serial console nor a
+# hypervisor console) doesn't map cleanly onto either. Chapter 4 ("Container installation") itself
+# was also read in full and contains ZERO separate mention of default-password/login behavior for
+# container deployments specifically — only the OS-level `user: admin` in the ioxclient package
+# config (the same fact already found in bootstrap-container.sh, not new information).
+#
+# REASONED (not confirmed) LEANING: containers are Docker/software-based deployments, same as a
+# "virtual sensor" in every way that plausibly matters for first-boot password provisioning
+# (no dedicated Nozomi-manufactured hardware involved, same class of environment `bootstrap-
+# container.sh` already showed creates the admin user with no password set directly) — this
+# suggests the "virtual sensor" behavior (no default password, instant login) is the more likely
+# match for a container-hosted Remote Collector than the "physical sensor" nozominetworks default.
+# NOT strong enough to build on: this is inference from architectural similarity, not a stated
+# vendor fact for this exact deployment shape, and the original candidate's own risk framing
+# (getting this wrong in either direction has real consequences) still applies in full. Confirms
+# this candidate genuinely needs a live/lab Remote Collector deployment to observe directly —
+# documentation research has now been exhausted, not just insufficiently thorough.
+
+check_id: candidate-nozomi-remote-collector-lpe9403-app-default-creds
+protocol: http
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Nozomi Networks"
+references:
+  - "https://technicaldocs.nozominetworks.com/products/n2os/topics/installation/general/t_guardian-cmc_config_basic-3.html"
+  - "nozomiV1.26.2.0.swu — bundled inside Siemens's official SCALANCE LPE9403 firmware zip as an installable app, user-supplied, extracted and inspected directly (SWUpdate/cpio -> Docker build context -> bzip2 tarball, no encryption anywhere)"
+description: >
+  Nozomi Networks N2OS ("Remote Collector" role), distributed as a bundled app for the Siemens
+  SCALANCE LPE9403 edge platform, runs its own independent web console (nginx, ports 80/443, its
+  own Server header deliberately patched to read "n2osw" instead of "nginx" — a real
+  fingerprinting fact). Nozomi's own official documentation confirms username admin / password
+  nozominetworks for PHYSICAL Guardian/CMC sensors, and NO default at all for virtual sensors.
+  NOT YET BUILDABLE: it is genuinely unconfirmed which behavior this specific containerized
+  Remote Collector role (running on physical third-party host hardware, neither cleanly
+  "physical" nor "virtual" per Nozomi's own categories) actually follows — needs a live deployment
+  or a Nozomi source addressing this role specifically before guessing either way.

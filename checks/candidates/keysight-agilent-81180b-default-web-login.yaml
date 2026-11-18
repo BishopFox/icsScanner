@@ -1,0 +1,82 @@
+# CANDIDATE — 2026-10-08, from the firmware-sidecar Keysight sweep (vendor firmware ingest).
+# disclosure_status: undisclosed → NOT buildable until the disclosure posture is settled (see below).
+#
+# FINDING (firmware-confirmed): the Keysight/Agilent 81180B arbitrary-waveform generator ships a
+# fixed default WEB credential. From 81180B_FW_3.10.zip → ag8118B.bin → gzip → embedded Linux rootfs
+# (Tabor Electronics OEM):
+#   - /opt/tabor/userData.txt = "usr=user" / "pwd=agilent", read by the web FastCGI backend
+#     /opt/tabor/fcgi-responder.
+#   - the login page JS pre-fills formObj.password.value = "agilent" (banner "Agilent AWG 81180B").
+#   - web server = lighttpd on TCP 80 (server.port=80, mod_auth + mod_fastcgi). The login form POSTs
+#     to login_conf.fcgi (LAN/network configuration) + login_remote_app.fcgi / login_remote_com.fcgi
+#     (remote-control applet + SCPI command editor). The form exposes a "password" field (username
+#     implicit "user"); /etc/shadow is empty so this app-level cred is the real auth path.
+# IMPACT: default login "user"/"agilent" over HTTP/80 → remote instrument control + network
+# reconfiguration, shared across units. CVSS (rough) AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N ~ 8.1 HIGH
+# (remote control + config change over the network; no safety/availability framing claimed).
+#
+# DISCLOSURE POSTURE — UNRESOLVED (rigor gate, do not promote until settled): the login page
+# PRE-FILLS "agilent", which strongly implies this is Keysight/Agilent's OWN DOCUMENTED default web
+# password (a convenience pre-fill, like other LXI gear) rather than a hidden backdoor. If confirmed
+# documented in the 81180A/B User's Guide → it is PUBLIC/documented-default class (promotable as a
+# built http-login check, same shape as the Nidec admin/admin precedent). If NOT documented → it is
+# an undisclosed hardcoded credential and must go through coordinated disclosure first. MUST verify
+# against the vendor PDF before promoting (cf. the "verify vendor PDFs" lesson). Held undisclosed.
+#
+# NOTE: 81180A is a DIFFERENT, older GPIB-focused firmware build (no fcgi web login found) — this
+# candidate is 81180B only; 81180A's own web/cred surface is unconfirmed.
+#
+# TO ARM (post-verification/disclosure): a form-POST web-login check — POST password=agilent to
+# login_conf.fcgi on port 80, success = authenticated session (not the "Username/Password incorrect"
+# page). Needs a small custom executor or the existing form-login executor with the fcgi field names
+# confirmed against a live unit; confidence high on the credential, low until live-confirmed on wire.
+# DISCLOSURE POSTURE RESOLVED 2026-10-08 → public (documented default), VERBATIM-CONFIRMED:
+#   - PRIMARY (firmware, in-hand): the 81180B login page itself PRE-FILLS password="agilent" +
+#     /opt/tabor/userData.txt ships pwd=agilent.
+#   - VERBATIM VENDOR DOC (user-supplied KB PDF, vendor firmware ingest"The password is
+#     required to access the B290xA LXI webpage ...pdf" = docs.keysight.com/kkbopen/...-589310186):
+#       "The password is required to access the instrument compliant with the LXI specification.
+#        The password is set to \"agilent\" when it is shipped from the factory.
+#        To change the password, click on the View & Modify Configuration button."
+#   => NOT a hidden backdoor; a vendor-DOCUMENTED, user-changeable factory default (documented-default
+#      class, cf. Nidec admin/admin). No coordinated disclosure required → promotable.
+#
+# SCOPE IS WIDER THAN 81180B: the KB is generic to "the instrument compliant with the LXI
+# specification" (titled for the B290xA / B2900A SMU series), i.e. "agilent" is Keysight/Agilent's
+# LXI-FAMILY default web password (PASSWORD-ONLY, no username). The 81180B firmware confirms it
+# concretely; the B2900A SMUs are named by the KB; and the other LXI instruments in this ingest
+# (34410A/34411A, 53210A/53220A/53230A, 33220A, 3446XA, ...) are LXI-spec devices the same default
+# almost certainly covers. => the right check is "Keysight/Agilent LXI default web password 'agilent'",
+# not an 81180B one-off. CAVEAT for ARMING: the credential is family-wide, but the LOGIN WIRE FORMAT
+# differs by generation — the 81180B uses a Tabor-custom fcgi login (login_conf.fcgi, password-only
+# POST), whereas B2900A/standard-LXI units use the standard Keysight LXI web "View & Modify
+# Configuration" password page. Arming needs the login POST confirmed per web-UI family (RE'd from
+# firmware or a live unit); confidence high on the credential, low on any single wire format until
+# live-confirmed. Not auto-armed here.
+check_id: candidate-keysight-agilent-81180b-default-web-login
+protocol: http
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Keysight (Agilent)"
+  product: "81180B arbitrary waveform generator (Tabor-OEM Linux firmware, FW 3.10; LXI web UI on TCP 80)"
+references:
+  - "User-supplied ingest: 81180B_FW_3.10.zip → ag8118B.bin → gzip → firmware/remApp/opt/tabor/userData.txt (usr=user/pwd=agilent); login page JS pre-fills password='agilent'; lighttpd.conf server.port=80 + login_conf.fcgi/login_remote_app.fcgi/login_remote_com.fcgi"
+  - "Classic-LXI generation (E-series ENA analyzers E4982/E4990A/E4991B/E5052B/E5061B/E5063A, tested 2026-10-08): same documented default \"agilent\"; the \"View & Modify Configuration\" ASP page (KB 589310186) — login wire format POST PasswordTextBox=base64(\"agilent\") to /password.asp (base64 transit only; backend AgilentLxiWebComServer.LxiRequired holds the password). No literal default in the ASP."
+  - "Keysight KB (verbatim, user-supplied PDF): docs.keysight.com/kkbopen/the-password-is-required-to-access-the-instrument-589310186.html — 'The password is required to access the instrument compliant with the LXI specification. The password is set to \"agilent\" when it is shipped from the factory. To change the password, click on the View & Modify Configuration button.' (article titled for B290xA / B2900A SMU; generic to LXI-compliant Keysight/Agilent instruments)"
+params:
+  default_port: 80
+  credentials:
+    - ["user", "agilent"]
+  login_path: "/login_conf.fcgi"
+description: >
+  Keysight/Agilent 81180B AWG (Tabor-OEM Linux firmware) ships a fixed default web login user/agilent
+  (/opt/tabor/userData.txt + login-page pre-fill), served by lighttpd on TCP 80, gating remote
+  instrument control (login_remote_app/com.fcgi) and LAN configuration (login_conf.fcgi). Firmware-
+  confirmed. disclosure_status: public — VERBATIM-CONFIRMED 2026-10-08 as a vendor-DOCUMENTED,
+  user-changeable factory default: Keysight KB 589310186 states the LXI web password "is set to
+  'agilent' when it is shipped from the factory." Generic to Keysight/Agilent LXI-compliant
+  instruments (KB titled for B290xA/B2900A; firmware-confirmed on 81180B), PASSWORD-ONLY. Documented-
+  default class, no coordinated disclosure. Promotable as a "Keysight LXI default web password"
+  check; not auto-armed (login wire format differs per web-UI generation — 81180B Tabor fcgi vs the
+  standard LXI config page — confirm per family before arming).

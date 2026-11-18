@@ -1,0 +1,61 @@
+# Built check 2026-10-06 (Siemens sweep follow-up, lab-notes/secondary-firmware-sourcing-register.md).
+# Classic S7comm (S7-300/400, ET200, WinAC, snap7/OpenPLC-compatible) has NO authentication on the
+# System Status List (SZL) read: after the standard ISO-on-TCP handshake (COTP CR/CC + S7 Setup
+# Communication) any client can read SZL-ID 0x001C (CPU component identification: MLFB order number
+# "6ES7...", firmware/version, serial, plant designation, OEM) with no credential. The Siemens analog
+# of the Schneider UMAS READ_ID + LS XGT read + Mitsubishi SLMP read -- info disclosure / missing
+# authentication (CWE-306/CWE-200). s7comm-PLUS (S7-1200/1500) gates this (integrated auth/encryption)
+# and is out of scope here. READ-ONLY (no write, no CPU stop, no mode change); safe to fire.
+#
+# WIRE FORMAT cross-verified (no SIOS firmware needed; XGT/SLMP/UMAS playbook): the COTP CR + S7 Setup
+# frames are the project's own proven probe_s7comm_identity frames; the Read-SZL userdata request
+# (CPU functions, subfunction Read SZL, SZL-ID 0x001C/0x0011) matches snap7 / python-snap7 (read_szl,
+# get_cpu_info), klsecservices/s7scan, plcscan (s7-enumerate.nse), and nmap s7-info.nse -- all of
+# which issue the identical UNAUTHENTICATED SZL read to fingerprint S7 PLCs.
+# Built against checks/s7comm/native/s7comm_szl_unauth_info.py. Gated by the s7comm_identity probe.
+check_id: siemens-s7comm-szl-unauthenticated-info-disclosure
+protocol: s7comm
+kind: native
+module: checks.s7comm.native.s7comm_szl_unauth_info
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N (7.5 HIGH) -- unauthenticated CPU identity/firmware/serial/plant-designation disclosure over classic S7comm SZL"
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  # Gated by the existing S7comm protocol-identity probe (core/fingerprint.py probe_s7comm_identity):
+  # the scanner confirms a classic S7comm stack (COTP CC + S7 Setup Comm ack) before this check runs.
+  # Target: Siemens S7-300/400/ET200/WinAC + s7comm-compatible stacks, ISO-on-TCP 102.
+  protocol_probe: s7comm_identity
+params:
+  default_port: 102
+  szl_ids: [0x001C, 0x0011]
+  timeout: 5.0
+references:
+  - "snap7 / python-snap7 (read_szl / get_cpu_info -> SZL-ID 0x001C CPU component identification); klsecservices/s7scan; plcscan s7-enumerate.nse; nmap s7-info.nse -- all issue the identical unauthenticated S7comm SZL read (0x001C/0x0011) on S7-300/400/ET200."
+  - "S7comm protocol: ISO-on-TCP (RFC1006) port 102; COTP CR/CC + S7 Setup Communication + S7 USERDATA Read-SZL (ROSCTR 0x07, CPU functions, Read SZL). s7comm-plus (S7-1200/1500) is authenticated/encrypted and not covered."
+detection_hints:
+  transport: tcp
+  app_protocol: s7comm
+  mitre_attack_id: T0888
+  analytic_story: "ICS Information Discovery"
+  narrow:
+    description: "This scanner's own S7comm Read-SZL userdata request (ROSCTR 0x07, CPU functions subfunction 0x44, SZL-ID 0x001C) -- the S7 userdata param+data after the TPKT/COTP header."
+    patterns:
+      - context: request
+        bytes: "\\x32\\x07\\x00\\x00"
+  broad:
+    description: "Any S7comm USERDATA read of a System Status List on port 102 (ROSCTR 0x07 + CPU-functions Read-SZL subfunction 0x44) -- the SZL enumeration class, not this scanner's specific SZL-ID."
+    patterns:
+      - context: request
+        bytes: "\\x00\\x01\\x12\\x04\\x11\\x44"
+description: >
+  Siemens classic S7comm devices (S7-300/400, ET200, WinAC, and s7comm-compatible stacks) answer an
+  UNAUTHENTICATED System Status List (SZL) read that discloses CPU identification -- MLFB order number
+  (6ES7...), firmware/hardware version, serial number, and plant/project designation -- with no
+  credential, after only the standard ISO-on-TCP handshake. This is the pre-authentication CPU-info
+  read that snap7/plcscan/nmap s7-info.nse use. s7comm-plus (S7-1200/1500) gates it; this covers the
+  large classic-S7comm population (CWE-306/CWE-200). The check performs COTP CR/CC + S7 Setup Comm +
+  Read-SZL (0x001C, fallback 0x0011) and confirms a success SZL data response, opportunistically
+  reporting the disclosed order number. CVSS 3.1 7.5 HIGH. Built against
+  checks/s7comm/native/s7comm_szl_unauth_info.py; wire format cross-verified across snap7/s7scan/
+  plcscan/nmap.

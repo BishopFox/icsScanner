@@ -1,0 +1,92 @@
+# Built 2026-09-17, following directly from the ioLogik E1200 core-line check (same day, earlier
+# batch) and the "documented research gap" decision on the SAME file's own candidate. That
+# decision was made because no default CREDENTIAL could be confirmed for E1200H/E1200W. The user
+# then supplied both products' own official manuals in the very next ingest batch, which resolve
+# the gap in a DIFFERENT direction than expected: there is no default credential to guess because
+# password protection itself is OPT-IN and OFF by default on these two models -- a missing-
+# authentication finding (CWE-306), not a hardcoded-credential one (CWE-798/521). Confirmed no
+# prior candidate/check for this specific finding existed before writing this file.
+#
+# THE FINDING, from Moxa's own manuals (ioLogik E1200H Series User Manual v2.2, ioLogik E1200W
+# Series User Manual v2.2, both user-supplied, byte-identical wording in both):
+#   - "Factory Default Settings" reference table: "Password    N/A"
+#   - "Change Password" section: "For all changes to the...password protection settings, you
+#     will first need to enter the old password. Leave this blank if you are setting up password
+#     protection for the first time."
+# i.e. a factory-fresh unit has NO password configured and the web console is directly reachable.
+#
+# THE WIRE BEHAVIOR, confirmed directly against real firmware (moxa-iologik-e1200h-series-
+# e1261h-t-firmware-v1.1.1kp, moxa-iologik-e1200w-series-e1261w-t-firmware-v1.1.1kp -- the SAME
+# two firmware images already used to characterize this product line's login mechanism in the
+# sibling candidate): both ship the literal "I/O Server general information" / "Welcome to
+# ioLogik <MODEL_NAME> Series" info page at the same `home.htm` URL that serves the "Input
+# Password" challenge form on a protected unit -- i.e. GET /home.htm on an unprotected unit
+# returns the real device info directly, no login step at all. See
+# checks/http/native/iologik_unauthenticated_web_console.py for the full detail and the strict
+# response-shape gate used to avoid a false CONFIRMED (same design as this project's existing
+# nodered_unauthenticated_flows.py check for an analogous "auth is simply not enforced" finding).
+#
+# SCOPE: E1200H/E1200W hardware-variant models. Explicitly does NOT apply to the core E1200
+# line (E1210/E1211/E1213/E1214/E1240/E1241/E1242/E1260/E1262), which ships WITH a default
+# password ("moxa") instead -- see checks/http/moxa-iologik-e1200-default-password.yaml and
+# checks/candidates/moxa-iologik-e1200-e1500-railway-remote-io.yaml for that separate, already-
+# built finding. A unit that HAS had a password configured (any password, not just a specific
+# guessed value) will correctly report NOT_APPLICABLE from this check, since the vulnerability is
+# precisely the absence of any password, not a specific weak one.
+#
+# UPDATE 2026-09-17 (following ingest batch 7's E1500 protocol correlation): the user supplied
+# Moxa's own official "ioLogik E1500 Series Manual" (v5.0) directly. It states IDENTICAL wording
+# to the E1200H/E1200W manuals -- "Factory Default Settings" table lists "Password    N/A", and
+# the same "leave blank if setting up password protection for the first time" Change Password
+# language. This directly confirms (not just protocol-level-implies) that E1500 shares the same
+# missing-authentication-by-default behavior already built here, matching the byte-identical
+# `SetPass()` JS already found in E1500's own firmware (moxa-iologik-e1500-series-e1510-t-
+# firmware-v1.1.1kp / e1512-t sibling, both v1.1 -- see
+# checks/candidates/moxa-iologik-e1200-e1500-railway-remote-io.yaml for that firmware-level
+# detail). Scope broadened to include E1500; check_id kept stable to avoid breaking the existing
+# reference trail.
+
+check_id: http-moxa-iologik-e1200h-e1200w-unauthenticated-web-console
+protocol: http
+kind: native
+module: checks.http.native.iologik_unauthenticated_web_console
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Moxa Technologies"
+  product: "ioLogik E1200H/E1200W (hazardous-location and wireless hardware variants) and E1500 (confirmed via official manual + byte-identical firmware login flow)"
+params:
+  path: "/home.htm"
+  https: false
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own read-only GET /home.htm request, verified directly against this check's own path param, not hand-derived"
+    patterns:
+      - context: request
+        regex: "GET /home\\.htm"
+  broad:
+    description: "Any GET to /home.htm against this device that receives the 'I/O Server general information' page directly, with no Input Password challenge -- the vulnerability class (missing authentication by default), not a specific credential"
+    patterns:
+      - context: response
+        regex: "Welcome to ioLogik|I/O Server general information"
+references:
+  - "Moxa ioLogik E1200H Series User Manual, v2.2, user-supplied"
+  - "Moxa ioLogik E1200W Series User Manual, v2.2, user-supplied"
+  - "Moxa ioLogik E1500 Series Manual, v5.0, user-supplied -- identical 'Password: N/A' factory-default wording"
+  - "moxa-iologik-e1200h-series-e1261h-t-firmware-v1.1.1kp, moxa-iologik-e1200w-series-e1261w-t-firmware-v1.1.1kp, user-supplied ingest, 'I/O Server general information' info page confirmed served at the same home.htm URL the login form uses"
+  - "moxa-iologik-e1500-series-e1510-t-firmware-v1.1.1kp, moxa-iologik-e1500-series-e1512-t-firmware-v1.1.1kp, user-supplied ingest, byte-identical SetPass() JS to E1200H/E1200W"
+description: >
+  Moxa's ioLogik E1200H (hazardous-location), E1200W (wireless), and E1500 Remote I/O modules ship
+  with password protection for the web console OFF by default (a factory-fresh unit has no
+  password configured at all) -- confirmed directly from Moxa's own official manuals for all three
+  products ("Password: N/A" in the factory-default settings table; the Change Password
+  instructions describe setting up protection as an opt-in first-time action). Confirmed against
+  real firmware for all three that the device's real configuration/info page is served directly
+  with no login challenge in this state. This is a missing-authentication finding, not a
+  guessable default credential -- see the sibling core-E1200-line check for that separate,
+  different finding. No CVE -- documented factory-default behavior.

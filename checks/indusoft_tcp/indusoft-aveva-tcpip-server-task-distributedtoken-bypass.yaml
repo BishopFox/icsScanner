@@ -1,0 +1,63 @@
+# Native check — AVEVA InduSoft Web Studio / InTouch Edge HMI "TCP/IP Server Task" agent,
+# blank-Main-Password authentication bypass via the "DistributedToken|<hash>" value
+# (CVE-2018-17914/CVE-2018-17916, Tenable TRA-2018-34). See
+# checks/indusoft_tcp/native/distributed_token_bypass.py for the implementation and
+# lab-notes/human-review-queue.md (Priority 2) for the full research trail.
+#
+# Built 2026-09-05 after re-fetching Tenable's own advisory page directly via curl (an earlier
+# WebFetch AI-summary had silently truncated the critical hex PoC mid-string) and decoding the
+# full login frame byte-for-byte in Python — the request side is now byte-exact, zero guessing.
+#
+# CAPPED AT FINGERPRINT_ONLY, NEVER CONFIRMED: neither Tenable source documents or verifies a
+# command-69 success/failure response signature. See the module docstring for the full
+# reasoning and the differential-control-probe design this check uses to give a human reviewer
+# something concrete to compare, without the tool itself overclaiming.
+#
+# Does NOT cover the separate Guest-account variant (username='Guest', credentials=<hash>) —
+# that field layout was only ever described in prose, never verified in hex, and stays an open
+# candidate (checks/candidates/indusoft-aveva-tcpip-server-task-guest-login.yaml).
+
+check_id: indusoft-tcpip-server-task-distributedtoken-bypass
+protocol: indusoft-tcp
+kind: native
+module: checks.indusoft_tcp.native.distributed_token_bypass
+cve_id: CVE-2018-17914
+severity: "10.0 CRITICAL (CVSSv2 base score only — see Tenable TRA-2018-34 for full vector before treating as authoritative)"
+destructive: true
+risk_reason: ["login"]  # a plain authentication-bypass attempt; no lockout mechanism documented in either source, no persistent device write (session-level TCP auth, not a register/config write)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_probe: indusoft_tcp_identity
+params:
+  timeout: 5.0
+detection_hints:
+  transport: tcp
+  app_protocol: indusoft-tcp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Unauthorized Command Execution"
+  narrow:
+    description: "This scanner's own command-69 login frame header through the start of the 'DistributedToken|2393bf8557a3bda8f3197877a7d1f5be' bypass value from Tenable TRA-2018-34's own PoC — byte-exact, extracted programmatically from core.indusoft_tcp.build_distributed_token_bypass_frame()'s actual output, not hand-transcribed (an earlier hand-written version of this pattern was WRONG — it omitted the frame's 2 leading 'Reserved' fields and 1 empty field before the identity field, caught by testing the pattern against the real generated frame before shipping)"
+    patterns:
+      - context: request
+        bytes: "\\x02\\x45\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\xff\\xfe\\xff\\x08\\x52\\x00\\x65\\x00\\x73\\x00\\x65\\x00\\x72\\x00\\x76\\x00\\x65\\x00\\x64\\x00\\xff\\xfe\\xff\\x08\\x52\\x00\\x65\\x00\\x73\\x00\\x65\\x00\\x72\\x00\\x76\\x00\\x65\\x00\\x64\\x00\\xff\\xfe\\xff\\x00\\xff\\xfe\\xff\\x31\\x44\\x00\\x69\\x00\\x73\\x00\\x74\\x00\\x72\\x00\\x69\\x00\\x62\\x00\\x75\\x00"
+  broad:
+    description: "The UTF-16LE-encoded 'DistributedToken|' string, regardless of surrounding frame position or the trailing hash — the underlying blank-Main-Password bypass mechanism in general, on this protocol's port 1234"
+    patterns:
+      - context: request
+        bytes: "\\x44\\x00\\x69\\x00\\x73\\x00\\x74\\x00\\x72\\x00\\x69\\x00\\x62\\x00\\x75\\x00\\x74\\x00\\x65\\x00\\x64\\x00\\x54\\x00\\x6f\\x00\\x6b\\x00\\x65\\x00\\x6e\\x00\\x7c\\x00"
+advisory_url: "https://www.cisa.gov/news-events/ics-advisories/icsa-18-305-01"  # promoted from references (canonical advisory)
+references:
+  - "https://www.tenable.com/security/research/tra-2018-34"
+  - "https://www.cisa.gov/news-events/ics-advisories/icsa-18-305-01"
+  - "https://medium.com/tenable-techblog/poppin-calc-web-studio-edition-a51226e1d478"
+description: >
+  AVEVA InduSoft Web Studio / InTouch Edge HMI "TCP/IP Server Task" agent (port 1234) accepts a
+  blank-Main-Password authentication bypass via a fixed "DistributedToken|<hash>" identity value
+  sent in a command-69 (0x45) login frame, per Tenable TRA-2018-34 (CVE-2018-17914/
+  CVE-2018-17916). The request is byte-exact verified against the advisory's own raw PoC hex —
+  zero guessing on the wire format. FINGERPRINT_ONLY only: neither Tenable source documents a
+  success/failure response signature for this command (both of their own PoCs blindly chain into
+  a separate buffer-overflow attack without checking it), so this check cannot self-confirm —
+  it sends the real bypass plus a same-shaped differential control probe and reports both raw
+  responses as evidence for a human reviewer, never CONFIRMED.

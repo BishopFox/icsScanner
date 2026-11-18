@@ -1,0 +1,48 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ "The customer has lost the
+# HTTP password of BMXNOR0200 module, how to retrieve this password" directly. New Modicon X80
+# module for this project: BMXNOR0200 (FW V1.7IR10 explicitly named).
+#
+# The FAQ's own Resolution describes a recovery procedure (FTP in, delete Userlist.dat from
+# /SDCA/Web) whose stated purpose is to "move back to old default username and password which is
+# USER in both cases" — i.e. USER:USER is stated as the module's actual factory-shipped default
+# for the HTTP webpage, not merely an example value. (Distinct from the BMENOC0301/BMENOC0311/
+# TSXETG30xx "lost password after it was CHANGED" FAQs reviewed the same batch, which describe an
+# unrecoverable-without-factory-repair scenario for THEIR OWN separate credential store — not a
+# contradiction, just a different module family with a different recovery design.)
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-modicon-bmxnor0200-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["USER", "USER"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory credential (USER:USER) for the Modicon BMXNOR0200 module's webpage"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic VVNFUjpVU0VS"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ, \"The customer has lost the HTTP password of BMXNOR0200 module, how to retrieve this password\" (user-supplied)"
+description: "Schneider Electric Modicon X80 BMXNOR0200 module ships with a factory-default HTTP webpage login of USER:USER. No CVE, documented factory-default behavior per Schneider's own FAQ (surfaced inside a password-recovery procedure that explicitly restores this exact value)."

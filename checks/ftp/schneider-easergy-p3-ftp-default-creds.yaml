@@ -1,0 +1,45 @@
+# Default-credentials sweep, 2026-08-25 — user supplied two Schneider FAQs directly, both
+# describing the same mechanism from different angles: "How can I connect and login to the FTP
+# server in Easergy P3?" and "What is FTP server support in Easergy P3 and how can I enable it?"
+# New product for this project: Easergy P3, a protection relay (disturbance-record retrieval via
+# FTP is the stated use case).
+#
+# Both FAQs agree: the FTP username is FIXED as "easergy" (not configurable), and the password is
+# a device setting whose factory-shipped value is "config" (set under COMMUNICATION / Protocol
+# configuration, alongside the "Enable FTP Server" toggle — FTP is opt-in, not always-on, which
+# is why this is flagged low-confidence/opportunistic rather than assumed universally present).
+#
+# No CVE — documented factory-default behavior.
+
+check_id: ftp-schneider-easergy-p3-ftp-default-creds
+protocol: ftp
+kind: native
+module: checks.ftp.native.ftp_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  credentials:
+    - ["easergy", "config"]
+detection_hints:
+  transport: tcp
+  app_protocol: ftp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own FTP USER/PASS attempt using the documented factory credential (easergy:config) for the Easergy P3 protection relay's optional FTP disturbance-record service"
+    patterns:
+      - context: request
+        bytes: "USER easergy\\r\\nPASS config\\r\\n"
+  broad:
+    description: "Any FTP USER/PASS pair using 'easergy' as the username against this device family — the vulnerability class (a factory-default protection-relay FTP credential), not the specific guessed password"
+    patterns:
+      - context: request
+        regex: "USER easergy\\r\\nPASS .*\\r\\n"
+references:
+  - "Schneider Electric FAQ, \"How can I connect and login to the FTP server in Easergy P3?\" (user-supplied)"
+  - "Schneider Electric FAQ, \"What is FTP server support in Easergy P3 and how can I enable it?\" (user-supplied)"
+description: "Schneider Electric Easergy P3 protection relays, when the optional FTP server feature is enabled (used to retrieve disturbance records), use a fixed username of 'easergy' with a factory-default password of 'config'. No CVE, documented factory-default behavior confirmed by two independent Schneider FAQs."

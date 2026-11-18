@@ -1,0 +1,59 @@
+# EMQX dashboard default-credentials check — built 2026-10-13, promoted from
+# checks/candidates/moxa-dlm-emqx-dashboard-default-password.yaml (kept as the research record).
+# Moxa DLM On-Premises bundles an EMQX MQTT broker whose dashboard ships a HARDCODED default
+# password, confirmed directly from the real DLM server package's static config:
+#   opt/moxa/dlm/static-config/env-files/emqx.env: EMQX_DASHBOARD__DEFAULT_PASSWORD=admin@123
+# (the one non-templated literal in an otherwise all-${VAR} file). EMQX's own documented default
+# dashboard account is admin/public. Both are vendor-documented defaults (Moxa/WAGO/SICK class) ->
+# disclosure_status: public, a detection check, not a novel vuln.
+#
+# WIRE FORMAT (EMQX 5.x dashboard REST API, well-documented open source — github.com/emqx/emqx):
+#   POST /api/v5/login  JSON {"username": <u>, "password": <p>}  ->  HTTP 200 + {"token": ...} on
+#   success; 401 on bad creds. Default dashboard port 18083. Driven by the generic
+#   json_rest_login_default_creds executor (success = a `token` key in the JSON body).
+#
+# Tries admin/admin@123 (Moxa-DLM-confirmed, from the package env file) then admin/public (EMQX's
+# own documented default). confidence: low — the credentials + login wire format are
+# vendor-documented, but this was not tested against a live EMQX/DLM instance and the
+# emqx_dashboard_identity probe's exact reply is inferred (see the probe note). CWE-1392. No CVE.
+
+check_id: moxa-dlm-emqx-dashboard-default-creds
+protocol: http
+kind: native
+module: checks.http.native.json_rest_login_default_creds
+destructive: true
+risk_reason: ["login"]  # real POST login to the EMQX dashboard; documented-default sweep gating
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_probe: emqx_dashboard_identity
+params:
+  path: "/api/v5/login"
+  username_field: "username"
+  password_field: "password"
+  credentials:
+    - ["admin", "admin@123"]   # Moxa DLM CONFIRMED (opt/moxa/dlm/static-config/env-files/emqx.env)
+    - ["admin", "public"]      # EMQX's own documented default dashboard account
+  success_status: 200
+  success_json_keys: ["token"]
+  failure_status: 401
+  https: false
+  default_port: 18083
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's HTTP POST to /api/v5/login (EMQX 5 dashboard, default port 18083) with JSON {\"username\":\"admin\",\"password\":\"admin@123\"} or admin/public — the EMQX dashboard default-credential login. Distinctive signal: the versioned /api/v5/login path plus the admin username."
+    patterns:
+      - context: request
+        regex: "POST /api/v5/login"
+  broad:
+    description: "Repeated POSTs to /api/v5/login from one source in a short window against an EMQX dashboard — a credential-guessing pass; the specific credential isn't distinguishable from a legitimate dashboard login on the wire."
+    patterns:
+      - context: request
+        regex: "POST /api/v5/login"
+references:
+  - "User-supplied ingest: Moxa DLM On-Premises server package (dlm-1.2.0-build.88) — opt/moxa/dlm/static-config/env-files/emqx.env: EMQX_DASHBOARD__DEFAULT_PASSWORD=admin@123 (read via list-then-pull from the .deb data.tar.zst)."
+  - "github.com/emqx/emqx — EMQX 5.x dashboard REST API: POST /api/v5/login {username,password} -> 200 + {token}; default dashboard account admin/public, default port 18083."

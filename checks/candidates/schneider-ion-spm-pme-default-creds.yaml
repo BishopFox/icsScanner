@@ -1,0 +1,55 @@
+# Candidate stub — 2026-08-25. User supplied Schneider FAQ FA226215 ("What is the default
+# username and password for ION/SPM/PME components?") directly. NOT executable (no `kind`).
+#
+# What's confirmed: this covers 3 related SOFTWARE PRODUCTS — ION Enterprise, StruxureWare Power
+# Monitoring (SPM), Power Monitoring Expert (PME) — not a single embedded device. A version table
+# lists exactly which default accounts exist per version:
+#   ION 5.x: supervisor (Supervisor access), guest (Supervisor access)
+#   ION 6.x: supervisor (Supervisor access), guest (Supervisor access)
+#   SPM 7.x: supervisor (Supervisor access), guest (Observer access)
+# The page text states plainly: "Username: supervisor / Password: 0" as one of the default
+# logins. NOTE (explicitly stated by Schneider): at PME version 7.2 and later there are NO
+# default user passwords at all — the supervisor password is set during installation. So this
+# finding only applies to ION 5.x/6.x and SPM 7.x (pre-7.2), not current PME.
+#
+# What's blocking it, two separate gaps:
+# 1. The "guest" account's own default PASSWORD value was not cleanly captured from this PDF —
+#    the source page's text is followed by "... Password 0 / or" before a page break, and the
+#    continuation showing the guest credential pair was obscured by a "Did this answer your
+#    question?" feedback-widget overlay baked into the page's own PDF export (a rendering
+#    artifact of how the page was saved, not a redaction). Only "supervisor:0" is cleanly
+#    confirmed text; "guest" is confirmed to EXIST as an account (from the table) but its
+#    password is not independently confirmed here — likely "0" too (same convention as
+#    PM8000/PM5500 and other Schneider power-monitoring gear already built in this sweep), but
+#    not shipped as a guess.
+# 2. Login mechanism unconfirmed: ION/SPM/PME are full software applications (typically installed
+#    on a Windows server), not simple embedded-device webservers — PME in particular ships its
+#    own web-based reporting portal (Vista/Web Reports), which is far more likely to be a custom
+#    ASP.NET forms login than plain HTTP Basic Auth (unlike the embedded-device webservers this
+#    project has treated Basic Auth as a safe default assumption for, e.g. PM8000/PM5500/RTU500).
+#    Also plausible: these credentials apply to the desktop ION Enterprise/Vista client
+#    application itself (a Windows GUI, not a network-facing login at all) rather than any
+#    network service this scanner could probe. Which of these is the actual network-reachable
+#    surface (if any) is not established by this FAQ alone.
+#
+# Action needed: (1) a clean re-read of the FA226215 page (or the source page URL, if fetchable)
+# to confirm the guest account's password; (2) independent confirmation of PME's actual web
+# portal login mechanism (a screenshot of the login page, or its HTML source) before this can be
+# built as an HTTP check — or confirmation that no network-facing login exists at all, in which
+# case this candidate should be closed out as out of scope for this project's architecture.
+
+check_id: candidate-schneider-ion-spm-pme-default-creds
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_only: true
+references:
+  - "Schneider Electric FAQ FA226215, \"What is the default username and password for ION/SPM/PME components?\" (user-supplied)"
+description: >
+  Schneider Electric ION Enterprise (5.x/6.x), StruxureWare Power Monitoring (SPM 7.x), and Power
+  Monitoring Expert (PME, pre-7.2 only) power-monitoring software ship with default accounts —
+  supervisor:0 confirmed directly; a "guest" account is confirmed to exist across all listed
+  versions but its default password value and the actual network-facing login mechanism (custom
+  web portal vs. desktop client vs. Basic Auth) are both unconfirmed. Not built as a check —
+  see this file's own header comment for the 2 specific gaps.

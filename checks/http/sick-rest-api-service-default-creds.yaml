@@ -1,0 +1,79 @@
+# SICK device REST-API default-credential check — built 2026-10-12 from the SICK firmware ingest
+# (vendor firmware ingest). SICK's modern sensors/readers/cameras (picoScan, Inspector/
+# InspectorP, Lector, RFU, and siblings that expose the AppSpace / "device REST" API) ship with
+# SICK's DOCUMENTED default user-level passwords. From the vendor's own LMS5xx hardening guide
+# (technical_information_lms5xx_hardening_guide_en_im0106717.pdf, read directly from the ingest):
+#     Operator                       — No password required
+#     Authorized Client (Integrator) — "client"
+#     Service                        — "servicelevel"
+# These are vendor-DOCUMENTED defaults (published in SICK's own guide), i.e. the same "documented
+# default" class Moxa/WAGO invoked when they declined our hardcoded-credential reports — so this is
+# a legitimate DETECTION check for operators (a device still on the factory default is a real
+# exposure), NOT a novel vulnerability, and there is nothing undisclosed to withhold.
+# disclosure_status: public accordingly.
+#
+# WIRE FORMAT — confirmed from SICK AG's own MIT-licensed firmware_update_example.py (shipped in
+# the ingest, Copyright (c) 2026 SICK AG), whose session step is literally:
+#     requests.post(f"{base}/api/CreateSessionToken", auth=("Service", password), json={})
+#                  .json()["data"]["token"]
+# i.e. POST /api/CreateSessionToken with HTTP Basic Auth (user, password), an empty JSON body, and
+# a session token nested at data.token on success. This is the same primary-source tier as the
+# Eaton Webcard (vendor's own mass_upgrade_tool.py) and Bosch ctrlX CORE (vendor OpenAPI spec)
+# checks: the vendor's own code, not manual prose. No existing executor drove "Basic Auth + POST +
+# JSON-token success", so the generic capability basic_auth_post_token_default_creds.py was built
+# for it (reusable, not a one-off).
+#
+# CONFIRMED vs INFERRED (honest, per this project's standard):
+#  - CONFIRMED (vendor code): user "Service" / password "servicelevel"; endpoint, method, Basic
+#    Auth, empty JSON body, and the data.token success shape.
+#  - INFERRED: the Authorized-Client credential pair. The PASSWORD "client" is vendor-documented
+#    (hardening guide), but the exact REST username token for that level ("AuthorizedClient") is
+#    inferred from the level name, not seen in the shipped code — kept as a second pair because it
+#    is a documented default worth testing, flagged here so it is not mistaken for confirmed.
+#  - NOT live-device verified: behaviour after an operator changes the password (expected: the
+#    endpoint stops returning a token, yielding NOT_APPLICABLE) was not confirmed against hardware.
+#    Hence confidence: low (the project's enum is high/low only), not high — vendor-code-grounded
+#    but not live-confirmed, same discipline as the NTCIP documented-default check.
+#
+# PRIOR-ART: documented-default behaviour, multi-product SICK REST stack. No CVE claimed.
+
+check_id: sick-rest-api-service-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_post_token_default_creds
+destructive: true
+risk_reason: ["login"]  # real POST login attempt (Basic Auth); some devices lock after failures
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_probe: sick_rest_identity
+params:
+  path: "/api/CreateSessionToken"
+  credentials:
+    - ["Service", "servicelevel"]       # CONFIRMED from SICK's own firmware_update_example.py
+    - ["AuthorizedClient", "client"]    # password documented; REST username INFERRED (see header)
+  body: {}                               # endpoint expects an empty JSON object
+  token_key_path: "data.token"           # success = a session token nested at data.token
+  https: false                           # device REST default is plain HTTP (example uses http://)
+  default_port: 80
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's HTTP POST to /api/CreateSessionToken carrying an Authorization: Basic header for user 'Service' (base64 'Service:servicelevel') with an empty JSON body — the SICK device-REST session-token endpoint. The distinctive signal is the request line POST /api/CreateSessionToken together with the Basic credential for the SICK 'Service' level."
+    patterns:
+      - context: request
+        regex: "POST /api/CreateSessionToken"
+      - context: request
+        regex: "Authorization: Basic U2VydmljZTpzZXJ2aWNlbGV2ZWw="
+  broad:
+    description: "Repeated POSTs to /api/CreateSessionToken from one source in a short window against a SICK device — a credential-guessing pass; the specific credential can't be distinguished from a legitimate automation tool minting a session token on the wire."
+    patterns:
+      - context: request
+        regex: "POST /api/CreateSessionToken"
+references:
+  - "User-supplied ingest: firmware_update_example.py — SICK AG MIT-licensed updater; confirms POST /api/CreateSessionToken with HTTP Basic Auth ('Service', password) + empty JSON body, token at data.token, default password 'servicelevel'. Also GET /api/FirmwareVersion is unauthenticated (used by the sick_rest_identity fingerprint probe)."
+  - "User-supplied ingest: technical_information_lms5xx_hardening_guide_en_im0106717.pdf (SICK) — documents the default user-level passwords: Operator (none), Authorized Client 'client', Service 'servicelevel'; instructs operators to change all three."
+  - "User-supplied ingest: lector8xx_clv8xx_command_protocol.html (SICK Lector/CLV CoLa command reference) — the sibling CoLa (TCP 2111/2112) SetAccessMode path; an 'Access Denied — Insufficient permissions (login required)' response confirms the same user-level gate. (CoLa path not built here — see candidate note below.)"

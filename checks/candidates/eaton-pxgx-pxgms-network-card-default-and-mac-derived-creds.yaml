@@ -1,0 +1,84 @@
+# Candidate stub — 2026-09-16. User-supplied ingest: a cache of ~70 Eaton knowledgehub support
+# BLOCKER TAG (2026-09-22 triage pass): live-hardware-gap -- Needs a live PXGX/PXGMS device/capture to observe the actual login HTTP exchange (Basic Auth vs. custom form).
+# PDFs (exactly the primary-source documents a prior WebSearch-only pass couldn't reach, since
+# knowledgehub.eaton.com is a JS-rendered SPA — see the sibling E-Series Relay candidate's own
+# "UPDATE" note). Confirmed no prior Eaton PXGX/PXGMS candidate/check existed before this file.
+#
+# THE FINDING, confirmed directly across THREE of the user-supplied PDFs, read via pdftotext:
+#
+# 1. "What are the default credentials for a PXGS_PXGMS network card_.pdf" — a literal table:
+#      PXGX firmware >= 2.6.05:  username admin, password = card's MAC address (all caps, no
+#                                 colons/spaces)
+#      PXGX firmware <= 2.4.01:  username admin, password admin
+#      PXGMS firmware >= 2.3.7:  username admin, password = card's MAC address (same scheme)
+#      PXGMS firmware <  2.3.7:  username admin, password admin
+#
+# 2. "Change the IP Address of the Power Xpert Gateway X-Slot UPS Card network.pdf" — an exact
+#    worked example of the MAC-derivation scheme AND the default IP addresses:
+#      "http://169.254.0.101 for firmware 2.6.0.0 or later" / "http://192.168.200.101 for earlier
+#      firmware versions"
+#      "Card's MAC address: 00:E0:D8:FF:C0:C4 -> Administrator name: admin -> Password:
+#      00E0D8FFC0C4"
+#    This derivation (strip colons, uppercase) is BYTE-FOR-BYTE IDENTICAL to the algorithm already
+#    implemented in this project's `scripts/mac_derived_password.py`
+#    (`re.sub(r"[:\-]", "", mac).upper()`, built for Schneider PowerLogic PM5500/PM5600/PM5700 —
+#    see that script's own docstring). A second vendor independently using the exact same MAC-to-
+#    password transform is a genuinely notable cross-vendor pattern worth recording, not just a
+#    coincidence to gloss over.
+#
+# 3. "PXGX_PXGMS admin password reset.pdf" and "Resetting Network-M2 Card via Dip Switch.pdf" —
+#    both independently confirm the RESTORED value after a dip-switch/sanitization factory reset
+#    is admin/admin (forcing a password change on next login per current firmware's password-
+#    strength enforcement) — consistent with, not contradicting, the firmware-version table above.
+#
+# NOT YET A REAL CHECK — the one missing piece: this project has no PXGX/PXGMS card firmware or
+# live device to confirm the exact HTTP request shape (a plain HTTP Basic Auth challenge, the same
+# way many legacy embedded UPS network cards work, vs. a custom HTML login form the way SICAM WEB
+# turned out to be) — none of the supplied PDFs show the raw HTTP request/response, only the
+# browser-facing "log on as administrator" flow. Filed as a high-confidence candidate rather than
+# a check for that one reason alone — the credential and reachability are both primary-source
+# confirmed.
+#
+# WHAT WOULD UNBLOCK THIS: either (a) PXGX/PXGMS card firmware (the knowledgehub PDFs reference a
+# firmware/documentation zip at a public Eaton URL — "power-xpert-gateway-x-slot-ups-card-
+# firmware-and-documentation.zip" — not currently in any ingest batch, unlike the 12 Eaton UPS
+# *main-unit* firmware zips this same batch DID include, which are a different component from the
+# network card), or (b) a live PXGX/PXGMS device/capture to observe the actual login HTTP
+# exchange. If HTTP Basic Auth is confirmed, this reuses `checks.http.native.basic_auth_default_
+# creds` with zero new code (the admin/admin legacy-firmware case) plus a small new native module
+# mirroring `mac_derived_password.py`'s pattern for the current-firmware MAC-derived case.
+
+# CROSS-REFERENCE, same ingest batch: "MR-Eaton-PXGE_v508 release notes.docx" (a firmware release
+# note for the OLDER "Power Xpert Gateway E" series -- PXG200E/400E/600E/800E, a distinct hardware
+# generation from PXGX/PXGMS, same broader product family) independently confirms admin/admin as
+# that generation's own default web-login credential ("login with the username admin ... Default:
+# admin"). The same release note also documents a since-FIXED access-control bypass bug: prior to
+# this v5.08 firmware, "the PXG-E would still allow any Modbus TCP client access to the PXG-E even
+# though Access Control was active" -- a real, historical, now-patched finding, recorded here for
+# context only, not pursued as its own candidate (fixed, and this project has no PXG-E firmware
+# sample to further characterize it).
+
+check_id: candidate-eaton-pxgx-pxgms-network-card-default-and-mac-derived-creds
+protocol: http
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Eaton"
+  product: "PXGX / PXGMS UPS network card (Power Xpert Gateway)"
+references:
+  - "What are the default credentials for a PXGS_PXGMS network card_.pdf, user-supplied Eaton knowledgehub export, read directly via pdftotext"
+  - "Change the IP Address of the Power Xpert Gateway X-Slot UPS Card network.pdf, user-supplied Eaton knowledgehub export, read directly via pdftotext"
+  - "PXGX_PXGMS admin password reset.pdf, user-supplied Eaton knowledgehub export, read directly via pdftotext"
+  - "scripts/mac_derived_password.py — the existing project script implementing the IDENTICAL MAC-to-password derivation algorithm for a different vendor (Schneider PowerLogic)"
+description: >
+  Eaton PXGX/PXGMS UPS network (Power Xpert Gateway) cards ship with firmware-version-gated
+  default credentials, confirmed directly across three of Eaton's own official support documents:
+  legacy firmware (PXGX <=2.4.01, PXGMS <2.3.7) uses admin/admin; current firmware (PXGX >=2.6.05,
+  PXGMS >=2.3.7) uses admin/<card MAC address, uppercase, no separators> — an EXACT byte-for-byte
+  match to this project's existing MAC-derived-password algorithm already implemented for a
+  different vendor (Schneider PowerLogic, scripts/mac_derived_password.py). Default IPs
+  (169.254.0.101 current firmware, 192.168.200.101 legacy) and a dip-switch factory-reset
+  procedure (restoring admin/admin, forced password change on next login per current firmware)
+  are also confirmed. High confidence on the credential/derivation itself; not yet a check because
+  the exact HTTP login request shape (Basic Auth vs. custom form) isn't confirmed from any source
+  checked this pass — needs the card's own firmware or a live device/capture to close that one gap.

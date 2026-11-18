@@ -1,0 +1,102 @@
+# BUILT AS A SAFETY-CRITICAL TOOL 2026-09-14 (user: "build id40/slk using the pre-established
+# BLOCKER TAG (2026-09-22 triage pass): live-hardware-gap -- This project's read-only-first rule means the only safe confirmation primitive needs verification against a live device before it can be shipped.
+# safety tier") — NOT a checks/ entry, per this project's own tiering rules: no captured live-
+# device response body exists to build a machine-parseable success marker for an automated
+# CheckStatus, and the underlying endpoints (/xid/set register-write, /xid/bal-mem memory-dump,
+# /shellcmd free-text) are too consequential to fire unsupervised on a first-contact protocol.
+# See scripts/safety_critical/id40_slk_shellcmd_plan.py, id40_slk_shellcmd_confirm.py, and
+# _id40_slk_protocol.py — a human-supervised, two-step plan/confirm tool that sends ONLY the
+# single literal GET /shellcmd?scmd=get+info (a documented example link in the device's own UI),
+# never /xid/set or /xid/bal-mem, and requires an extra risk-acknowledgment phrase beyond the
+# usual confirmation phrase (same tier as the DNP3 CROB and ICS Electronics relay tools) since
+# "get info" being read-only is inferred from naming convention, not a vendor-documented
+# guarantee. tests/smoke_test_safety_critical_id40_slk.py (26 assertions) + the isolation test
+# both pass.
+#
+# Candidate stub — 2026-09-14. User supplied a large Bosch Rexroth firmware batch (FWA-HYDRV
+# hydraulic-drive firmware, FWA-IOX ctrlX IO module firmware, ID40_slk-{can,ibs,pdp} fieldbus
+# link-module firmware, VT-MAC8 valve-amplifier firmware, IndraDrive/IndraWorks device
+# descriptors, MTX_micro CNC firmware, System_350/NxFw mobile-hydraulics controller firmware,
+# SMFW safety firmware, XM42 IndraControl update-card image). Bosch Rexroth is a real, widely-
+# deployed industrial/mobile-hydraulics automation vendor — new for this project. NOT executable
+# (no `kind`). Confirmed no prior Bosch Rexroth ID40/SLK candidate/check existed before writing
+# this file (a DIFFERENT, unrelated Bosch Rexroth ctrlX CORE candidate already exists —
+# checks/candidates/bosch-rexroth-ctrlx-core-default-creds.yaml — not the same product).
+#
+# THE FINDING, confirmed across all 3 of the 3 ID40/SLK fieldbus-link-module variants supplied
+# (slk-can V4.0.0.8.33, slk-ibs V4.0.0.8.33, slk-pdp V4.1.10.34 — CAN, InterBus, and PROFIBUS-DP
+# fieldbus adapters for the same ID40/SLK hardware platform):
+#   1. Each package's `.uze` file is UUENCODED PLAINTEXT wrapping a gzip'd statically-linked,
+#      stripped PowerPC ELF binary (`app.elf`) — fully open, zero encryption, decoded directly
+#      with Python's `binascii.a2b_uu` + `gzip`, no disassembly needed for the finding below
+#      (string extraction was sufficient).
+#   2. The binary's own embedded source-file paths (compiled-in for logging/debug purposes,
+#      confirmed literally in the strings: "../../id40-slk/net/http-server.c", "http-req.c",
+#      "http-file.c") reveal a self-contained embedded HTTP server, banner string
+#      "ID40/SLK HTTP Server Port 80" (all 3 variants, byte-identical banner).
+#   3. This server exposes, via plain GET requests with embedded HTML forms baked into the same
+#      binary (confirmed directly in strings — real `<form>`/`<input>` HTML, not inferred):
+#        - `/shellcmd?scmd=<text>` — a free-text command interpreter ("Logging & Shell" page,
+#          `<input type="text" name="scmd" size="64">` + "Execute Comand" submit button). Example
+#          linked commands shown in the UI are read-style (`get info`, `get *`, `log-dump`,
+#          `log-dump 50/100/200/500`) but the form itself accepts ANY string, not just the
+#          examples — the full command set was not enumerated from a stripped binary this pass.
+#        - `/xid/set?path=<reg>&value=<val>` — "Set SLK Register" / a separate identical form for
+#          "Set MDT Register" — an explicit, unambiguous REGISTER-WRITE primitive.
+#        - `/xid/bal-mem?adrset=<addr>&chunksize=<n>` — a raw memory-dump/read endpoint
+#          ("prefetch"/"reload"/format-select controls).
+#        - `/xid/log-setup` — set logging subsystem/level.
+#   4. NO AUTHENTICATION of any kind gates any of this. Searched exhaustively for
+#      realm/Authorization/WWW-Authenticate/401/login/access-denied strings anywhere in the
+#      binary — the only "auth"-prefixed strings found (auth_check_options, AuthReq/AuthAck/
+#      AuthNak, PAP-related) belong to a statically-linked PPP dial-up stack (pppd), a completely
+#      separate subsystem from the HTTP server's own code (http-server.c/http-req.c/http-file.c
+#      have zero auth-related strings of their own).
+#
+# SEVERITY framing: this is a strict superset of the ICS Electronics 9065/9099 GPIB/Modbus
+# command-relay finding from earlier this same sweep (checks/http/ics-electronics-9065-9099-
+# gpib-modbus-control-unauthenticated.yaml) — that finding relayed commands to an EXTERNAL
+# attached bus; this one directly reads/writes the DEVICE'S OWN internal register/memory space
+# over unauthenticated HTTP, on a real, currently-sold fieldbus module.
+#
+# NOT YET BUILDABLE — deliberately, same conservative design discipline as every other high-risk
+# finding this session: this project's read-only-first rule means the ONLY safe confirmation
+# primitive is a GET to a documented, example-linked, read-style shellcmd
+# (`/shellcmd?scmd=get+info`, matching the UI's own "info" link) or a plain `/xid/home` root page
+# fetch — NEVER `/xid/set` (register write) or `/xid/bal-mem` (memory dump) or an unconstrained
+# `scmd` value. The exact response BODY/success marker for `/shellcmd?scmd=get+info` was not
+# captured from a live device this pass (no device on hand, only firmware strings) — this
+# project's sourcing discipline does not permit guessing a response-shape check the way the
+# earlier ICS Electronics check's `_REQUIRED_MARKERS` needed a real captured response. Building
+# this safely needs either a live device response capture or the device's own HTML template
+# strings parsed more precisely from the binary (not attempted this pass — would need locating
+# and extracting the exact success-page HTML fragment, not just confirming the form exists).
+#
+# SCOPE: confirmed for ID40/SLK (all 3 supplied fieldbus variants). The OTHER Bosch Rexroth
+# firmware in this same batch was NOT found to share this — FWA-IOX (ctrlX IO modules) uses a
+# completely different package format ("ctrlX IO module package" header, not uuencoded-ELF) and
+# was not independently checked for its own web surface this pass; FWA-HYDRV (hydraulic-drive
+# firmware, .ibf format), VT-MAC8 (valve-amplifier, raw .bin), MTX_micro (CNC, .fw), System_350/
+# NxFw (mobile-hydraulics controllers) are all opaque low-entropy structured binaries with no
+# HTTP-server strings found in a spot check — not assumed to share this finding without their own
+# confirmation. XM42's supplied package (XM42_AutomaticUpdate_2.2.zip) turned out to be a
+# bootable FAT32/GPT UPDATE-TOOL card image (HDD Raw Copy Tool container, "!!! Bosch Rexroth AG"
+# banner confirms the vendor), not the device's own running OS filesystem — not pursued further.
+
+check_id: candidate-bosch-rexroth-id40-slk-unauthenticated-http-diagnostic-shell
+protocol: http
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Bosch Rexroth"
+references:
+  - "Bosch Rexroth's own official firmware download packages (user-supplied): ID40_slk-can-V4.0.zip, ID40_slk-ibs-V4.0.zip, id40_slk-pdp-v4.1.10.34.zip — decoded .uze (uuencoded gzip'd PowerPC ELF) app.elf binaries, string-extracted"
+description: >
+  Bosch Rexroth ID40/SLK fieldbus link modules (CAN, InterBus, and PROFIBUS-DP variants all
+  confirmed) run a self-contained embedded HTTP server on port 80 with NO authentication of any
+  kind, exposing a free-text device command interpreter (/shellcmd), a register-write endpoint
+  (/xid/set), and a raw memory-read/dump endpoint (/xid/bal-mem) — all reachable via plain GET
+  requests with HTML forms baked directly into the firmware. Confirmed via direct string
+  extraction from three separate official firmware packages, not a search summary. Not yet
+  buildable: this project's read-only-first design discipline requires an exact captured response
+  from a live device for a safe confirmation primitive, which was not available this pass.

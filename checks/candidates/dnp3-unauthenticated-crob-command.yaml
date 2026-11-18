@@ -1,0 +1,91 @@
+# Candidate stub — detection-only, NOT executable (no `kind`, no fingerprint_precondition, no
+# BLOCKER TAG (2026-09-22 triage pass): live-hardware-gap -- Not a sourcing gap -- this is a DoS/control-action policy question: the check itself would be an unauthorized control action against a live device, needing explicit human authorization before it's ever built, independent of firmware or hardware access.
+# probe). Source: real, labeled PCAP evidence from the PNNL Electricity and Natural Gas System
+# Dataset (Ashok & Edgar, "A High-Fidelity Cyber-Physical Testbed-Based Benchmarking Dataset for
+# Testing Operational Technology Specific Intrusion Detection Systems," IEEE HST 2021, DOI
+# 10.25584/PNNLDH/1838670) — see project_open_tasks.md -50 for the full extraction/review writeup.
+#
+# This is a protocol-level characteristic of DNP3 itself (IEEE 1815), not a per-vendor bug: DNP3's
+# Control Relay Output Block (Object Group 12, Variation 1) can be commanded via Select (FC 0x03),
+# Operate (FC 0x04), or Direct Operate (FC 0x05) with NO application-layer authentication of the
+# command's source — only whatever coarse IP/DNP3-source-address allowlisting a given outstation
+# implements (confirmed weak in practice, see below).
+#
+# Real captures corroborating this exact technique, both read directly (not summarized):
+# - `Data/PCAPs/AttackerVM_PCAPs/testcase14_read_directoperate_AttackerVM.pcap` and
+#   `testcase14_splitTCP_Operate_AttackerVM.pcap`: a real Direct Operate (FC 0x05) against a real
+#   SAGE 2300 RTU (172.17.0.60), Object 12 Var 1, Control Code 0x41 (Pulse-On/Close) — the device's
+#   own response echoes Control Status 0x00 (Req. Accepted), a genuine successful unauthenticated
+#   control action against real hardware.
+# - "Detailed Data descriptions.pdf" §2.8 (MITM/ARP-spoofing test): a full real attack chain —
+#   ARP-poison the substation gateway<->SAGE RTU link, then for every DNP3 class poll issued by the
+#   legitimate OPC server, the on-path machine substitutes a CROB command (trip a relay) instead,
+#   preserving the original TCP sequence number so the injected command blends in with the poll it
+#   replaced. The SAGE RTU processed it and returned a real response, forwarded back to the OPC
+#   server by the MITM host.
+# - "Detailed Data descriptions.pdf" §2.11 (Data injection test): a python script sent a binary
+#   output (CROB) command to the SAGE RTU from a machine that was never the OPC server, tripping a
+#   real breaker on the SEL 351U1 relay — "as expected, this test case was successful."
+#
+# Function code assignments (0x03 Select / 0x04 Operate / 0x05 Direct Operate) and Object Group
+# 12/Variation 1 are IEEE 1815 (DNP3) public standard values, not vendor-specific or invented here.
+#
+# Byte pattern derivation: DNP3's Data Link header is a fixed 10 bytes (Start 0x0564, Length,
+# Control, Destination x2, Source x2, CRC x2), followed by a 1-byte Transport header, then a
+# 1-byte Application Control byte, then the 1-byte Function Code — Function Code sits at a fixed
+# offset (12, 0-indexed) from the frame start for any single-fragment message, regardless of
+# payload length, since the two variable-value bytes immediately preceding it (Transport +
+# Application Control encode only sequence numbers) are wildcarded rather than assumed fixed.
+# Verified against the real Direct-Operate capture above: FC=0x05 followed immediately by
+# Object header bytes 0x0c 0x01 (Group 12, Var 1), matching this pattern exactly.
+#
+# NOT yet promoted to a real icsScanner probe (and never will be as a `destructive: true` active
+# check without a much stronger human-authorized-testing gate, per this project's own safety
+# posture) — this candidate exists purely to carry `detection_hints:` for detection-gen, per
+# `core/check_loader.py`'s "CANDIDATES WITH HINTS" convention (a candidate with no active probe
+# can still ship a real, useful detection template).
+
+check_id: candidate-dnp3-unauthenticated-crob-command
+protocol: dnp3
+disclosure_status: public
+destructive: false
+confidence: high
+severity: >-
+  High (protocol-level unauthenticated control-command execution; no per-vendor CVE — DNP3 has no
+  native command-source authentication mechanism, and real testbed devices rely on coarse
+  IP/DNP3-address allowlisting alone, confirmed bypassable via ARP spoofing in the same PNNL
+  dataset's own MITM test)
+description: >
+  DNP3's Control Relay Output Block (Object 12 Var 1) can be commanded via Select/Operate/Direct
+  Operate with no application-layer authentication of the requesting host — confirmed via real
+  PNNL testbed captures showing both a direct unauthorized Direct-Operate command and a full
+  ARP-spoofing MITM command-injection chain, both successfully tripping a real relay. This
+  candidate is detection-only: no active probe exists or is planned (any real test of this would
+  itself be an unauthorized control action against a live device).
+detection_hints:
+  transport: tcp
+  app_protocol: dnp3
+  mitre_attack_id: T0855
+  analytic_story: "ICS Unauthorized Command Execution"
+  narrow:
+    description: >-
+      A DNP3 Direct Operate (FC 0x05) request carrying a Control Relay Output Block (Object 12
+      Var 1) — the exact technique observed in the PNNL testbed's real Direct-Operate-against-
+      SAGE-RTU captures. Narrower than the broad pattern below: only the single-request
+      Direct-Operate form, not the two-step Select/Operate sequence.
+    patterns:
+      - context: request
+        regex: '\x05\x64[\x00-\xff]{8}[\x00-\xff]{2}\x05\x0c\x01'
+  broad:
+    description: >-
+      Any DNP3 Select (0x03), Operate (0x04), or Direct Operate (0x05) request carrying a Control
+      Relay Output Block (Object 12 Var 1) — the underlying vulnerability class (unauthenticated
+      DNP3 control-command execution) regardless of which of the three function codes is used.
+    patterns:
+      - context: request
+        regex: '\x05\x64[\x00-\xff]{8}[\x00-\xff]{2}[\x03\x04\x05]\x0c\x01'
+references:
+  - "PNNL Electricity and Natural Gas System Dataset, DOI 10.25584/PNNLDH/1838670 (Ashok & Edgar, IEEE HST 2021)"
+  - "IEEE 1815-2012 (DNP3), Object Group 12 (Binary Output), Function Codes 3/4/5"
+  - "MITRE ATT&CK for ICS T0855 - Unauthorized Command Message"
+  - "project_open_tasks.md -50 (alosafuzz research memory) for the full extraction/review writeup"

@@ -1,0 +1,77 @@
+# Built 2026-11-10 (opto22 firmware-sweep follow-up; user asked whether SNAP PAC / groov EPIC CVEs
+# can become checks -> this is the clean, charter-fitting one). Closes the OptoMMP probe->check gap:
+# net-new (no prior Opto 22 / OptoMMP candidate or check existed in this project).
+#
+# FINDING (CWE-306 missing authentication): OptoMMP is Opto 22's IEEE-1394-based memory-mapped
+# protocol (TCP 2001) spoken by SNAP PAC, groov EPIC, groov RIO, and SNAP I/O brains. It has NO
+# authentication -- any client reaching TCP/2001 can read AND write the device memory map (digital/
+# analog I/O points, control, config) with no credential. This is architectural, documented Opto 22
+# behavior (the OptoMMP Protocol Guide describes the open memory map; Opto 22's own hardening guidance
+# is to restrict OptoMMP/web via Network Security), not a patchable defect -- the same class as the
+# Omron FINS / MELSEC SLMP / SECS-GEM-HSMS / Cisco Smart Install exposure checks here -> disclosure
+# _status: public, a detection of an already-public by-design exposure.
+#
+# This check reuses core/fingerprint.py probe_optommp_identity, which sends ONE benign READ-BLOCK
+# request for the firmware-version memory-map address (0xF030001C) and confirms a read-block response.
+# It carries NO write/control and never touches an I/O point. Non-destructive, safe to fire
+# unsupervised (same discipline as the FINS / SLMP / HSMS / Cisco-SMI exposure checks).
+#
+# WIRE FORMAT grounded in PUBLIC sources (no live device needed for a read): the read-block request
+# byte layout + the firmware-version address come verbatim from the OptoMMP toolkit
+# (github.com/optodeveloper/optommp -- optommp/__init__.py BuildReadBlockRequest + O22SIOUT.py
+# BASE_FIRMWARE_VERSION=0xF030001C, TCODE_READ_BLOCK_REQUEST=5 / _RESPONSE=7) and the OptoMMP Protocol
+# Guide (Opto 22 form 1465). Response framing (16-byte header then data; read-block-response tcode 7)
+# follows the IEEE-1394 standard the toolkit's data[16:] unpack assumes. The probe FAILS CLOSED, so a
+# framing mismatch yields NOT_APPLICABLE, never a false positive. ⚠ Live-device confirmation of the
+# response framing is advisable before treating a CONFIRMED as definitive (built against a mock in
+# tests/smoke_test_optommp_unauthenticated_access.py that replays the assumed response layout).
+#
+# CVSS: scored for the underlying capability a confirmed OptoMMP session enables (same convention as
+# the SLMP / FINS / Cisco-SMI checks -- score the condition, document the read-only probe). Unauth
+# OptoMMP permits memory/I/O WRITE + control, so AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H; this check
+# confirms the exposure via a safe READ only.
+check_id: opto22-optommp-unauthenticated-access
+protocol: optommp
+kind: native
+module: checks.optommp.native.optommp_unauthenticated_access
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H (9.8 CRITICAL) -- OptoMMP (TCP/2001) has no authentication; any client can read AND write the device memory map (I/O points, control, config). This check confirms the exposure via a benign firmware-version READ only."
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  # Gated by the OptoMMP protocol-identity probe (core/fingerprint.py probe_optommp_identity): the
+  # scanner confirms an OptoMMP device (read-block response) on the port before this check runs.
+  # Target: SNAP PAC / groov EPIC / groov RIO / SNAP I/O brain exposing OptoMMP (TCP, default 2001).
+  protocol_probe: optommp_identity
+params:
+  default_port: 2001
+  timeout: 5.0
+references:
+  - "OptoMMP Protocol Guide (Opto 22 form 1465): the IEEE-1394-based memory-mapped protocol (TCP 2001), open memory map, no authentication layer. https://www.opto22.com/support/resources-tools/documents/1465-optommp-protocol-guide"
+  - "github.com/optodeveloper/optommp (optommp/__init__.py BuildReadBlockRequest + O22SIOUT.py BASE_FIRMWARE_VERSION 0xF030001C, TCODE_READ_BLOCK_REQUEST=5/_RESPONSE=7) -- OSS source of the exact read-block request bytes + memory-map address this check/probe use."
+  - "Opto 22 hardening guidance: restrict OptoMMP / built-in web server via Network Security (PAC Manager / groov Manage) -- confirms the open-by-default exposure (cf. ICSA-23-236-02 SNAP PAC web/FTP default-exposure advisory)."
+detection_hints:
+  transport: tcp
+  app_protocol: optommp
+  mitre_attack_id: T0855
+  analytic_story: "ICS Unauthorized Command"
+  narrow:
+    description: "This scanner's own OptoMMP read-block request for the firmware-version address 0xF030001C (tcode 5 read-block; source 0xFFFF; size 4): the fixed 16-byte request frame."
+    patterns:
+      - context: request
+        bytes: "\\x00\\x00\\x00\\x50\\x00\\x00\\xff\\xff\\xf0\\x30\\x00\\x1c\\x00\\x04\\x00\\x00"
+  broad:
+    description: "Any OptoMMP read-block or write-block request reaching TCP/2001 -- the fixed request prefix (bytes 0-1 zero, tcode in byte 3 upper nibble, source 0xFFFF at bytes 6-7). Write-block (tcode 1) is the control primitive this exposure permits."
+    patterns:
+      - context: request
+        bytes: "\\x00\\x00\\x00[\\x10\\x50]\\x00\\x00\\xff\\xff"
+description: >
+  Opto 22 OptoMMP (TCP 2001) -- the IEEE-1394-based memory-mapped protocol spoken by SNAP PAC, groov
+  EPIC, groov RIO and SNAP I/O brains -- has NO authentication (CWE-306): any network-reachable client
+  can read AND write the device memory map (I/O points, control, config). This check sends one benign
+  READ-BLOCK of the firmware-version address (0xF030001C) and confirms a read-block response, proving
+  the device answers unauthenticated OptoMMP; memory/I/O write and control are reachable the same way.
+  The request bytes + address are grounded in the public OptoMMP toolkit (optodeveloper/optommp) and
+  Protocol Guide (form 1465); the probe fails closed. CVSS 3.1 9.8 CRITICAL for the enabled capability;
+  the probe performs only the benign read. disclosure_status: public -- a documented by-design exposure
+  (like FINS / SLMP / HSMS / Cisco Smart Install), not a new finding.

@@ -1,0 +1,106 @@
+# Candidate promoted directly to a real check — 2026-09-16. Fourth/final Eaton ingest batch.
+# Confirmed no prior Eaton Webcard-M3/Tripp Lite Network Management Card candidate/check existed
+# before this file.
+#
+# THE FINDING, confirmed from TWO independent, genuinely primary sources in this same ingest
+# batch — a rare case in this whole research thread where the actual protocol AND the actual
+# vendor-shipped automation tooling both agree, not just documentation prose:
+#
+# 1. `web/scripts/mass_upgrade_tool/mass_upgrade_tool.py` — Eaton's OWN OFFICIAL bulk-firmware-
+#    upgrade Python script (v1.0.7), shipped alongside the Webcard-M3 2.0.0 firmware package.
+#    Its own `login()` function performs the exact request this check reproduces:
+#        POST https://<ip>/rest/mbdetnrs/2.0/oauth2/token
+#        Content-Type: application/json
+#        {"username": "<username>", "password": "<password>"}
+#        -> 200 response, JSON body containing "access_token"
+#    The SAME script also contains a dedicated function, `is_login_credentials_expired()`, whose
+#    own docstring states plainly: "Checks if the default login credentials (admin/admin) are
+#    expired by attempting to log in. Returns True if credentials are expired (HTTP 403 status),
+#    otherwise False." -- i.e. Eaton's own tooling hard-codes `username = "admin"`,
+#    `password = "admin"` as the literal default and uses a failed (403) response as the
+#    "operator already changed it" signal. This is about as strong a primary source as this whole
+#    project has ever had: the vendor's own code, not a manual's prose.
+#
+# 2. `help_eaton-webcard_2.0.0.pdf` ("Tripp Lite Series UPS Network Management Card User's Guide",
+#    06/02/2026, read directly via pdftotext) -- independently confirms the same value in plain
+#    operator-facing language ("Username = admin / Password = admin... Changing the default
+#    password is mandatory and requested in a dedicated window") AND includes the vendor's own
+#    literal curl example for this exact REST endpoint (a slightly older API version, "/rest/
+#    mbdetnrs/1.0/oauth2/token" with extra "grant_type"/"scope" fields) in its troubleshooting
+#    section -- this check uses the mass_upgrade_tool.py's own 2.0 endpoint/fields since that is
+#    the ACTIVE, currently-shipping implementation (a running automation tool, not documentation
+#    prose that may lag firmware), not the manual's older-version example.
+#
+# HONEST CAVEAT: "Changing the default password is mandatory and requested in a dedicated window"
+# at first WEB UI login -- it is not fully confirmed whether the REST /oauth2/token endpoint
+# itself also refuses the admin/admin login once an operator has changed the password through the
+# web UI, or whether that enforcement lives only in the browser-facing UI flow. Eaton's own
+# mass_upgrade_tool.py clearly depends on being able to log in via this exact REST call across a
+# fleet of devices for its normal operation, which is consistent with the REST endpoint behaving
+# like a standard credential check (reject on change, accept on default) rather than something
+# with separate, UI-only enforcement -- but this project did not have a live device to verify
+# behavior after an operator-initiated password change, only the vendor's own source code
+# and documentation.
+#
+# PLATFORM NOTE: `mass_upgrade_tool.py`'s own `wait_end_upgrade()` function checks for a product
+# name of literally "Rack PDU Network Management Controller" as a special case using the SAME
+# REST API -- meaning this `/rest/mbdetnrs/.../oauth2/token` platform is shared across at least
+# two Eaton network-card product lines (Webcard-M3 for UPS, and a Rack PDU NMC), not a one-off.
+# This check's fingerprint is scoped to the Webcard-M3/Tripp Lite card specifically (the product
+# this ingest batch's own tooling and manual are actually about); the Rack PDU NMC variant is a
+# real, plausible extension worth its own dedicated candidate if/when confirmed independently.
+
+check_id: eaton-webcard-m3-rest-default-creds
+protocol: http
+kind: native
+module: checks.http.native.json_post_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no lockout mechanism found in any source checked
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Eaton"
+  product: "Webcard-M3 / Tripp Lite Series UPS Network Management Card"
+params:
+  credentials:
+    - ["admin", "admin"]
+  path: "/rest/mbdetnrs/2.0/oauth2/token"
+  username_field: "username"
+  password_field: "password"
+  https: true
+  success_status: 200
+  success_body_field: "access_token"
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own JSON request body to the Webcard-M3 REST oauth2/token endpoint, carrying the literal default credential — verified directly against json_post_default_creds.py's own request-building logic, not hand-derived"
+    patterns:
+      - context: request
+        regex: "POST /rest/mbdetnrs/2\\.0/oauth2/token"
+      - context: request
+        regex: "\\{\"username\": \"admin\", \"password\": \"admin\"\\}"
+  broad:
+    description: "Any POST to a /rest/mbdetnrs/*/oauth2/token endpoint — the underlying REST platform shared across at least two Eaton network-card product lines (Webcard-M3 and the Rack PDU Network Management Controller), not just this specific guessed credential"
+    patterns:
+      - context: request
+        regex: "POST /rest/mbdetnrs/[0-9.]+/oauth2/token"
+references:
+  - "mass_upgrade_tool.py (v1.0.7), Eaton's own official Webcard-M3 bulk-upgrade automation script, user-supplied ingest — login() and is_login_credentials_expired() functions"
+  - "Tripp Lite Series UPS Network Management Card User's Guide (help_eaton-webcard_2.0.0.pdf, 06/02/2026), user-supplied ingest, read directly via pdftotext, section 6.2.2.1 and 6.2.11.10"
+  - "RE-VERIFIED 2026-10-06 against a fresh Webcard-M3 2.0.0 firmware drop (eaton-tripp-lite-series-webcard-m3-firmware.zip): web/scripts/mass_upgrade_tool/mass_upgrade_tool.py still POSTs to https://<ip>/rest/mbdetnrs/2.0/oauth2/token and is_login_credentials_expired() still uses admin/admin (lines 97-101) — endpoint + default credential unchanged in the latest build."
+description: >
+  Eaton Webcard-M3 (Tripp Lite Series UPS Network Management Card, P/N 744-F0844) ships with
+  default REST API credentials admin/admin, confirmed from two independent, genuinely primary
+  sources in the same ingest batch: Eaton's own official bulk-upgrade automation script
+  (mass_upgrade_tool.py), whose login() function performs exactly the request this check
+  reproduces (POST /rest/mbdetnrs/2.0/oauth2/token, JSON body, expects an "access_token" in the
+  200 response) and whose own is_login_credentials_expired() function explicitly hard-codes
+  admin/admin as "the default login credentials"; and the vendor's own User's Guide, which states
+  the same default in plain language and includes a matching (older-API-version) curl example.
+  High confidence: both the credential and the exact wire protocol come from the vendor's own
+  shipping automation tooling, not documentation prose alone. Current firmware makes changing the
+  default password mandatory at first web-UI login, so this reflects the factory/freshly-reset
+  state rather than a value guaranteed to survive normal commissioning.

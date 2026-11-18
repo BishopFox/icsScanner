@@ -1,0 +1,53 @@
+# Default-credentials sweep, Phase 14 — PROMOTED from candidate stub after the user confirmed
+# the missing detail (port 80, standard HTTP) that was the only thing blocking it. Candidate
+# stub (`checks/candidates/samson-trovis-5590-default-creds.yaml`) removed per the Unitronics/
+# Omnitron promotion pattern: promote, don't duplicate.
+#
+# Uses the generic checks/http/native/basic_auth_default_creds.py executor.
+#
+# Sources: SCADAPASS gives two credential tiers for the TROVIS 5590 Web Module — 1111:1111
+# (read data) and 4444:4444 (change data) — citing an official SAMSON GROUP application page
+# (since gone dead — samsongroup.net/trovis-app/en-tv-page-102.htm now 404s, the site has been
+# restructured since SCADAPASS cited it). An independent WebSearch corroborated 4444:4444
+# specifically. Port confirmed directly by the user (standard HTTP, port 80).
+#
+# SAMSON is a major process-control valve/actuator vendor — this is a real, significant target,
+# the TROVIS 5590 being a web-based monitoring/control interface for TROVIS 5400/5500
+# Automation Systems and the TROVIS 6495-2 Industrial Controller.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-samson-trovis-5590-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "SAMSON AG"
+params:
+  path: "/"
+  credentials:
+    - ["1111", "1111"]
+    - ["4444", "4444"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts against the SAMSON TROVIS 5590 using the two documented factory credential tiers (1111:1111, 4444:4444)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic (MTExMToxMTEx|NDQ0NDo0NDQ0)"
+  broad:
+    description: "Any HTTP Basic Auth attempt on a SAMSON TROVIS 5590 web module — the vulnerability class (factory-default credentials on this product), not the specific two guessed values"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.samson.de/document/t55900en.pdf"
+description: "SAMSON TROVIS 5590 Web Module (monitoring/control interface for TROVIS 5400/5500 Automation Systems and TROVIS 6495-2 Industrial Controller) ships with factory-default 1111/1111 (read) and 4444/4444 (change data) web-UI logins — no CVE, documented factory-default behavior."

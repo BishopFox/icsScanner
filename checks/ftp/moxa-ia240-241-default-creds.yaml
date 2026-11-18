@@ -1,0 +1,61 @@
+# Default-credentials sweep, Phase 10. Uses the generic checks/ftp/native/ftp_default_creds.py
+# executor. Sibling: checks/telnet/moxa-ia240-241-default-creds.yaml.
+#
+# Source: SCADAPASS gives root:blank for FTP specifically on the IA240/241 embedded computer
+# (distinct from root:root for Telnet/PPP/serial console per the same row), citing the official
+# Moxa manual. Partial independent corroboration: a WebSearch found the same "root" account with
+# a blank/no-password pattern discussed for this device family, though not a word-for-word
+# restatement of the FTP-specific detail. confidence: low, single-tier-plus-partial.
+#
+# UPDATE 2026-09-17 (ingest batch 4): DIRECTLY VERIFIED against real firmware --
+# `moxa-ia240-series-linux-firmware-v1.10.zip` (2019, FWR_ia240_V1.10_Build_19010911.frm, JFFS2
+# extracted with jefferson) ships `/etc/shadow` with `root:gs5hdcM0NRKeI:...` -- a DES-crypt hash
+# that CRACKS TO THE LITERAL STRING "root" via Python's `crypt` module (first candidate tried).
+# `/etc/inetd.conf` runs both `ftp` and `telnet` as root, unconditionally, via `S20inetd` in
+# `etc/rc.d/rcS.d` (always-run boot stage, no config gate); `/etc/ftpusers` denylist has `root`
+# explicitly commented OUT, so root CAN log in over FTP on this firmware. Since FTP and Telnet
+# share the SAME system account and hash on this build, root/root -- not root/BLANK -- is the
+# password that actually authenticates FTP here. This does not necessarily invalidate the older
+# SCADAPASS/manual-sourced root/BLANK claim (which may reflect a different hardware
+# revision/firmware generation not covered by this sample), so BOTH candidates are now tried
+# rather than replacing one with the other. confidence raised to high on the strength of this
+# direct firmware+hash-crack confirmation (root/root variant specifically).
+#
+# UPDATE 2026-09-17 (ingest batch 7): the SAME byte-identical root hash + FTP-as-root-via-inetd
+# pattern confirmed on FOUR ioPAC industrial PAC firmware images too (ioPAC 8500-C/8500-IEC/8020/
+# 5500) -- see checks/ssh/moxa-ia-series-default-creds.yaml for the full multi-model detail.
+
+check_id: ftp-moxa-ia240-241-default-creds
+protocol: ftp
+kind: native
+module: checks.ftp.native.ftp_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Moxa Technologies"
+params:
+  credentials:
+    - ["root", ""]
+    - ["root", "root"]
+detection_hints:
+  transport: tcp
+  app_protocol: ftp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own FTP USER/PASS login attempt(s) using the documented factory credential(s) (root: or root:root)"
+    patterns:
+      - context: request
+        regex: "USER root\\r\\nPASS \\r\\n|USER root\\r\\nPASS root\\r\\n"
+  broad:
+    description: "Any FTP USER/PASS login attempt on this device — the vulnerability class (default/weak credentials on this product's FTP server), not the specific guessed credential"
+    patterns:
+      - context: request
+        regex: "^USER \\S*\\r\\nPASS \\S*\\r\\n"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://support.elmark.com.pl/moxa/products/Komputery_wbudowane/IA240/manual/IA240_241-LX_Users_Manual_v4.pdf"
+  - "moxa-ia240-series-linux-firmware-v1.10.zip, user-supplied ingest, JFFS2 extracted via jefferson, /etc/shadow root hash cracked directly (root/root)"
+description: "Moxa IA240/241 embedded computers ship with a factory-default root FTP account. Direct firmware analysis (2019, v1.10 build) confirms root/root (shared with the Telnet account's hash); older SCADAPASS/manual sourcing describes root/BLANK, possibly for a different hardware revision -- both are attempted. No CVE, documented factory-default behavior."

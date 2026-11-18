@@ -1,0 +1,65 @@
+# Native check — write-then-verify confirmation of the GE Multilin 469's factory default
+# Communications port passcode ("0") over Modbus. See
+# checks/modbus/native/ge_multilin_469_factory_passcode.py for the implementation and
+# lab-notes/human-review-queue.md (Priority 1) for the full research trail. Built 2026-08-24
+# after the user supplied GE Grid Solutions' own "469 Motor Management Relay COMMUNICATIONS
+# GUIDE" (GEK-106491M) directly.
+#
+# EXTRA CAUTION: real power-grid motor protection relay, same review bar the 850/489 checks got.
+# destructive:true — a real write to the relay's Communications port passcode register, followed
+# by a read-back of its own access-status register for an unambiguous device-reported
+# confirmation (same design as the 489 check). Requires an explicit `product_hint: "469"` on the
+# target — there is no live way to distinguish the 469 from its GE Multilin siblings over Modbus.
+#
+# WIRE FRAMING NOTE, explicitly flagged (see module docstring for full detail): this manual's own
+# memory map shows real Ethernet-related registers (IP address, subnet mask, gateway, link-status
+# bit, an "Ethernet-T" comms-port enum value) — stronger evidence of a native networking option
+# than the 489's manual ever showed — but this specific PDF copy's dedicated "ETHERNET" prose
+# section (referenced in its own table of contents) did not extract, so the exact wire framing
+# (true Modbus TCP/MBAP vs. a raw RTU frame tunneled over TCP) is NOT independently confirmed.
+# This check follows the 489 precedent and uses raw RTU-over-TCP framing — the safer default,
+# which fails safe (ERROR, not a dangerous mis-write) if this assumption is wrong for a real
+# deployment.
+
+check_id: ge-multilin-469-factory-passcode
+protocol: modbus
+kind: native
+module: checks.modbus.native.ge_multilin_469_factory_passcode
+destructive: true
+risk_reason: ["device_write"]  # write-fallback path is a real Modbus register write, not just an auth handshake; lockout unconfirmed for this model (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "GE Automation"
+  product: "469"
+params:
+  slave_address: 1
+detection_hints:
+  transport: tcp
+  app_protocol: modbus
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own write of the factory-default passcode '0' to the Communications port passcode register (0088h, FC06), followed by its read of the Communication setpoint access status register (0205h, FC03) — both raw Modbus RTU-over-TCP frames (slave address 1, the default params.slave_address; CRC-16 included per the module's own _crc16(), verified by executing _write_passcode_pdu(1)/_read_access_status_pdu(1) directly rather than hand-computing the CRC)"
+    patterns:
+      - context: request
+        bytes: "\\x01\\x06\\x00\\x88\\x00\\x00\\x09\\xe0"
+      - context: request
+        bytes: "\\x01\\x03\\x02\\x05\\x00\\x01\\x95\\xb3"
+  broad:
+    description: "Any Modbus RTU write to holding register 0088h (Communications port passcode) via Function Code 06 — the underlying GE Multilin passcode-based access-control mechanism in general (any passcode value, any slave address), not this scanner's specific factory-default '0' guess. Note this register address is shared with the 489 check's own broad pattern (both manuals independently confirm the same register), so this signature will also match a 489 passcode-write attempt — an acceptable, honestly-documented overlap given both are the same underlying vulnerability class on sibling relays, not a bug to work around"
+    patterns:
+      - context: request
+        regex: "\\x06\\x00\\x88"
+references:
+  - "GE Publication Code GEK-106491M, GE part number 1601-0152-AD — '469 Motor Management Relay COMMUNICATIONS GUIDE', software revision 5.2x, supplied directly by the user (no stable public URL on hand)"
+description: >
+  GE Multilin 469 Motor Management Relay ships with a factory-default Communications port
+  passcode of "0" (holding register 0088h, Function Code 06) — GE Grid Solutions' own dedicated
+  Communications Guide (GEK-106491M) documents this as the Modbus Memory Map's stated default
+  value. Confirmed via a genuine device-reported status register (0205h, "Communication setpoint
+  access", format code F126 Disabled/Enabled) rather than an inferred write-echo. No CVE —
+  documented factory-default behavior, not a disclosed vulnerability. Access Lockout semantics
+  are not separately documented for this model, so this check performs exactly one write + one
+  read, never retries, matching the conservative single-attempt posture used for every other GE
+  Multilin relay check in this project.

@@ -1,0 +1,37 @@
+# Native check (dynamic TID request/response correlation — doesn't fit the declarative static
+# prefix-match model). See checks/modbus/native/pymodbus_exception_compliance.py.
+#
+# protocol_only precondition (see core/check.py's Check.fingerprint_matches and
+# core/registry.py's load-time enforcement): pymodbus is a software library that can run on
+# arbitrary hardware — there is no meaningful OUI/hardware vendor to narrow on, structurally,
+# not just unimplemented. Allowed here specifically BECAUSE this check is non-destructive
+# (destructive=false) — a destructive check could never use this escape hatch.
+
+check_id: modbus-pymodbus-exception-compliance
+protocol: modbus
+kind: native
+module: checks.modbus.native.pymodbus_exception_compliance
+destructive: false
+disclosure_status: disclosed-fixed
+confidence: high
+fingerprint_precondition:
+  protocol_only: true
+detection_hints:
+  transport: tcp
+  app_protocol: modbus
+  mitre_attack_id: T0846
+  # T0846 (Remote System Discovery) rather than T0855 (Unauthorized Command Message) or T0812 —
+  # verified against attack.mitre.org's ICS matrix directly, not defaulted. This probe never
+  # sends a real control command (0x2C is deliberately UNASSIGNED per the Modbus spec, not a
+  # command any real function performs) and isn't a credential guess either; it's a behavioral
+  # fingerprinting probe (does the device's exception-response behavior match a known software
+  # bug pattern) — closer to reconnaissance/service-fingerprinting than to an impact technique.
+  narrow:
+    description: "This scanner's own compliance probe: MBAP transaction ID 0x4242, unit ID 1, unassigned Modbus function code 0x2C (verified by executing the module's own payload-construction code directly, hex 424200000002012c)"
+    patterns:
+      - context: request
+        bytes: "\\x42\\x42\\x00\\x00\\x00\\x02\\x01\\x2c"
+  broad:
+    description: "No safe broader byte signature applies — generalizing to 'any unassigned Modbus function code' would mean enumerating the Modbus spec's full reserved-FC ranges into a byte-content heuristic, which risks both false positives (legitimate diagnostic tools also probe unassigned FCs) and false specificity (implying a precision this compliance test doesn't actually have). This is a low-stakes software-compliance test, not an attack signature, and the honest scope of a useful detection here is exactly this scanner's own fixed probe (the narrow pattern above)"
+    patterns: []
+description: "Exception response compliance (transaction ID echo + correct exception function code) for unassigned Modbus function codes — checks for the pre-fix pymodbus#2990 bug pattern (fixed upstream via PR #2992)"

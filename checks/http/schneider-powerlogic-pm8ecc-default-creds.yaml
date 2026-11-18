@@ -1,0 +1,48 @@
+# Default-credentials sweep, 2026-08-25 — user supplied a fuller capture of Schneider FAQ
+# FA299252 ("Default Webpage Username & Password for PowerLogic Meters and/or their Ethernet
+# Communication Card"), the same FAQ already used to build the PM8000 and EGX100 webpage checks
+# earlier this sweep. That earlier work only used the PM8000 row; this pass captures the FAQ's
+# PM800 (PM8ECC) row too: "Administrator | Gateway" for the PM8ECC webpage login — a genuinely
+# separate finding from the already-built FTP check for the same product
+# (checks/ftp/schneider-powerlogic-pm8ecc-ftp-default-creds.yaml), which uses the SAME credential
+# pair on a different service (real cross-service corroboration, same pattern already seen
+# between EGX400's HTTP and FTP logins).
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention — EGX100
+# already ships this exact same Administrator:Gateway pair via basic_auth_default_creds.py with
+# no contrary signal for that device either.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-powerlogic-pm8ecc-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["Administrator", "Gateway"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory credential (Administrator:Gateway) for the PM8ECC Ethernet Communication Card webpage"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic QWRtaW5pc3RyYXRvcjpHYXRld2F5"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://www.se.com/us/en/faqs/FA299252/"
+description: "Schneider Electric PM8ECC (Ethernet Communication Card for PM800-series meters) ships with a factory-default webpage login of Administrator:Gateway — the same credential pair already confirmed for this device's FTP service (checks/ftp/schneider-powerlogic-pm8ecc-ftp-default-creds.yaml). No CVE, documented factory-default behavior per Schneider's own FAQ."

@@ -1,0 +1,48 @@
+# Default-credentials sweep, Phase 8 — surfaced by the SCADAPASS cross-reference against
+# Rockwell (already "closed out" in Phase 2). Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Sources (2 independent): SCADAPASS, citing the official Rockwell 1734-AENT POINT I/O adapter
+# user manual (PDF not text-extractable in this environment, cited-not-read); corroborated by a
+# manualsdir.com-hosted excerpt of the same manual describing the "up to three unsuccessful
+# attempts... locked out for one minute" lockout behavior alongside the admin/password default —
+# a specific enough operational detail to treat as a genuine manual quote, not just a generic
+# aggregator restating the same unverified claim.
+#
+# No CVE — documented factory-default behavior. NOTE: this device's own manual describes a
+# lockout-after-3-attempts policy — this check's single credential attempt is safely within that,
+# but be aware if this check is ever extended to try more than one credential pair.
+
+check_id: http-rockwell-1734-aent-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["lockout"]  # device's own manual: "up to three unsuccessful attempts... locked out for one minute" (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Rockwell Automation"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "password"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (admin:password)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46cGFzc3dvcmQ="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.manualsdir.com/manuals/579767/rockwell-automation-1734-aent-series-b-point-i_o-ethernet_ip-adapter-module-user-manual.html?page=101"
+description: "1734-AENT POINT I/O EtherNet/IP adapter module ships with a factory-default admin/password web-UI login (3-attempt lockout policy per its own manual) — no CVE, documented factory-default behavior."

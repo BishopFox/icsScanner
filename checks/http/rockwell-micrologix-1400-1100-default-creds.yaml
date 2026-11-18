@@ -1,0 +1,51 @@
+# Default-credentials sweep, Phase 8 — surfaced by the SCADAPASS cross-reference against
+# Rockwell (already "closed out" in Phase 2). Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Strongest-sourced check in this batch: SCADAPASS, citing the official MicroLogix 1400/1100
+# embedded web server user manual; corroborated by (1) a DEDICATED Tenable Nessus plugin, 90599
+# ("Rockwell Automation MicroLogix 1400 PLC Default Credentials") — a scanner vendor building a
+# standalone plugin for this is itself corroborating evidence, same reasoning already used for
+# the Modicon Quantum HTTP check; (2) a manualsdir.com-hosted excerpt of the same official
+# manual. Three converging sources.
+#
+# No CVE — documented factory-default behavior. MicroLogix is one of the most widely deployed
+# small PLC families still in service — worth flagging as a likely-high-hit-rate check if this
+# tool is ever run broadly.
+
+check_id: http-rockwell-micrologix-1400-1100-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Rockwell Automation"
+params:
+  path: "/"
+  credentials:
+    - ["guest", "guest"]
+    - ["administrator", "ml1400"]
+    - ["administrator", "ml1100"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (guest:guest, administrator:ml1400, administrator:ml1100)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic (Z3Vlc3Q6Z3Vlc3Q=|YWRtaW5pc3RyYXRvcjptbDE0MDA=|YWRtaW5pc3RyYXRvcjptbDExMDA=)"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.tenable.com/plugins/nessus/90599"
+  - "https://www.manualsdir.com/manuals/579742/rockwell-automation-1766-l32xxx-micrologix-1400-programmable-controllers-web-server-user-manual.html?page=25"
+description: "MicroLogix 1400/1100 embedded web server ships with factory-default guest/guest (read-only) and administrator/ml1400 or administrator/ml1100 (full access) logins — no CVE, documented factory-default behavior, corroborated by a dedicated Tenable plugin."

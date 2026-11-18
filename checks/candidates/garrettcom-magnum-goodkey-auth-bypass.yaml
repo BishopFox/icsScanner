@@ -1,0 +1,67 @@
+# Candidate stub — DELIBERATELY kept as a candidate (kind: absent), not promoted to an active
+# check. See 01-METHODOLOGY-AND-CHECKLISTS.md's "Scanner check vs. standalone script" section:
+# this is "privileged-tier-unlocking rather than a plain login" — the documented exploit doesn't
+# test a known static credential, it CREATES a brand-new manager-level account with an
+# attacker-chosen username/password by substituting the literal string "GoodKey" for a session
+# token, a real, persistent, state-changing action on the device that a normal credential-check
+# shape doesn't produce. Matches this project's own established scripts/ criteria exactly (same
+# category as the Schneider P3 debug-password finding and Rockwell CVE-2021-22681) — a
+# standalone, human-invoked tool at scripts/garrettcom_goodkey_verify.py exists instead.
+#
+# Source: seclists.org Full Disclosure post, 2017-05 (fetched and read directly — this post IS
+# the original public disclosure/PoC, not a secondary summary):
+#   GET /gc/service.php?a=addUser&uid=gibson&pass=god&type=manager&key=GoodKey HTTP/1.1
+# On success: <?xml version='1.0' encoding='UTF-8'?><data val="users"><changed val="yes" />
+# Affected: Belden GarrettCom Magnum 6K and 10KT series, firmware 4.6.0 (fixed in 4.7.7,
+# released 2017-05-08). Assigned CVE-2017-20234.
+#
+# CVSS hand-computed (no official vector found published anywhere): AV:N/AC:L/PR:N/UI:N/S:U/
+# C:H/I:H/A:H — Exploitability = 8.22x0.85x0.77x0.85x0.85 = 3.887; Impact = 6.42x[1-(1-.56)^3] =
+# 5.873; Base = 9.76, rounded up = 9.8 (Critical). Remote, unauthenticated, single GET request,
+# full admin-account creation.
+#
+# NOT the same advisory as CVE-2015-3959 (ICSA-15-167-01, hardcoded serial-console password on
+# older MNS firmware <4.5.6, requires physical/serial proximity — AV:P, separate finding,
+# password value never disclosed, not built as a candidate here either since there's no value
+# to document).
+#
+# Also documented in the same seclists post, not implemented anywhere in this project: a
+# stack-based buffer overflow in /gc/flash.php via an oversized Host header (~220+ chars,
+# possible RCE) and plaintext password disclosure to any authenticated operator via
+# "show config group=user saved" — both separate bugs from the auth-bypass itself.
+
+check_id: candidate-garrettcom-magnum-goodkey-auth-bypass
+protocol: http
+cve_id: "CVE-2017-20234"
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Belden"
+  product: "GarrettCom Magnum"
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0855
+  analytic_story: "ICS Unauthorized Command Execution"
+  narrow:
+    description: "The literal 'GoodKey' authentication-bypass token substituted for a session token in a /gc/service.php request, per the original public disclosure"
+    patterns:
+      - context: request
+        regex: "key=GoodKey"
+  broad:
+    description: "Any /gc/service.php request carrying a 'key=' parameter — the underlying vulnerability class (a hardcoded bypass token accepted in place of a real session token) in general, not just the specific literal value"
+    patterns:
+      - context: request
+        regex: "/gc/service\\.php\\?.*key="
+advisory_url: "https://www.vulncheck.com/advisories/garrettcom-magnum-6k-and-10k-authentication-bypass-via-hardcoded-string"  # promoted from references (canonical advisory)
+references:
+  - "https://seclists.org/fulldisclosure/2017/May/65"
+  - "https://www.vulncheck.com/advisories/garrettcom-magnum-6k-and-10k-authentication-bypass-via-hardcoded-string"
+  - "scripts/garrettcom_goodkey_verify.py"
+description: >
+  Belden GarrettCom Magnum 6K/10KT managed switches (firmware 4.6.0, fixed in 4.7.7) accept the
+  literal string "GoodKey" in place of a real web-interface session token on any /gc/service.php
+  request, allowing full unauthenticated creation of a manager-level account (CVE-2017-20234,
+  hand-computed CVSS 9.8). Deliberately not an active check — see the "Scanner check vs.
+  standalone script" note above; a standalone verification tool exists at
+  scripts/garrettcom_goodkey_verify.py instead.

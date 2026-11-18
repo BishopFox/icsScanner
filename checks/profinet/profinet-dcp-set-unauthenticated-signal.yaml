@@ -1,0 +1,61 @@
+# PROFINET check integration, Phase 3 (2026-08-17). Full plan + sourcing trail (Phase 1: PISA-001
+# primary source read directly, independently corroborated by Helmholz + a PROFINET Forum
+# spec citation; Phase 2: Set wire logic cross-verified against scapy and Wireshark's own
+# packet-pn-dcp.c) in project_icsscanner.md / project_open_tasks.md — not repeated in full here.
+#
+# Not vendor-specific — PISA-001 affects "all products that do not adhere to the PROFINET
+# Security Class 1" (most deployed PROFINET gear, since Security Class 1 is a recent addition to
+# the spec, version 2.4 MU4, May 2023). No single hardware vendor to fingerprint against, so this
+# uses `protocol_probe: profinet_dcp` for its required narrowing — `protocol_only: true` is
+# disallowed for destructive checks precisely so a real narrowing mechanism like this one is
+# required, same precedent as `checks/s7comm/snap7-count-max-crash.yaml`.
+
+check_id: profinet-dcp-set-unauthenticated-signal
+protocol: profinet
+kind: native
+module: checks.profinet.native.profinet_dcp_signal_unauthenticated
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: high
+severity: "CVSS 3.1: 6.5 (AV:A/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H) — PISA-001, PI/PROFINET International's own advisory. CWE-862 (Missing Authorization) + CWE-1314 (Missing Write Protection for Parametric Data Values)."
+fingerprint_precondition:
+  protocol_probe: profinet_dcp
+advisory_url: "https://www.profibus.com/pi-organization/security-advisories"  # promoted from references (canonical advisory)
+references:
+  - "https://www.profibus.com/pi-organization/security-advisories"
+  - "https://www.helmholz.de/en/service-support/news/technology-news/security-information-on-profinet-applications"
+  - "https://forum.profinet.com/viewtopic.php?t=696"
+params:
+  timeout: 3.0
+detection_hints:
+  transport: ethernet
+  app_protocol: profinet
+  mitre_attack_id: T0855
+  analytic_story: "ICS Unauthorized Command Execution"
+  # T0855 (Unauthorized Command Message) — verified against attack.mitre.org's ICS matrix
+  # directly: this check sends a REAL DCP Set command the device actually executes (an LED
+  # blink), unlike the pymodbus/enip checks above which send non-functional discovery/compliance
+  # probes — a genuine unauthorized command message fits here, not a discovery technique.
+  narrow:
+    description: "This scanner's own DCP Set(Control/Signal) request — EtherType 0x8892, DCP Frame ID 0xFEFD, then the DCP payload (svc_id=Set, svc_type=Request, xid=0x01C15002, option=Control/sub-option=Signal) — verified by executing core/fingerprint.py's _dcp_set_signal_request() directly. The 12-byte source+destination MAC address prefix that precedes this on the real wire is deliberately EXCLUDED (deployment-specific, not a stable signature) — this pattern starts from the EtherType field onward"
+    patterns:
+      - context: request
+        bytes: "\\x88\\x92\\xfe\\xfd\\x04\\x00\\x01\\xc1\\x50\\x02\\x00\\x00\\x00\\x06\\x05\\x03\\x00\\x02\\x00\\x00"
+  broad:
+    description: "Any PROFINET DCP Set REQUEST (svc_id=Set, svc_type=Request), regardless of which option/sub-option is being set — PISA-001's own cited higher-risk examples (DCP-Set(NameOfStation), DCP-Set(Reset-to-Factory)) share this same prefix, since the underlying vulnerability (DCP Set has no authentication in the base protocol) applies to every Set option, not just this scanner's safe Signal proxy"
+    patterns:
+      - context: request
+        bytes: "\\x88\\x92\\xfe\\xfd\\x04\\x00"
+description: >
+  PROFINET DCP's Set service has no authentication mechanism in the base protocol (PISA-001,
+  PI/PROFIBUS & PROFINET International's own advisory — "Improper Access Control for DCP
+  Services," CWE-862/CWE-1314): any device on the local Ethernet segment that does not implement
+  PROFINET Security Class 1 (protocol version 2.4 MU4 or newer) will accept a DCP Set command
+  from anyone, no credentials involved. This check sends DCP Set(Control/Signal) — the
+  "flash LED" identify command, a spec-defined ~3-second LED blink with zero operational impact
+  — as a safe proxy for PISA-001's own cited examples (DCP-Set(NameOfStation),
+  DCP-Set(Reset-to-Factory)), both of which the advisory itself says can cause a real, if
+  temporary, loss of Controller-Device communication. A CONFIRMED result here demonstrates the
+  identical unauthenticated-Set root cause without incurring that risk. No CVE assigned —
+  PISA-001 is a protocol-level advisory, not a per-product vulnerability report.

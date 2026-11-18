@@ -1,0 +1,58 @@
+# python
+__pycache__/
+*.pyc
+
+# scan output — JSONL logs may contain evidence bytes from live targets; treat like a fuzzer's
+# crash corpus, never publish or commit
+output/
+*.jsonl
+*.csv
+*-report.html
+# exception: this is a maintained lab-notes tracking file (which ingest/ files have been
+# reviewed, safe to remove), not generated scan output — added 2026-09-15
+!lab-notes/ingest-review-status.csv
+
+# never store real secrets locally regardless of the keyring policy (target.py rejects
+# plaintext creds in the inventory itself, but keep any local cryptfile-backend file out too)
+*.cryptfile
+cryptfile_pass.cfg
+
+# working copies of externally-supplied credential material a check needs at runtime but must
+# NEVER commit — e.g. checks/ssh/native/ssh_hardcoded_private_key.py's private_key_path param.
+# Added 2026-09-14 for the Bosch Rexroth Nexo CVE-2023-48251 check: the key itself is a real,
+# working universal-root credential for a currently-deployed product, independently extracted
+# from public firmware — this directory is where an operator's own local copy lives, referenced
+# by path from a check's params, never embedded in the params/YAML itself or git history.
+# secrets/README.md is the one exception — it's documentation (the naming convention + the
+# move-between-machines playbook), not secret material, and needs to actually ship with the repo
+# for anyone who clones it to see it. Caught 2026-09-14: the original blanket `secrets/` pattern
+# below would have silently excluded that README from git too — fixed before it was ever committed.
+secrets/*
+!secrets/README.md
+
+# third-party vendor manuals dropped in for research (e.g. GE Multilin PDFs) — a real, sizable
+# working directory, but copyrighted vendor documents, not project content; never commit
+ingest/
+
+# editor / OS
+.DS_Store
+*.swp
+unblob.log
+
+# password-cracking session artifacts (John the Ripper / hashcat): pot files, recovery/restore
+# state, and session logs. These can contain target hashes and recovered plaintexts; they are
+# transient run artifacts, never project content. Prefer running crackers from the scratchpad,
+# but ignore them here as a backstop. (Caught 2026-10-28: a stray John session log,
+# deltacrk2.log, landed at the repo root during a Delta hash-verification run.)
+*.pot
+*.rec
+*.restore
+/*.log
+lab-notes/*.csv.bak-*
+
+# Office owner-lock temp files (created when a doc is open)
+~$*
+
+# bundled exploitability feed (public FIRST EPSS, refreshed via scripts/build_exploit_intel.sh)
+!core/data/epss.csv
+dist/

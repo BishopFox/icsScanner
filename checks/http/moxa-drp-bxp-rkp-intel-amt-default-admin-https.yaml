@@ -1,0 +1,56 @@
+# Built check 2026-10-06 (Phase 3), promoted from candidates/moxa-drp-bxp-rkp-intel-amt-default-admin.yaml.
+# HTTPS (port 16993) variant -- used by BXP-C101 / RKP-C220 per the manual. Moxa DRP/BXP/RKP vPro-capable industrial computers ship Intel AMT with
+# Intel's platform-wide default admin/admin; the AMT web management interface uses HTTP Digest auth
+# (RFC 2617), implemented by the new checks/http/native/http_digest_default_creds.py (realm filter
+# "Digest:" = AMT's realm format "Digest:<8 hex>"). NOT a Moxa-specific default -- it is Intel's own
+# well-known AMT/MEBx factory default, so this same check applies to any vPro industrial PC; scoped to
+# the Moxa product line this project's ingest documents.
+# EXPLOITABILITY CAVEAT (from the candidate, kept honest): the MEBx/ME password must be changed during
+# first BIOS-level setup before AMT provisioning completes, and AMT's web port may not listen until
+# provisioned -- so admin/admin is the FACTORY/unprovisioned-state default and a real hit means a unit
+# provisioned (or factory-reset) with the password left/reset to admin. The executor returns
+# NOT_APPLICABLE if admin/admin is rejected or no Digest challenge is issued, so it only CONFIRMS a
+# genuinely-default unit. 16992 (HTTP) variant is the sibling file ...-default-admin-http.yaml.
+check_id: moxa-drp-bxp-rkp-intel-amt-default-admin-https
+protocol: http
+kind: native
+module: checks.http.native.http_digest_default_creds
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H (9.8 CRITICAL)"
+destructive: true
+risk_reason: ["login"]
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Moxa (Intel AMT/vPro platform)"
+  product: "DRP/BXP/RKP series industrial computers, Intel AMT web interface (HTTPS, port 16993)"
+params:
+  path: "/index.htm"
+  credentials:
+    - ["admin", "admin"]
+  realm_contains: "Digest:"
+  success_status: 200
+  https: true
+  default_port: 16993
+references:
+  - "moxa-drp-bxp-rkp-series-win-11-pro-2022-2024-2025-manual-v1.1.pdf (user-supplied ingest, pdftotext): Intel ME/MEBx default password 'admin', AMT web interface default username 'admin', http://IP:16992 (https://IP:16993 on BXP-C101/RKP-C220)."
+  - "Intel AMT web management interface uses HTTP Digest authentication (RFC 2617) with realm 'Digest:<8 hex>' -- platform-wide Intel default, independent of OEM."
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "No plaintext wire signature — AMT port 16993 is TLS, so the HTTP Digest Authorization header (and the /index.htm request) are encrypted and never visible on the wire. Use the HTTP (16992) sibling check's narrow signature where the port is plaintext."
+    patterns: []
+  broad:
+    description: "A TLS connection to AMT management port 16993 — the exposure class (Intel AMT out-of-band management reachable), not the specific credential, which TLS hides."
+    patterns:
+      - context: request
+        regex: "\\x16\\x03"
+description: >
+  Moxa DRP/BXP/RKP series industrial computers with Intel vPro/AMT ship the AMT web management
+  interface (HTTPS, port 16993) with Intel's platform-wide default credential admin/admin, gated by
+  HTTP Digest authentication. The executor issues an unauthenticated GET, parses the Digest challenge
+  (requiring the AMT 'Digest:' realm), computes the admin/admin response, and confirms acceptance via
+  HTTP 200. CVSS 3.1 9.8 CRITICAL (platform-wide out-of-band management control if accepted). Built
+  against checks/http/native/http_digest_default_creds.py.

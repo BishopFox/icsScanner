@@ -1,0 +1,22 @@
+# Candidate stub — default-credentials sweep, Phase 13. NOT executable (no `kind`). RESEARCH
+# GAP — internally conflicting source data, not shipped as a guess between two possibilities.
+#
+# SCADAPASS's own row for the TDW 33 Industrial Modem gives contradictory information in a
+# single cell: "no password, just return, Hardcoded password: n3Y9kA6otYZu8, (?? TD-36)" — this
+# reads as either two different claims for the same device, or a claim about a DIFFERENT device
+# (TD-36) mixed into the TDW 33 row, with the source's own "??" marking its own uncertainty. No
+# port or protocol given either. Not corroborated by any independent source in this pass.
+
+check_id: candidate-westermo-tdw33-default-creds
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Westermo Network Technologies AB"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+description: >
+  Westermo TDW 33 Industrial Modem — SCADAPASS's own row contains internally conflicting/
+  uncertain data (two different candidate defaults, plus a "??" reference to a possibly
+  different device, TD-36), no port/protocol given, no independent corroboration found. Needs
+  the source manual read directly to resolve before building.

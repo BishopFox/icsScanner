@@ -1,0 +1,36 @@
+# Candidate stub — Phase 18 (PLC Direct/AutomationDirect, manual research pass). NOT executable
+# (no `kind`). Real, very recent (2024-2025), high-severity CVEs — wrong vulnerability class for
+# this sweep (RCE/path-traversal/misconfiguration, not default credentials), flagged for a
+# future Milestone 4 (curated public CVE set) pass rather than pursued here.
+#
+# CVE-2024-23601 (ICSA-24-144-01, CVSS v4 9.3) and a follow-up CISA advisory ICSA-25-296-01
+# (CVSS 10.0, the maximum score) cover multiple Productivity Suite programming-software
+# vulnerabilities: path-traversal/ZipSlip issues (CVE-2025-62498), a PLC simulator service bound
+# to an unrestricted IP address enabling unauthenticated remote exploitation
+# (CVE-2025-61934), weak password-recovery logic for encrypted projects, and permission/
+# role-assignment errors. Affects Productivity series PLC models (P1-550, P2-622, P3-550E,
+# P3-622) via the Productivity Suite engineering-workstation software, not the PLCs' own network
+# services directly.
+#
+# Real, serious, actively-relevant vulnerabilities (this advisory chain is from very recently —
+# 2024 and 2025, the newest CVEs encountered anywhere in this entire sweep) — but a different
+# vulnerability class than default credentials, same exclusion reasoning as GE Cimplicity's
+# directory-traversal RCE (Phase 3) and the Turck/GE MultiLink real-CVE-no-credential cases.
+
+check_id: candidate-automationdirect-productivity-suite-2024-2025-cves
+protocol: unknown
+cve_id: CVE-2024-23601
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "AutomationDirect.com"
+references:
+  - "https://www.cisa.gov/news-events/ics-advisories/icsa-24-144-01"
+  - "https://www.cisa.gov/news-events/ics-advisories/icsa-25-296-01"
+  - "https://www.nozominetworks.com/blog/compromising-automationdirect-productivity-suite-to-breach-the-ot-perimeter"
+description: >
+  AutomationDirect Productivity Suite (engineering workstation software for the Productivity
+  series PLC family) — multiple 2024-2025 vulnerabilities up to CVSS 10.0 (path traversal,
+  unauthenticated-reachable PLC simulator, weak password-recovery, permission errors). Real and
+  severe, but wrong vulnerability class for a default-credentials sweep — flagged for a future
+  Milestone 4 (curated public CVE set) pass.

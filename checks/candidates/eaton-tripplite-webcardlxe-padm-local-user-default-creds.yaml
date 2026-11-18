@@ -1,0 +1,95 @@
+# Candidate stub — 2026-09-16. Fourth/final Eaton ingest batch. Confirmed no prior Eaton/Tripp
+# BLOCKER TAG (2026-09-22 triage pass): firmware-gap -- The actual WEBCARDLXE firmware in this same ingest batch is entirely GPG-encrypted end to end -- a genuine cryptographic dead end; a different, unencrypted firmware build/version would resolve it.
+# Lite WEBCARDLXE candidate/check existed anywhere in this project before writing this file.
+# Distinct from checks/http/eaton-webcard-m3-rest-default-creds.yaml (a different, newer product
+# line, "Webcard-M3," confirmed admin/admin over a REST API) — WEBCARDLXE is Tripp Lite's own
+# separate, LX-platform-based UPS network card line, running "PowerAlert Device Manager" (PADM).
+#
+# THE FINDING, confirmed directly from "eaton-tripp-lite-series-webcardlxe-release-notes.txt"
+# (PowerAlert Device Manager 20.2.1 Build 942 release notes, 26-September-2023, read directly):
+# PADM ships with THREE pre-configured local user accounts whose default password equals the
+# username itself:
+#     localadmin / localadmin
+#     localmanager / localmanager
+#     localguest / localguest
+# The literal default pair is confirmed by the release notes' own bug-description text for
+# PADM-related CLI session limits: "the third session is logging in with the default
+# localdmin/localadmin credentials" [sic, a typo for "localadmin/localadmin"] "in which case the
+# oldest active session will be terminated" — i.e. the notes casually reference this exact
+# username:password pair as a real, working default while describing an unrelated bug, the
+# strongest possible confirmation that this is the genuine live value, not just a account-naming
+# convention.
+#
+# MITIGATING FACTORS, all confirmed in the same release notes, real and worth recording alongside
+# the finding rather than only the negative:
+#   - "On initial login with any of the pre-configured Local Users... PADM will force the user to
+#     change the default password." (current-firmware forced-change behavior, same pattern as
+#     several other current-generation Eaton products in this research thread)
+#   - "The preconfigured SNMPv1 and SNMPv2 users – public and tripplite, respectively – are
+#     DISABLED, by default." — the classic "public" SNMP community-string default is explicitly
+#     OFF by default on this platform (a real negative for that specific vector, worth recording
+#     so a future pass doesn't assume it's open the way SNMP "public" often is elsewhere).
+#   - "Beginning with PADM 20.1.0, SSH and Telnet are disabled by default."
+#
+# NOT YET BUILDABLE: the actual firmware for this product
+# ("eaton-tripp-lite-series-webcardlxe-firmware.tar", the same ingest batch) was extracted and
+# found to consist ENTIRELY of GPG-encrypted components (every kernel/rootfs/application image
+# suffixed `.gpg`) — a genuine cryptographic dead end, not an "undocumented protocol" one, the
+# same class of blocker as the E-Series relay's PowerPort-E protocol elsewhere in this research
+# thread. The web login's exact HTTP request shape (Basic Auth vs. form vs. REST) could not be
+# confirmed from any source checked this pass.
+#
+# SOURCING ATTEMPT 2026-09-22 (firmware-gap re-pass): confirmed via WebSearch that newer PADM/
+# WEBCARDLXE firmware downloads and a "Firmware Quick Reference Matrix" page exist on
+# tripplite.eaton.com / eaton.com (the same release-notes .txt this candidate already cites is
+# itself hosted directly on eaton.com's own asset CDN, confirming that domain does serve this
+# product's real files publicly). NOT OBTAINED this pass: eaton.com was unreachable from this
+# sandbox for every fetch attempt this pass (WebFetch timeouts, and a direct curl connectivity
+# test got a bare connection failure against www.eaton.com while the identical test against
+# archive.org succeeded immediately) -- the same domain-specific network obstacle recorded on
+# the sibling eaton-green-motion candidate this same pass, not a login gate and not evidence the
+# file doesn't exist. A non-encrypted firmware build may well be sitting on that same firmware
+# matrix page; this needs a normal browser/network path this sandbox doesn't have right now,
+# worth the user checking directly if this candidate stays a priority.
+
+# DILIGENCE 2026-10-06 (promotion-attempt pass): STILL BLOCKED. (a) eaton.com again UNREACHABLE from
+# this sandbox (HTTPS returned HTTP 000); firmware remains GPG-encrypted. (b) The PADM User's Guide
+# IS public on assets.tripplite.com and re-confirms the creds (localadmin default, forced change on
+# first login -> auth-success is still the finding) and that PADM 20.0.0+ adds a REST API -- but does
+# NOT document the login REQUEST SHAPE (form-POST vs HTTP-Basic vs REST-JSON endpoint/path). The
+# sibling eaton-webcard-m3 check is REST admin/admin, but WEBCARDLXE is a DIFFERENT (LX/PADM)
+# platform -- assuming the same wire shape would be the 'shared string != shared algorithm' error.
+# Needs the unencrypted firmware, the REST API spec, or a live unit/capture to confirm the login
+# shape before arming. Credentials known; wire shape is the sole remaining blocker.
+# FIRMWARE DROP 2026-10-06 (user supplied vendor firmware ingest): STILL BLOCKED. The dropped
+# eaton-tripp-lite-series-webcardlxe-firmware.tar IS the same PADM 20.2.1.942 build already analyzed —
+# all 17 components (.gpg) are GPG-encrypted (rootfs/pa7x/tl_xserver_fs/java-7-oracle/zImage/...); only
+# meta.txt (a PGP-SIGNED checksum manifest) is plaintext. GPG asymmetric encryption -> needs Eaton's
+# private key, unavailable -> cryptographic dead end, unchanged. The sibling Webcard-M3 firmware was
+# ALSO dropped and IS unencrypted, but it is a DIFFERENT platform: M3 uses a REST login
+# (/rest/mbdetnrs/2.0/oauth2/token, admin/admin — see checks/http/eaton-webcard-m3-rest-default-creds.yaml,
+# re-verified against the M3 2.0.0 drop same day), whereas WEBCARDLXE is the older Java/PADM/tl_xserver
+# stack — the M3 REST shape is NOT transferable to LXE (shared-string != shared-mechanism). Also checked:
+# the M3 zip's web/scripts/srr/decipher_payload.py deciphers Eaton SETTINGS/config files (AES256CBC +
+# passphrase), NOT the firmware .gpg — no help here. LXE remains blocked pending an UNENCRYPTED LXE
+# firmware build or a live-unit/capture of the PADM login.
+check_id: candidate-eaton-tripplite-webcardlxe-padm-local-user-default-creds
+protocol: unknown
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Eaton (Tripp Lite)"
+  product: "WEBCARDLXE UPS Network Card (PowerAlert Device Manager, LX Platform)"
+references:
+  - "eaton-tripp-lite-series-webcardlxe-release-notes.txt (PowerAlert Device Manager 20.2.1 Build 942, 26-September-2023), user-supplied Eaton ingest, read directly"
+description: >
+  Eaton (Tripp Lite) WEBCARDLXE UPS network cards, running PowerAlert Device Manager (PADM), ship
+  three pre-configured local accounts whose default password equals the username:
+  localadmin/localadmin, localmanager/localmanager, localguest/localguest — confirmed directly
+  from the vendor's own release notes, including an incidental but unambiguous mention of the
+  literal localadmin/localadmin pair in an unrelated bug description. Current firmware forces a
+  password change at first login, and this platform ships SNMPv1/v2 ("public"/"tripplite") and
+  SSH/Telnet all DISABLED by default — real, confirmed mitigating factors worth recording
+  alongside the finding. Not yet buildable: the actual WEBCARDLXE firmware in this same ingest
+  batch is genuinely GPG-encrypted end to end (every component), and no source checked confirms
+  the web login's exact wire protocol.

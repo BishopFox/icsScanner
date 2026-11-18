@@ -1,0 +1,56 @@
+# Armed 2026-11-12. PROMOTED from candidates/ after both promotion blockers cleared against the
+# vendor's own open-source server (darwinop SourceForge, robotisop2/Linux/project/roboplus/):
+#  - protocol.txt + main.cpp confirm the TCP-6501 command protocol has NO authentication (the accept
+#    loop dispatches commands immediately, no login), and the "v" handler is
+#    `new_sock << "{[DARwIn:" << VERSION << "]}\n";` and nothing else -- so the detection "v" query is
+#    read-only / non-actuating. The actuation commands (go/set/play/rplay/on/off) share the same
+#    unauthenticated session, which is the exposure (CWE-306).
+#  - Wire format recovered independently from the PC client (RoboPlus Motion 1.0.29.1 Common.dll
+#    CMComm.ConnectBoard) matches the server source: connect 6501 -> "v" -> {[DARwIn:VERSION]}.
+# Prior art: IOActive 2017 "Hacking Robots Before Skynet" (disclosure_status public -> documented
+# coverage, not a novel finding). Found during robotis-firmware-sweep-2026-11.md.
+#
+# SAFETY: the executor sends ONLY the benign "v" version query; it never issues go/set/play/on. An
+# actuation proof-of-impact is a scripts/safety_critical/ plan-confirm tool, NEVER this armed check.
+
+check_id: robotis-roboplus-motion-6501-unauthenticated-motion-control
+protocol: robotis_motion
+kind: native
+module: checks.robotis_motion.native.robotis_motion_6501_exposed
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:H/A:H (9.4 CRITICAL for the enabled capability) -- the RoboPlus Motion server on TCP 6501 accepts its command protocol with no authentication, so an unauthenticated network client reaches the go/set/play motion commands and the RDownload page-overwrite command (unauthorized robot motion + persistent motion-page tampering). NOT claiming RCE, and the documented hosts are educational/research humanoids (DARwIn-OP / ROBOTIS-OP2), not critical infrastructure. This check confirms the exposure via the benign 'v' version READ only."
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  protocol_probe: robotis_motion_identity
+params:
+  default_port: 6501
+  timeout: 5.0
+references:
+  - "IOActive, 'Hacking Robots Before Skynet' (2017), technical appendix: https://ioactive.com/pdfs/Hacking-Robots-Before-Skynet-Technical-Appendix.pdf -- reports the RoboPlus Motion unauthenticated TCP 6501 control server on the ROBOTIS OP2 image."
+  - "ROBOTIS DARwIn-OP open-source framework (SourceForge darwinop), robotisop2/Linux/project/roboplus/protocol.txt + main.cpp: authoritative RoboPlus Motion protocol (port 6501, '=> v' / '<= {[DARwIn:VERSION]}', no auth; motion via go/set/play). The 'v' handler returns the version string only."
+  - "ROBOTIS e-Manual, DARwIn-OP/OP development (ROBOTIS-GIT/emanual docs/en/platform/op/development.md): RoboPlus Motion connects at IP + port 6501 over TCP/IP with no authentication step in the procedure."
+  - "core/fingerprint.py probe_robotis_motion_identity -- the non-actuating 'v' version-query identity gate this check reuses."
+detection_hints:
+  transport: tcp
+  app_protocol: robotis_motion
+  mitre_attack_id: T0855
+  analytic_story: "ICS Unauthorized Command"
+  narrow:
+    description: "The RoboPlus Motion server's distinctive version reply to the unauthenticated 'v' query on TCP 6501: a braced '{[DARwIn:<version>]}' frame (server -> client)."
+    patterns:
+      - context: response
+        regex: "\\{\\[DARwIn:[0-9]"
+description: >
+  The ROBOTIS RoboPlus Motion server (roboplus_vm) listens on TCP 6501 on networked ROBOTIS controllers
+  (documented host: the DARwIn-OP / ROBOTIS-OP2 humanoid) and accepts its text command protocol with NO
+  authentication of its own (CWE-306): a client connects and immediately issues commands, mixing reads
+  (v/E/Get/List/info) with actuation (go/set = move to goal position, play/rplay = play a stored motion
+  page, on/off = torque) and RDownload (overwrite a motion page). This check sends one benign 'v' version
+  query and confirms the server answered unauthenticated -- in ROBOTIS's own open-source server the 'v'
+  handler returns only "{[DARwIn:VERSION]}" with no motion side effect, so the same unauthenticated
+  session that answers 'v' also reaches the motion commands. Wire format + the no-auth property are
+  confirmed from the vendor server source (SourceForge darwinop) and the decompiled PC client, and the
+  exposure was publicly reported by IOActive in 2017 -> disclosure_status public (documented coverage).
+  The executor issues ONLY the version read; any actuation proof-of-impact belongs in
+  scripts/safety_critical/, never this check.

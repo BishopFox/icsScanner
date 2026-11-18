@@ -1,0 +1,65 @@
+# Native check — read-preferred, write-fallback verification of the GE Multilin 869's factory
+# default Administrator/Operator passcode ("0") over Modbus. See
+# checks/modbus/native/ge_multilin_869_factory_passcode.py for the implementation and
+# lab-notes/human-review-queue.md (Priority 1) for the full research trail. Built 2026-08-24 after
+# the user supplied GE's own dedicated "869 Motor Protection System Communications Guide"
+# directly — the SAME "8 Series" platform mechanism the already-built 850 check documents (that
+# check's own primary source explicitly lists 869 among the models it covers), independently
+# double-corroborated by this dedicated 869-specific manual (identical registers, identical
+# worked example).
+#
+# EXTRA CAUTION: real motor protection relay. destructive:true — even the preferred read path is
+# a real unauthenticated attempt to read a credential field; the write fallback is a genuine
+# Administrator login attempt against live equipment. Requires an explicit `product_hint: "869"`
+# on the target — there is no live way to distinguish the 869 from its GE Multilin siblings over
+# Modbus, so this only ever fires when an operator has explicitly confirmed the target model
+# themselves.
+#
+# WIRE FRAMING: CONFIRMED true Modbus TCP/MBAP (this manual's own "Ethernet Ports" chapter
+# explicitly states native Modbus TCP support) — unlike the 469 check's own unresolved ambiguity
+# on this point.
+
+check_id: ge-multilin-869-factory-passcode
+protocol: modbus
+kind: native
+module: checks.modbus.native.ge_multilin_869_factory_passcode
+destructive: true
+risk_reason: ["device_write", "lockout"]  # write-fallback path writes a real Modbus register; own manual explicitly documents Access Lockout at 3 failed attempts, register 0x32DF (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "GE Automation"
+  product: "869"
+detection_hints:
+  transport: tcp
+  app_protocol: modbus
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own read of the GE Multilin 869 Administrator password holding registers (0xF32D), and its Administrator-login write fallback (0xF322, role='Administrator', password='0') — IDENTICAL wire bytes to the 850 check's own narrow patterns, since both models document the same registers and role/password field layout on the same '8 Series' platform. This overlap is deliberate and honestly documented, not a bug: a real deployment cannot distinguish an 850 probe from an 869 probe by these bytes alone, matching the same real-world ambiguity the checks' own fingerprint_precondition gate exists to manage"
+    patterns:
+      - context: request
+        bytes: "\\xfe\\x03\\xf3\\x2d\\x00\\x0b"
+      - context: request
+        regex: "\\xfe\\x10\\xf3\\x22.{3}Administrator\\x00+0\\x00+"
+  broad:
+    description: "Any Modbus write to holding register 0xF322 carrying a 22-byte role field followed by a 22-byte password field — the underlying GE Multilin 8-Series login mechanism in general, not this scanner's specific default-password guess. Same overlap-with-850 caveat as narrow above applies"
+    patterns:
+      - context: request
+        bytes: "\\xf3\\x22\\x00\\x16"
+references:
+  - "GE 869 Motor Protection System Communications Guide, supplied directly by the user (no stable public URL on hand)"
+  - "GE 8 Series Instruction Manual — Communications System (8S-1601-0702-C430) — already cited by the 850 check, independently lists 869 as a covered model"
+description: >
+  GE Multilin 869 Motor Protection System ships with a factory-default Administrator password of
+  "0" (holding registers 0xF32D-0xF337, "Password Characters 1-22") — GE's own dedicated 869
+  Communications Guide documents this directly, including a worked login example that explicitly
+  states "the relay password in this example is 0". This is the same "8 Series" platform
+  mechanism the already-built 850 check documents; this check's primary source independently
+  confirms the identical registers rather than assuming they carry over from the 850 alone. Read
+  preferred over write (a direct observation of the stored value, not an inferred login result);
+  write fallback (FC10 Administrator login) is capped at FINGERPRINT_ONLY, never CONFIRMED on its
+  own, since Modbus's write-echo semantics don't prove the password content was correct. No CVE —
+  documented factory-default behavior. Access Lockout on this model is explicitly documented as 3
+  failed attempts (register 0x32DF) — this check performs exactly one read + at most one write,
+  never retries.

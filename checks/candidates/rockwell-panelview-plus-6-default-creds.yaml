@@ -1,0 +1,39 @@
+# Candidate/reference stub — RESOLVED 2026-08-30. NOT executable (no `kind`). ARCHITECTURALLY
+# OUT OF SCOPE for a network check, not under-researched — same category as the Delta DOP-B and
+# GE Multilin front-panel entries.
+#
+# RESOLVED: user supplied Rockwell's own official "2711P-UM006A-EN-P" PanelView Plus 6 Terminals
+# User Manual directly (Chapter 4, "Desktop Access"), read in full. Confirms this password
+# gates the terminal's own local Windows CE desktop — reached only by physically pressing the
+# "Exit" button from FactoryTalk View ME Station (the local HMI runtime application running ON
+# the terminal itself), never a network-facing login. "All terminals are shipped from factory
+# with desktop access DISABLED" by default — the password only becomes relevant once an operator
+# explicitly enables desktop access locally. Confirmed values, directly from the manual:
+#   - Default password = "password" (case sensitive)
+#   - Default challenge question = "What is the opposite of lock?"
+#   - Default challenge answer = "unlock" (case sensitive)
+# No TCP/IP login this credential applies to — same "architecturally out of scope for a network
+# scanner" conclusion as Delta DOP-B, recorded as a physical_access_reference entry instead.
+
+check_id: candidate-rockwell-panelview-plus-6-default-creds
+protocol: local-only
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Rockwell Automation"
+physical_access_reference:
+  summary: "Rockwell PanelView Plus 6 terminals — default local desktop-access password and reset challenge Q&A, entered directly at the terminal's touchscreen to unlock the underlying Windows CE desktop (disabled by default; only relevant once an operator has enabled desktop access)."
+  steps:
+    - "At the terminal, from FactoryTalk View ME Station, press Exit to reach the desktop-access password prompt (only applies if desktop access has been enabled locally)."
+    - "Enter the default password: password"
+    - "If resetting: challenge question 'What is the opposite of lock?', answer: unlock"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "Rockwell Automation Publication 2711P-UM006A-EN-P (PanelView Plus 6 Terminals User Manual), Chapter 4 \"Desktop Access\", user-supplied"
+description: >
+  Rockwell PanelView Plus 6 — default local Windows-CE desktop-access password "password" and
+  reset challenge Q&A ("What is the opposite of lock?" / "unlock"), confirmed directly from
+  Rockwell's own user manual. Gates only the terminal's own physical touchscreen desktop, reached
+  via FactoryTalk View ME Station's local Exit button — no network-facing login exists for this
+  credential. Architecturally out of scope for a network scanner check; recorded as a
+  physical-access reference entry instead.

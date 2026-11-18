@@ -1,0 +1,49 @@
+# Default-credentials sweep, Phase 10. Uses the generic
+# checks/telnet/native/telnet_default_creds.py executor.
+#
+# Source: a real academic security-research paper — "ICS/SCADA Security Analysis of a Beckhoff
+# CX5020 PLC" (also published as "Analysis of a Beckhoff CX5020 PLC" via SciTePress) — hands-on
+# testing of real hardware, not a secondhand aggregator claim. A WebSearch independently
+# re-surfaced the SAME paper's own finding: "log on with username 'webguest' and password '1'"
+# if defaults are unchanged, and confirmed Telnet is enabled by default. This is effectively a
+# single primary source (the paper, mirrored across ResearchGate/SciTePress/nanopdf — same
+# underlying research, not independent corroboration in the strict sense), but it's the
+# top-tier kind of single source this project already treats as sufficient elsewhere (a named
+# security team's own hands-on testing, same tier as Claroty's PCOM/TCP work) —
+# confidence: low regardless, per this project's convention for single-source-tier findings.
+#
+# No CVE — the paper documents a factory-default configuration issue, not a numbered
+# vulnerability disclosure.
+
+check_id: telnet-beckhoff-cx5020-webguest-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Beckhoff Automation"
+params:
+  credentials:
+    - ["webguest", "1"]
+  default_port: 23
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet username+password login attempt(s) using the documented factory credential(s) (webguest:1)"
+    patterns:
+      - context: request
+        bytes: "webguest\r\n1\r\n"
+  broad:
+    description: "Any Telnet login attempt (a username followed by a password, both CRLF-terminated) on this device — the vulnerability class (default/weak credentials on this product's Telnet server), not the specific guessed credential"
+    patterns: []  # generic "any-line" pattern removed 2026-11-11 (real-traffic validation); no device-specific signature beyond the narrow probe/credential bytes. See lab-notes/zeek-detection-validation-pnnl-2026-11.md
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.researchgate.net/publication/272420507_ICSSCADA_Security_Analysis_of_a_Beckhoff_CX5020_PLC"
+  - "https://www.scitepress.org/papers/2015/53301/pdf/index.html"
+description: "Beckhoff CX5020 PLC ships with Telnet enabled by default and a factory-default webguest/1 login — confirmed via hands-on academic security research, not just an aggregator claim. No CVE, documented factory-default behavior."

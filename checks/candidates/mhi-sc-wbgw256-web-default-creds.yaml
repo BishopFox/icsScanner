@@ -1,0 +1,94 @@
+# Candidate stub — default-credentials sweep, Metoree Protective-Relays/switchgear-monitoring
+# BLOCKER TAG (2026-09-22 triage pass): live-hardware-gap -- The form-POST HTTP executor now exists (checks/http/native/form_post_default_creds.py) -- only the exact HTML form field names/POST target remain unconfirmed (only a screenshot has been seen, not the page's HTML source); needs a live device.
+# pivot (2026-08-18). NOT executable (no `kind`). Credential and network surface are BOTH
+# confirmed via a primary source — the blocker is a missing check-executor capability, not a
+# research gap.
+#
+# Mitsubishi Heavy Industries SC-WBGW256 ("Superlink WEB & BACnet Gateway") — a networked
+# gateway/central controller for MHI VRF air-conditioning systems (Web/HTTP + BACnet, "three-
+# level user authentication" per the product page). Net-new vendor for this sweep: Mitsubishi
+# Heavy Industries is a SEPARATE company from Mitsubishi Electric (already tracked elsewhere in
+# this project) — MHI makes VRF/HVAC/turbines/heavy machinery, not PLCs. Same risk shape/product
+# class as the already-shipped Samsung DMS candidate (checks/candidates/
+# samsung-dms-trafficware-no-port-family.yaml) — networked building-automation central control.
+#
+# Source: MHI's own official "SC-WBGW256 User's Manual" (psz012a084_a_english.pdf,
+# www.mhi-mth.co.jp — Mitsubishi Heavy Industries Thermal Systems, the MHI subsidiary that owns
+# this product line), read directly via pdftotext, not search-summarized. Top-tier primary
+# source per this project's source-quality hierarchy (vendor's own manual).
+#
+# Factory-default credentials (p.10, "Factory default user ID and password of each user"):
+#   System Administrator (full config access): Admin / 123456
+#   Control and Monitoring User (no config menu): Controller / 123456
+#   Monitoring User (view-only): User / 123456
+# Caveat from the SAME manual, quoted directly: "Only Admin user ID is available for first-time
+# login. When logging in, changing all passwords (Admin/Controller/User) from default will be
+# required." — i.e. Controller/User may not be independently reachable on a genuinely
+# factory-fresh unit until an admin activates them; Admin/123456 is the one guaranteed-present
+# credential on first boot.
+#
+# Network surface, also confirmed from the same manual: HTTP web login, default IP
+# 192.168.0.110/255.255.255.0, login URL pattern http://<ip>/en/ (English) — a plain HTML login
+# FORM (User ID + Password fields, a "Login" button), NOT HTTP Basic Auth. This project's only
+# existing HTTP check executor (checks/http/native/basic_auth_default_creds.py) only speaks
+# Basic Auth — it cannot drive this login. No public CVE, PoC, or security advisory for this
+# specific product was found (MHI Heavy Industries does run a HackerOne vulnerability-disclosure
+# program, but nothing SC-WBGW256-specific is published there) to source the exact HTML form
+# field names/POST target instead.
+#
+# NOT BUILT: needs either (a) a new reusable form-POST HTTP login executor module (this would be
+# the FIRST of its kind in this project — every other HTTP check so far is Basic Auth), with the
+# exact form field names/action URL confirmed against a real device or a technical writeup, since
+# the end-user manual documents the visible login screen but not its underlying HTML/POST
+# mechanics; or (b) a live device to inspect directly. Flagged as an engineering-capability gap,
+# not a credential-confidence gap — the credential itself is about as well-sourced as this sweep
+# gets.
+#
+# FOLLOW-UP 2026-08-18 (user supplied a local copy of MHI's own "psz012a057a_en" Operation
+# Manual, pages 10-15 read directly): confirms the login screen exists exactly as described —
+# labeled "user ID:"/"password:" fields, a "Login" button, URL http://192.168.0.110/en/,
+# credential table matching this stub exactly (Admin/Controller/User, all 123456 factory
+# default). Does NOT resolve the form-POST blocker: this manual shows a RENDERED SCREENSHOT of
+# the login page (an image captured in the PDF), not its underlying HTML source — no form field
+# `name=`/`id=` attributes or POST action URL are recoverable from a screenshot. The executor gap
+# stands exactly as before; this follow-up only strengthens confidence in the credential itself,
+# which was already the strong side of this candidate.
+#
+# EXECUTOR NOW BUILT 2026-08-19: checks/http/native/form_post_default_creds.py exists (built
+# after this candidate + Yaskawa V1000 + Omron CJ1M's HTTP half all hit the identical gap in one
+# sweep pass). This candidate's remaining blocker is now PURELY the missing form field names/POST
+# target for THIS device — same credential-confidence, same network surface, just needs someone
+# to inspect a live SC-WBGW256's actual login page HTML (browser dev tools "View Source" or a
+# packet capture) rather than a rendered manual screenshot. Once field names are known, this is a
+# `kind: native, module: checks.http.native.form_post_default_creds` check with
+# `password_only: false`, matching this device's real User ID + Password fields.
+
+check_id: candidate-mhi-sc-wbgw256-web-default-creds
+protocol: http
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Mitsubishi Heavy Industries"
+references:
+  - "https://www.mhi-mth.co.jp/en/products/pdf/psz012a084_a_english.pdf"
+  - "https://mhi-hvac.co.uk/wp-content/uploads/170601_WBGW256_ConfigManual_WEB_V10.pdf"
+description: >
+  Mitsubishi Heavy Industries SC-WBGW256 Superlink WEB & BACnet Gateway (VRF central controller)
+  ships with factory-default web-login credentials Admin/123456 (System Administrator),
+  Controller/123456 (Control and Monitoring User), User/123456 (Monitoring User) — confirmed
+  directly from MHI's own official User's Manual. Default IP 192.168.0.110, login at
+  http://<ip>/en/. The form-POST HTTP executor now exists
+  (checks/http/native/form_post_default_creds.py) — not buildable yet only because the exact
+  HTML form field names/POST target for this specific product are still unconfirmed (only a
+  rendered manual screenshot has been seen, not the page's HTML source).
+
+not_automatable_reference:
+  credential: "Admin / 123456 (also Controller/123456, User/123456)"
+  source: "MHI's own SC-WBGW256 User's Manual (psz012a084_a_english.pdf), p.10"
+  category: "form-login-fields-unconfirmed"
+  reason: >-
+    HTML form login (User ID + Password fields), not HTTP Basic Auth. The project's form-POST
+    executor exists, but the exact form field names / POST target are unconfirmed (only a
+    screenshot of the page was seen, not its HTML source) — needs a live device or the page source.
+    The manual also forces changing all passwords on first Admin login, so Admin/123456 is the one
+    guaranteed-present first-boot credential.

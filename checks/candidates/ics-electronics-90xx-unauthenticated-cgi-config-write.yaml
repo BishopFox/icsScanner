@@ -1,0 +1,137 @@
+# FOLLOW-UP 2026-09-14 — scope CONFIRMED WIDER, same day, per user request ("use the same method
+# BLOCKER TAG (2026-09-22 triage pass): live-hardware-gap -- Not verified against the actual socket wire format this pass -- would need a live device or tracing the VXI-11.dll/AUpdate.exe tool's own protocol implementation.
+# of other devices from same vendor" against vxi11_install.html [80xx series], 48xx_install.html,
+# 239x_support.html, gpib_any_install.html). The identical unauthenticated `config.html` -> plain
+# `GET /cgi` pattern (byte-identical field names: ip/net/gate/static/desc/commtimo/keep/agilent/
+# rawena/socketport/echoena) was independently reconfirmed, directly from the vendor's own shipped
+# HTML source, in 7 MORE official firmware packages across two more product lines:
+#   - 80xx series (icselect.com/pc_files/): ICS_8003R10_AUpdate.zip (Ethernet-to-Digital),
+#     ICS_8013R15_AUdate.zip (Ethernet-to-Digital), ICS_8055_update.zip (Ethernet-to-GPIB
+#     Controller), ICS_8063R16_AUdate.zip (Ethernet-to-Digital), ICS_8064R7_AUdate.zip
+#     (Ethernet-to-Relay — see the separate, more severe
+#     ics-electronics-8064-unauthenticated-relay-control.yaml candidate for that model's OWN
+#     additional Rly.html finding), ICS_8065_update.zip (Ethernet-to-GPIB Controller),
+#     ICS_8099_update.zip (Ethernet-to-Modbus).
+#   - 48xx series: ICS_N4865A_update.zip (GPIB-to-LAN interface) — same field names confirmed.
+# This is a single shared embedded-web codebase spanning the vendor's ENTIRE current product
+# catalog (90xx + 80xx + 48xx, at minimum), not an isolated per-model issue — strengthens rather
+# than narrows the original finding below. One real, unresolved ambiguity surfaced this pass,
+# disclosed rather than hidden: the 8013 (80xx family) package includes a generic, reused
+# "403 Password Error" boilerplate page ("80xx WebServer" branded) whose TRIGGERING mechanism was
+# not found anywhere in any examined package — no config.html/Rly.html/etc. actually submits a
+# password parameter, and no ReadMe documents an enable path or default value for it, but its mere
+# presence means an optional password feature may exist on some models/configurations that this
+# pass didn't discover how to activate. The DEFAULT, as-shipped, no-configuration-needed behavior
+# examined directly in every package remains a plain unauthenticated GET, which is what this
+# candidate documents.
+#
+# The 239x series (Modbus interfaces 2390/2399) and the 4872/DataLogger utilities were also
+# checked this pass — clean negatives, no relevant finding: 239x's own page offers only a Windows
+# CSV-to-register-table loader utility (M239x_Table_Loader.zip), no device firmware or web content
+# to inspect at all; 4872 (a printer interface) and its DataLogger utility ship firmware .bin +
+# Windows .exe tools only, no HTML/web server component. ICS_Anywhere_Install.zip (GPIB AnyWhereâ„¢,
+# a 30-day-trial Windows PC-side VXI-11 service, not device firmware) was downloaded but not
+# deeply inspected — a materially different threat model (licensed software running on the
+# OPERATOR's own PC, not an ICS/OT field device) that doesn't fit this sweep's device-credential
+# methodology; flagged as unreviewed rather than silently skipped.
+#
+# Candidate stub — 2026-09-14, scheduled follow-up task (cron job set up in the prior session
+# turn: "review icselect.com/vxi11_install9.html... schedule a task in 3 hours to download and
+# review each .zip archive"). NOT executable (no `kind`). ICS Electronics is a genuinely NEW
+# vendor for this project's default-credentials sweep — no prior candidate or check existed
+# (confirmed against the live registry before writing this file, per this project's own
+# "check registry before writing ANY new candidate" convention).
+#
+# Product line: ICS Electronics 90xx series (a div. of Systems West, Inc. / branded "Ducommun" on
+# some UI pages) — Ethernet-to-{Serial, Modbus RTU, GPIB} interface/gateway boards used in lab and
+# industrial test-equipment racks: 9006 (Ethernet-to-Serial), 9009 & 9099 (Ethernet-to-Modbus
+# RTU), 9055 & 9065 (Ethernet-to-GPIB). All 5 official firmware-update packages downloaded
+# directly from icselect.com/pc_files/ (plain, unauthenticated HTTP, no JS-gating or account
+# needed — a real contrast with every vendor portal encountered elsewhere in this sweep) and
+# extracted (plain zip, no encryption). Each package ships the device's own embedded web-server
+# HTML pages UNPACKED, not embedded in a compiled binary — the actual served pages, not an
+# inference from a manual screenshot.
+#
+# CONFIRMED, directly from the shipped HTML source (grepped every .html file across all 5
+# packages for "password"/"passwd"/"login" — ZERO matches anywhere):
+#   - `config.html` (present in every model's package, identical field-name set across all 5:
+#     9006/Model 9006/config.html, 9009 ships no separate config.html of its own in this package
+#     but reuses the same VXI-11.dll config tool, 9055/Model_9055_Pages+Anritsu_9055_Pages/
+#     config.html, 9065/Model 9065/config.html, 9099/Model TE9099/config.html) is a template-
+#     driven CGI page (server-side placeholders like `%ip%`, `%net%`, `%gate%` substituted by the
+#     device's own embedded HTTP server) exposing a plain `<form method="GET" action="/cgi">` with
+#     NO password/token/hidden-auth field of any kind. Confirmed identical field names across the
+#     9006, 9065, and 9099 packages independently (grepped directly, not assumed): `static`, `ip`,
+#     `net`, `gate`, `commtimo`, `keep`, `agilent`, `desc`, `rawena`, `socketport`, `echoena`,
+#     `gpibaddr`, `baud`, `bits`.
+#   - `confirm.html`'s own text confirms this is a real, effective, network write, not a
+#     client-side-only form: "Your configuration values have been saved. Click Reboot for the
+#     changes to take affect now or power cycle the unit later to activate the changes." — no
+#     login step appears anywhere before this confirmation.
+#   - The factory-default/post-reset IP address is independently corroborated across FOUR
+#     separate ReadMe.txt files (9006, 9009, 9055, 9065, 9099 update packages all instruct
+#     "reset unit's network settings to 192.168.0.254 before starting this update"; the 9009 and
+#     9099 ReadMe's own change-history entries additionally confirm "Correct default IP address to
+#     be 192.168.0.254" as a deliberate firmware fix) — a genuinely well-corroborated value, not a
+#     single-source claim.
+#   - A SEPARATE, raw-socket-level configuration vector also exists, per the 9006 ReadMe's own
+#     change history: "@@@IP, MASK, GATE WIP?, WMODE? commands" and "@@@REBOOT command" are
+#     accepted directly over the device's raw TCP socket port (not just HTTP) — not independently
+#     verified against the actual socket wire format this pass (would need a live device or the
+#     VXI-11.dll/AUpdate.exe tool's own protocol implementation traced, not done here), but
+#     recorded since it means the HTTP /cgi vector is not even the device's only unauthenticated
+#     config-write surface.
+#
+# RISK-TIER NOTE: this is a genuine unauthenticated WRITE (not just disclosure) — reconfiguring a
+# reachable device's IP/gateway/GPIB address/baud rate/socket port with a single unauthenticated
+# GET request. Would need DESTRUCTIVE tier (risk_reason: ["device_write"]) if built, same
+# reasoning as every other write-confirming check in this project.
+#
+# NOTE ON BUILDABILITY: this candidate is unusually close to buildable as-is — the full request
+# shape (GET /cgi with named query parameters, no auth, on a documented default IP) is confirmed
+# directly from the vendor's own shipped source, not inferred. Deliberately left as a candidate
+# stub rather than promoted in this same pass: this was a scheduled/unattended background task
+# without the user present to make the "build vs. document" scope call this project has
+# consistently treated as belonging to the user for anything beyond a plain default-credential
+# login attempt (see the CVE-2018-7791 UMAS check's own build history the same session, which
+# required an explicit go-ahead before writing a real write-confirming check). A genuinely
+# NON-destructive way to confirm this WITHOUT ever writing to the device also exists and would be
+# the safer first check to build: GET /cgi with query parameters that exactly ECHO the device's
+# CURRENT config values back (e.g. read `config.html` itself, whose `%ip%`/`%net%`/`%gate%`
+# placeholders get substituted with the live values on any plain page load with no form submission
+# at all — the config page's own read is unauthenticated, independent of whether a write is ever
+# attempted) — this would confirm the "no authentication gates configuration disclosure" half of
+# the finding with zero write risk, deferring the write-confirmation half to an explicit
+# go-ahead. Not built this pass either way — recorded for the next session to pick up.
+#
+# See the companion candidate
+# ics-electronics-9065-9099-unauthenticated-gpib-modbus-command-relay.yaml for a related, more
+# severe finding on the 9065/9099 models specifically (the same unauthenticated /cgi endpoint also
+# relays arbitrary commands to whatever GPIB instrument or Modbus RTU device is attached
+# downstream — a distinct, higher-impact primitive from the shared config-write finding here).
+
+check_id: candidate-ics-electronics-90xx-unauthenticated-cgi-config-write
+protocol: http
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "ICS Electronics"
+references:
+  - "https://www.icselect.com/vxi11_install9.html"
+  - "https://www.icselect.com/pc_files/ICS_9006R4_Aupdate.zip — official 9006 (Ethernet-to-Serial) firmware update package, extracted and read directly (config.html/confirm.html/ReadMe.txt)"
+  - "https://www.icselect.com/pc_files/ICS_9009R13_Aupdate.zip — official 9009 (Ethernet-to-Modbus RTU) firmware update package"
+  - "https://www.icselect.com/pc_files/ICS_9055R8_AUpdate.zip — official 9055 (Ethernet-to-GPIB Instrument Interface) firmware update package"
+  - "https://www.icselect.com/pc_files/ICS_9065R8_AUpdate.zip — official 9065 (Ethernet-to-GPIB Gateway) firmware update package"
+  - "https://www.icselect.com/pc_files/ICS_9099R14_AUpdate.zip — official 9099 (Ethernet-to-Modbus RTU Interface) firmware update package"
+description: >
+  ICS Electronics 90xx series Ethernet-to-Serial/Modbus-RTU/GPIB interface gateways (models 9006,
+  9009, 9055, 9065, 9099) ship an embedded web configuration page (config.html) whose form posts
+  network/serial settings (IP, netmask, gateway, GPIB address, baud rate, socket port, etc.) via a
+  plain unauthenticated GET to /cgi — confirmed directly from the vendor's own shipped HTML source
+  across all 5 official firmware packages, zero password/login field found anywhere. The
+  factory-default/post-reset IP is 192.168.0.254, corroborated across 4 independent official
+  ReadMe.txt files. Not yet built: would be DESTRUCTIVE tier (a real config write) if built as the
+  full write-confirming check; a safer non-destructive disclosure-only variant (confirming the
+  config page itself is readable with no auth) was identified as the better first check to build
+  but needs an explicit go-ahead, consistent with this project's own scope-decision pattern for
+  write-confirming checks.

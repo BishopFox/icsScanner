@@ -1,0 +1,69 @@
+# Built 2026-09-22, independent of this session's vendor-ingest sweep — user asked directly to
+# "discuss level of effort for smart install exposure and tftp detection" after the Cisco IE3000
+# firmware review surfaced Smart Install client strings, then asked to build both. No firmware
+# extraction involved in this finding: Smart Install's lack of authentication is Cisco's own
+# long-published architectural description of the feature (cisco-sa-20170214-smi,
+# cisco-sa-20180409-smi, and the 2019 NSA/CISA joint advisory "Cisco Smart Install Protocol
+# Misuse"), not something discovered this session — this check detects an already-fully-public
+# exposure class, so it goes straight into checks/, not checks/candidates/.
+#
+# See checks/cisco_smi/native/cisco_smart_install_exposed.py and
+# core/fingerprint.py's probe_cisco_smi_identity() for the full sourcing note: the wire format
+# is SIET's (github.com/frostbits-security/SIET) own reference "test device" query, fetched and
+# read directly from siet.py this pass, not reverse-engineered or recalled. A CONFIRMED result
+# means the target answered as an active Smart Install client to an unauthenticated
+# director-role query — the same unambiguous-positive bar SIET's own tool uses.
+#
+# CVSS 3.1 computed with the installed `cvss` package for what the confirmed capability enables
+# (director-role config/image replacement via TFTP + arbitrary CLI execution), matching this
+# project's convention (see checks/http/siemens-iot2050-nodered-unauthenticated-flows.yaml) of
+# scoring the underlying condition the check confirms, not just the specific read-only probe it
+# performs: AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H = 9.8 CRITICAL. No single CVE covers this --
+# it's an architectural absence of authentication, not one patchable bug (distinct from
+# CVE-2018-0171, a stack-overflow RCE in the SMI Install Protocol handler on TOP of this same
+# unauthenticated surface, which this check does not test for).
+
+check_id: cisco-smart-install-unauthenticated-exposed
+protocol: cisco_smi
+kind: native
+module: checks.cisco_smi.native.cisco_smart_install_exposed
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H (9.8 CRITICAL)"
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  protocol_probe: cisco_smi_identity
+references:
+  - "https://www.cisco.com/c/en/us/support/docs/csa/cisco-sa-20170214-smi.html"
+  - "https://www.cisco.com/c/en/us/support/docs/csa/cisco-sa-20180409-smi.html"
+  - "https://media.defense.gov/2019/Jul/16/2002157833/-1/-1/0/CSA-CISCO-SMART-INSTALL-PROTOCOL-MISUSE.PDF"
+  - "https://github.com/frostbits-security/SIET"
+detection_hints:
+  transport: tcp
+  app_protocol: cisco_smi
+  mitre_attack_id: T0886
+  analytic_story: "ICS Unauthorized Command Execution"
+  # T0886 (Remote Services) per the same reasoning already established in this project's
+  # Node-RED check: no credential is guessed or supplied (CWE-306, not CWE-798), so T0812
+  # (Default Credentials) doesn't fit.
+  narrow:
+    description: "This scanner's own 24-byte Smart Install 'test device' query, sent verbatim from SIET's own reference implementation"
+    patterns:
+      - context: request
+        regex: "\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x04\\x00\\x00\\x00\\x08\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x00"
+  broad:
+    description: "Any Smart Install director-role message (change_tftp, update_ios, get_config, or this test-device query) reaching TCP/4786 on a client-mode switch — the underlying vulnerability class (SMI accepts unauthenticated director commands), not just this scanner's own read-only probe"
+    patterns:
+      - context: request
+        regex: "^\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x01"
+description: >
+  Cisco Smart Install (SMI, TCP/4786) has no authentication anywhere in the protocol -- Cisco's
+  own advisories (cisco-sa-20170214-smi, cisco-sa-20180409-smi) and the 2019 NSA/CISA joint
+  advisory on SMI protocol misuse describe this as architectural, not a single patchable defect.
+  A switch running in the SMI client role answers unauthenticated director-role commands from
+  any network-reachable source, including config/image replacement via TFTP and arbitrary CLI
+  execution. This check confirms exposure via SIET's own reference read-only "test device"
+  query (github.com/frostbits-security/SIET) -- it never sends the destructive change_tftp,
+  update_ios, or get_config commands SIET also implements. CVSS 3.1 (for the underlying
+  capability this confirms): AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H = 9.8 CRITICAL.
+  disclosure_status: public -- this is Cisco's own long-published guidance, not a new finding.

@@ -1,0 +1,13 @@
+check_id: candidate-jvndb-2026-027988
+protocol: unknown
+destructive: false
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: シーメンス
+  product: (複数の製品)
+description: 'JVN candidate — JVNDB-2026-027988 (シーメンス (複数の製品)). Title (Japanese,
+  not translated): Siemens製品に対するアップデート（2026年8月）'
+references:
+- https://jvn.jp/vu/JVNVU98375707/index.html
+- https://jvndb.jvn.jp/ja/contents/2026/JVNDB-2026-027988.html

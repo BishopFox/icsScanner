@@ -1,0 +1,41 @@
+# Default-credentials sweep, Phase 15. HTTP sibling of
+# checks/telnet/sierra-wireless-airlink-sconsole-default-creds.yaml — same caveat about
+# unique-per-device passwords applies (see that file's header). Different accounts/port per
+# SCADAPASS's own separate row: user:12345 and viewer:12345 over HTTP port 9191 (AceManager, the
+# AirLink web management interface).
+
+check_id: http-sierra-wireless-airlink-acemanager-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Sierra Wireless, ULC"
+params:
+  path: "/"
+  default_port: 9191
+  credentials:
+    - ["user", "12345"]
+    - ["viewer", "12345"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (user:12345, viewer:12345)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic (dXNlcjoxMjM0NQ==|dmlld2VyOjEyMzQ1)"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://source.sierrawireless.com/resources/airlink/hardware_reference_docs/unique-default-passwords/"
+description: "Sierra Wireless AirLink AceManager web interface (port 9191) falls back to factory-default user/12345 and viewer/12345 logins when no unique per-device password applies — no CVE, documented factory-default/fallback behavior."

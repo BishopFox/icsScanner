@@ -1,0 +1,98 @@
+# Candidate stub — detection-only, NOT executable (no `kind`, no fingerprint_precondition, no
+# probe). Source: PNNL Electricity and Natural Gas System Dataset (Ashok & Edgar, IEEE HST 2021,
+# DOI 10.25584/PNNLDH/1838670) — see project_open_tasks.md -50 for the full extraction/review
+# writeup.
+#
+# "Detailed Data descriptions.pdf" §2.13 ("Handling TCP behavior appropriately") sent real,
+# purpose-built variants to the SAGE 2300 RTU: (1) 4 DNP3 READ payloads packed into a single TCP
+# packet — "The SAGE responded with 4 separate responses"; (2) 2 DNP3 payloads (READ, Direct
+# Operate) in a single TCP packet — "The SAGE responded to both these separately"; (3) a single
+# Direct Operate payload deliberately SPLIT across two TCP packets — "The SAGE RTU handled this
+# properly and acted on the binary output command as expected." Independently confirmed directly
+# (not just from the doc) by reading `Data/PCAPs/AttackerVM_PCAPs/testcase14_splitTCP_Operate_
+# AttackerVM.pcap` and `testcase14_read_directoperate_AttackerVM.pcap` — both show a single DNP3
+# frame (`0x0564` start marker once) or a real Direct Operate exchange, consistent with the doc.
+#
+# This is the same TCP-payload-shape class as classic IDS-evasion segmentation/coalescing tricks:
+# a signature written to expect exactly one DNP3 message per TCP segment can be defeated (or, in
+# the multi-payload-per-segment direction, simply confused/under-counted) by either packing
+# multiple protocol messages into one segment or splitting one message unnaturally across several.
+# The PNNL testbed's own finding is that BOTH shapes are handled transparently by a real DNP3
+# outstation with no visible ill effect — meaning an attacker relying on either shape to blend a
+# malicious command in with (or split it away from) routine traffic loses no functionality, and
+# a monitoring pipeline that only ever inspects "one DNP3 frame = one TCP segment" could miss a
+# batched command entirely. Only the "multiple frames packed into one segment" shape is expressible
+# as a single-packet byte-pattern signature (see below) — the "split across segments" shape needs
+# TCP stream reassembly to detect reliably and is NOT expressible in this format's per-packet
+# regex/byte-pattern schema; flagging that gap here rather than building an unsound approximation.
+#
+# Byte pattern: requires the DNP3 start marker (0x0564) to appear TWICE within the same inspected
+# buffer, with at least 10 bytes (the minimum possible DNP3 Data Link header length) between the
+# two occurrences — a real, structural "more than one DNP3 frame in this segment" signature, not
+# a guess. The wildcard byte class uses [\x00-\xff] rather than PCRE's default `.` specifically
+# because `.` does not match 0x0a by default, and DNP3 payload bytes legitimately take that value.
+#
+# NOTE for whoever reviews/promotes this: this candidate has no clean MITRE ATT&CK for ICS
+# technique mapping (checked — none of the Evasion-adjacent techniques in that matrix precisely
+# cover protocol-message-batching/segmentation; the closest enterprise-ATT&CK concept is data
+# obfuscation, which isn't part of the ICS matrix at all). `mitre_attack_id` is deliberately left
+# unset below rather than force-fitting one — detection-gen's ESCU renderer falls back to its own
+# default (T0812, Default Credentials) when this field is absent, which does NOT semantically
+# apply here; a human should replace that placeholder before shipping the ESCU output, not trust
+# the fallback.
+#
+# NOT promoted to an active icsScanner check: this is a passive network-shape signature, not
+# something an active scanner probe would ever send — detection-only by design, same as the two
+# sibling DNP3 candidates from this same review pass.
+
+check_id: candidate-dnp3-batched-application-fragments
+protocol: dnp3
+disclosure_status: public
+destructive: false
+confidence: low
+severity: >-
+  Medium (a real, legitimate protocol behavior that ALSO doubles as a plausible detection-evasion
+  vector — confirmed non-disruptive to a real device in the PNNL testbed, but a monitoring gap:
+  no per-vendor CVE, this is a traffic-shape characteristic, not a vulnerability in a specific
+  device)
+description: >
+  DNP3 outstations (confirmed: a real SAGE 2300 RTU) transparently accept multiple application
+  fragments packed into a single TCP segment, and a single fragment deliberately split across
+  multiple TCP segments, with no distinguishable difference in behavior from normal single-
+  fragment-per-segment traffic. This traffic shape is also the classic signature-evasion pattern
+  for any monitoring pipeline that assumes one DNP3 message per TCP segment. Detection-only: no
+  active probe exists or is planned, since this is a passive network-shape signature, not
+  something a scanner would send.
+detection_hints:
+  transport: tcp
+  app_protocol: dnp3
+  analytic_story: "ICS Network Evasion"
+  narrow:
+    description: >-
+      Two or more DNP3 Data Link start markers (0x0564) present in the same inspected buffer,
+      with at least 10 bytes (one minimum-length DNP3 header) between them — the exact "multiple
+      DNP3 payloads packed into one TCP packet" shape confirmed in the PNNL testbed's own TCP-
+      behavior test (§2.13).
+    patterns:
+      - context: request
+        # stream_safe:false — this detects two DNP3 start markers packed into ONE TCP SEGMENT (an
+        # evasion shape). A stream-reassembly engine (Zeek signatures, Suricata stream mode) matches
+        # the REASSEMBLED stream, where segment boundaries are gone, so over a long-lived RTU<->relay
+        # poll two 0x0564 markers always co-exist and the signature over-matches (confirmed ~15k false
+        # fires on normal PNNL polling, 2026-11-11). The zeek/suricata renderers skip stream-unsafe
+        # patterns; faithful detection needs packet-boundary-aware or DNP3-analyzer-event inspection.
+        stream_safe: false
+        regex: '\x05\x64[\x00-\xff]{10,}?\x05\x64'
+  broad:
+    description: >-
+      No broader signature exists for this vuln class beyond the literal pattern above — the
+      underlying issue (a monitoring assumption that one DNP3 message maps to one TCP segment) IS
+      the specific byte-level signature, not a separable broader class the way a credential or a
+      single vulnerable function code would be. Intentionally empty, matching this project's own
+      established precedent (e.g. the Beckwith M-3425A check's own empty broad.patterns) for
+      "no broader signature exists" rather than inventing one to fill the slot.
+    patterns: []
+references:
+  - "PNNL Electricity and Natural Gas System Dataset, DOI 10.25584/PNNLDH/1838670 (Ashok & Edgar, IEEE HST 2021), Detailed Data descriptions.pdf sec. 2.13"
+  - "Data/PCAPs/AttackerVM_PCAPs/testcase14_splitTCP_Operate_AttackerVM.pcap, testcase14_read_directoperate_AttackerVM.pcap (independently confirmed directly)"
+  - "project_open_tasks.md -50 (this candidate's own extraction/review writeup)"

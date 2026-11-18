@@ -1,0 +1,48 @@
+# Candidate stub — default-credentials sweep, Phase 39 net-new-vendor pass (2026-08-27). NOT
+# executable (no `kind`).
+#
+# Gemalto (acquired by Thales in 2019; product line now Thales-branded "Sentinel," same lineage/
+# codebase) makes Sentinel LDK, a software licensing/DRM SDK — not an ICS device itself, but a
+# bundled component multiple third-party ICS/SCADA vendors embed in their own products for
+# license enforcement, same category as this project's existing
+# `candidate-schneider-pme-flexnet-publisher-default-creds.yaml` finding. Real ICS-ecosystem
+# relevance independently corroborated: Kaspersky ICS-CERT researched Sentinel HASP driver
+# vulnerabilities in 2017 (CVE-2017-11497/CVE-2017-12822) — a different finding, cited here only
+# to establish this component is already on ICS-CERT's radar, not conflated with the credential
+# finding below.
+#
+# CONFIRMED, primary source, directly read: Thales's own current official documentation
+# (docs.sentinel.thalesgroup.com — Installation Guide, "Accessing LDK EMS" page) states plainly:
+# "The user name and password for the default administrator are admin." A forced password change
+# is required on first login — same "forced-change-but-real-shipped-default" shape as several
+# already-built checks in this sweep (e.g. InsightHome).
+#   Access: http://<Hostname>:<Port>/ems — default port 8080, plain HTTP by default (confirmed
+#   changeable, not the out-of-box state). Default local URL given directly in Thales's own docs
+#   as http://localhost:8080/ems.
+#
+# What's blocking it: the documentation's own name for the login screen is "LogOnPage.htm" — this
+# reads as a genuine rendered HTML login form, not a browser-native HTTP Basic Auth challenge.
+# This project's existing `checks/http/native/basic_auth_default_creds.py` executor should NOT be
+# assumed here just because no contrary signal exists elsewhere in this sweep — the "Logon Page"
+# framing IS a specific, real signal against that assumption. The exact form field names/POST
+# target could not be confirmed from the documentation pages reachable in this pass.
+#
+# Action needed: browser dev-tools-level HTML source of the LDK EMS logon page (View Source/
+# Inspect Element against a real instance, or a technical integration guide showing the raw HTML/
+# API), or a live instance, before this can use `checks/http/native/form_post_default_creds.py`.
+
+check_id: candidate-thales-gemalto-sentinel-ldk-ems-default-creds
+protocol: http
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Thales"
+references:
+  - "Thales official documentation, docs.sentinel.thalesgroup.com, LDK EMS Installation Guide, \"Accessing LDK EMS\" page (fetched and read directly)"
+description: >
+  Thales Sentinel LDK-EMS (Enterprise Management System, formerly Gemalto-branded), a software
+  license-administration web portal bundled by multiple third-party ICS/SCADA vendors, ships with
+  a factory-default administrator login of admin:admin (HTTP, port 8080, path /ems) — confirmed
+  directly from Thales's own official documentation. Not built — the login is very likely a
+  custom HTML form (the doc's own "Logon Page" framing), not HTTP Basic Auth, and the exact field
+  names are unconfirmed. See this file's own header comment.

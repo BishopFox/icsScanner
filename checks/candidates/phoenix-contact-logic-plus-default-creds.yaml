@@ -1,0 +1,81 @@
+# Candidate stub — default-credentials sweep, Phase 10. NOT executable (no `kind`).
+# Network-surface question, same shape as the Beckhoff TwinCAT candidate above.
+#
+# SCADAPASS gives admin:admin for "Logic+" ("Software," port 80/tcp, HTTP), citing an official
+# Phoenix Contact PDF directly. Unlike TwinCAT, this row DOES list an HTTP port — suggesting it
+# may genuinely be a network-facing web service despite the "Software" label (same pattern as
+# Moxa's OnCell Central Manager, which turned out to be real and was built) — but "Logic+" as a
+# product name wasn't independently identified/confirmed in a follow-up search in this pass, so
+# it's unclear whether this is current Phoenix Contact terminology, a legacy/renamed product, or
+# a PLCnext-family component. Needs identification of the actual current product before
+# building against the wrong assumption about what's listening on port 80.
+#
+# IDENTITY RESOLVED 2026-09-23 (new Phoenix Contact ingest batch, vendor firmware ingest
+# phoenix-contact/): "Logic+" is real, current Phoenix Contact terminology — confirmed directly
+# from the official manual `um_en_plc_logic_105868_en_01.pdf` ("PLC LOGIC" relay/logic-module
+# family, PLC-V8C hardware), which names "LOGIC+" explicitly in its own Administration section
+# ("You can set the password for access control to the web server and LOGIC+ on this page") and
+# documents the identical admin/admin default at TWO separate points (page 1 quick-reference
+# table and the "Login" section, page 53) — NOT a PLCnext-family component, a legacy/renamed
+# product, or a guess; this is the standalone PLC LOGIC module's own current manual.
+#
+# SCADAPASS'S PORT WAS WRONG, corrected here from the primary source: the manual states the
+# integrated web server is reached via `http://v8c_usb` or the link-local address 169.254.200.9
+# (USB-connected by default, an mDNS-style NetBIOS hostname `pxc_usb` also resolves it once
+# networked), and explicitly requires "TCP 41100" (plus UDP 137-139 for NetBIOS) through any
+# firewall — NOT port 80/tcp as SCADAPASS's row stated. AV:A vs AV:N honesty note: the device's
+# DEFAULT out-of-box access path is USB link-local (169.254.x.x, not normally routed), but the
+# same manual also describes NetBIOS-name resolution consistent with normal LAN deployment as a
+# supported mode — scored AV:N below on that basis, with this caveat recorded rather than glossed
+# over.
+#
+# WIRE FORMAT — genuinely NOT confirmed either way, unlike the Teltonika RUT / eWON / ctrlX CORE
+# cases where real client-side JS proved (or, for eWON, cast doubt on) a specific mechanism. The
+# actual device webserver firmware was extracted this pass (`PLC_logic_Update_SAM_BM_V1_01.zip`
+# -> `WebServer.IMG`, a real embedded-httpd content image confirmed via binwalk: gzip-compressed
+# HTML/JS/CSS resources with real original filenames, carved and decompressed directly). Every
+# extracted JS file that plausibly touches authentication was checked (home.js, homeAdmin.js,
+# pxcFrame.js, commonfunc.js, password.js) — NONE contain a custom login AJAX call, a 401/
+# WWW-Authenticate handler, or any client-side credential-submission logic at all.
+# `password.js`/`password.html` turned out to be the ADMINISTRATION page's password-CHANGE
+# control (reads/writes a device parameter register via `oMem.ReadBlock`/`setParameterToMem`),
+# not the login gate itself. The ABSENCE of any custom-auth JS is itself a real (not conclusive)
+# signal, and cuts the OPPOSITE direction from the Teltonika/eWON/ctrlX findings: those cases
+# each had explicit custom-auth client code proving Basic Auth WRONG; here, finding no such code
+# in an old (2013-2016-vintage) jQuery-based embedded web app is consistent with the simpler
+# explanation — a native browser HTTP Basic Auth challenge, which needs no JavaScript at all —
+# but this is a plausibility argument, not proof (not every JS file in the bundle was checked,
+# e.g. Admin.js/App.js/eth.js/tools.js were not individually decompressed this pass). Recording
+# honestly as "plausible, not confirmed" rather than promoting on an inference, matching this
+# project's established discipline (see checks/http/ewon-default-creds.yaml's own header for the
+# same posture on unresolved wire-format doubt).
+#
+# SEVERITY: CVSS v3.1 scored via the installed `cvss` Python package:
+#   Vector: CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
+#   Base Score: 9.8 (CRITICAL) -- full read/write access to a PLC logic-relay module.
+#
+# Still NOT YET BUILDABLE: wire format is plausible-Basic-Auth but unconfirmed; if a live device
+# or further firmware analysis (the un-checked JS files above) confirms it, this becomes a
+# zero-new-code build via checks/http/native/basic_auth_default_creds.py.
+
+check_id: candidate-phoenix-contact-logic-plus-default-creds
+protocol: http
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Phoenix Contact"
+  product: "PLC LOGIC / LOGIC+ relay-logic module (PLC-V8C hardware)"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "User-supplied ingest: um_en_plc_logic_105868_en_01.pdf, 'PLC LOGIC' official manual, admin/admin default (pages 1 and 53), TCP 41100 firewall requirement, fetched and read directly via pdftotext"
+  - "User-supplied ingest: PLC_logic_Update_SAM_BM_V1_01.zip -> WebServer.IMG, real embedded-httpd content image, gzip-compressed JS/HTML/CSS resources carved and decompressed directly (binwalk-identified offsets) -- home.js, homeAdmin.js, pxcFrame.js, commonfunc.js, password.js checked for client-side auth logic, none found"
+description: >
+  Phoenix Contact's PLC LOGIC / LOGIC+ relay-logic module (PLC-V8C hardware) ships a factory-
+  default web-UI login of admin/admin, confirmed at two separate points in the vendor's own
+  official manual -- correcting SCADAPASS's own citation, which named the right credential but
+  the wrong port (80/tcp; the manual's own firewall requirement is TCP 41100). Default access is
+  via USB link-local (http://v8c_usb or 169.254.200.9), with NetBIOS-name resolution supporting
+  normal LAN deployment as well. CVSS 3.1: 9.8 CRITICAL (AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H).
+  Wire format (plausibly HTTP Basic Auth, given no custom-auth JavaScript was found anywhere in
+  the device's own extracted webserver firmware image) remains UNCONFIRMED, not yet buildable --
+  this is a plausibility argument from the absence of custom-auth client code, not proof.

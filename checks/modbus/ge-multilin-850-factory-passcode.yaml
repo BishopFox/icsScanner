@@ -1,0 +1,60 @@
+# Native check — read-preferred, write-fallback verification of the GE Multilin 850's factory
+# default Administrator/Operator passcode ("0") over Modbus. See
+# checks/modbus/native/ge_multilin_850_factory_passcode.py for the implementation and
+# checks/candidates/ge-multilin-relay-factory-passcode.yaml for the full research trail (two
+# independent official GE manuals, read directly 2026-08-16 — not guessed, not search-summarized).
+#
+# EXTRA CAUTION: real power-grid protection relay. destructive:true — even the preferred read
+# path is a real unauthenticated attempt to read a credential field; the write fallback is a
+# genuine Administrator login attempt against live equipment. Requires an explicit
+# `product_hint: "850"` on the target (see fingerprint_precondition below) — there is no live
+# way to distinguish the 850 from its GE Multilin siblings over Modbus, so this only ever fires
+# when an operator has explicitly confirmed the target model themselves.
+
+check_id: ge-multilin-850-factory-passcode
+protocol: modbus
+kind: native
+module: checks.modbus.native.ge_multilin_850_factory_passcode
+destructive: true
+risk_reason: ["device_write", "lockout"]  # write-fallback path writes a real Modbus register; own manual confirms Access Lockout defaults to 3 failed attempts (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "GE Automation"
+  product: "850"
+detection_hints:
+  transport: tcp
+  app_protocol: modbus
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own read of the GE Multilin 850 Administrator password holding registers (0xF32D), and its Administrator-login write fallback (0xF322, role='Administrator', password='0')"
+    patterns:
+      - context: request
+        bytes: "\\xfe\\x03\\xf3\\x2d\\x00\\x0b"
+      - context: request
+        regex: "\\xfe\\x10\\xf3\\x22.{3}Administrator\\x00+0\\x00+"
+  broad:
+    description: "Any Modbus write to holding register 0xF322 carrying a 22-byte role field followed by a 22-byte password field — the underlying GE Multilin 8-Series login mechanism in general, not this scanner's specific default-password guess"
+    patterns:
+      - context: request
+        bytes: "\\xf3\\x22\\x00\\x16"
+references:
+  - "https://docs.ips.us/docs/W1002126.pdf"
+  - "https://www.manualslib.com/manual/1324624/Ge-Multilin-850.html?page=146"
+description: >
+  GE Multilin 850 Feeder Protection System ships with factory default Administrator/Operator
+  passcode "0" (Basic Security mode — the default offering; a separately-purchased CyberSentry
+  option disables this). Confirmed the exact remote mechanism from two independent official GE
+  manuals: the "8 Series Instruction Manual — Communications System" (doc 8S-1601-0702-C430-3)
+  documents the Modbus Function 10H Administrator-login write at holding register 0xF322, and
+  GE's own dedicated "850 Feeder Protection System Instruction Manual" (pub 1601-0298-A9) states
+  twice, in its own words, "The default password is '0', which is programmed from the factory."
+  No CVE — documented factory-default behavior, not a disclosed vulnerability.
+  Prefers a direct read of the Administrator password holding registers (0xF32D-0xF337) over the
+  login write, since a read is lower-risk and directly observes the stored value rather than
+  inferring success from an ambiguous write response; falls back to the documented login write
+  only if the read is blocked, and never reports CONFIRMED from the write alone (Modbus Function
+  10H's echo doesn't reflect whether the password content was correct — see the check module's
+  docstring). Access Lockout defaults to 3 failed attempts on real devices — this check performs
+  exactly one attempt via whichever path it takes, never retries.

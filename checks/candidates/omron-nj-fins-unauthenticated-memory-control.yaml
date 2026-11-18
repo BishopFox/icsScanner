@@ -1,0 +1,44 @@
+# PROMOTED 2026-10-13 -> checks/fins/omron-fins-unauthenticated-access.yaml (reuses probe_fins_identity; closes the FINS probe->check gap). Research record.
+# Candidate — 2026-10-13. Document review of Sysmac_NJ_FINS_TechnicalGuide_en_201205_W518-E1-01.pdf
+# (user-supplied, vendor firmware ingest). Omron Sysmac NJ-series machine controllers
+# (NJ101/NJ301/NJ501...) accept FINS commands over FINS/TCP and FINS/UDP (TCP/UDP 9600) via the
+# built-in EtherNet/IP port, with NO authentication. The guide's own supported-command table lists
+# MEMORY AREA READ, MEMORY AREA WRITE, MEMORY AREA FILL, RUN, STOP, and CPU UNIT DATA READ as
+# accessible (the only documented restriction is that you cannot touch memory areas that don't exist,
+# not an auth gate), and the protection table states for NJ-series: "UM read protection: No (Not
+# supported)", "DIP switch UM write protection: No", "Network write protection: No". => an attacker
+# with network reach to FINS can READ/WRITE PLC memory and issue RUN/STOP unauthenticated (CWE-306,
+# missing authentication for a critical function; a control-integrity/availability exposure).
+#
+# NOT NOVEL -- this is documented, by-design FINS behavior (FINS has no authentication layer; Omron
+# explicitly documents that NJ-series does not support network write protection). It is universally
+# known and already covered by third-party FINS tooling (libfins, Metasploit FINS modules). Recorded
+# as a DETECTION opportunity, not a disclosure.
+#
+# COVERAGE GAP + BUILDABLE: this project already has a `fins_identity` fingerprint probe
+# (core/fingerprint.py) but NO FINS check at all. A SAFE, read-only detection is buildable: send a
+# benign FINS CPU UNIT DATA READ (command 0x0501) or a single-word MEMORY AREA READ (0x0101) over
+# FINS/TCP 9600 and confirm a well-formed FINS response end-code -> the PLC accepts unauthenticated
+# FINS. NEVER send WRITE/RUN/STOP. This needs a NEW native FINS executor (binary FINS frame over
+# TCP/UDP, with the TCP handshake/node-address negotiation) -- not an HTTP executor -- gated on
+# fins_identity. disclosure_status: public (documented behavior). READY-TO-BUILD (new FINS executor).
+#
+# Related: the earlier libfins sweep (2026-10-13) confirmed FINS carries no auth layer; this candidate
+# makes the Omron NJ case concrete + documents the buildable detection.
+
+check_id: candidate-omron-nj-fins-unauthenticated-memory-control
+protocol: fins
+disclosure_status: public
+confidence: high        # for the documented unauth-FINS fact; it is NOT novel (by-design/known)
+fingerprint_precondition:
+  protocol_probe: fins_identity
+references:
+  - "Omron Sysmac NJ FINS Technical Guide W518-E1-01: NJ-series CPUs accept FINS/TCP+FINS/UDP (port 9600) MEMORY AREA READ/WRITE/FILL, RUN, STOP, CPU UNIT DATA READ via the built-in EtherNet/IP port; protection table lists UM read protection / DIP UM write protection / Network write protection all = 'No (Not supported)' for NJ-series."
+description: >
+  Omron Sysmac NJ-series controllers accept unauthenticated FINS commands (FINS/TCP+UDP, port 9600) --
+  MEMORY AREA READ/WRITE and RUN/STOP -- with no network write protection (per Omron's own NJ FINS
+  guide). Unauthenticated PLC memory read/write + RUN/STOP = CWE-306. Documented, by-design FINS
+  behavior (NOT novel; known/covered by existing FINS tooling), recorded as a DETECTION opportunity:
+  the project has a fins_identity probe but no FINS check. Buildable as a SAFE read-only check (a
+  benign FINS CPU UNIT DATA READ / single-word MEMORY AREA READ confirming an unauth FINS response),
+  needing a new native FINS executor gated on fins_identity. disclosure_status public (documented).

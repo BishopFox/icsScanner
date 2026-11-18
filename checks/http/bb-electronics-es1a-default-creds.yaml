@@ -1,0 +1,43 @@
+# Default-credentials sweep, Phase 12. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor. Different B&B Electronics product
+# (ES1A converter, not the Conel router family covered by the sibling
+# bb-electronics-conel-router-default-creds.yaml check) with a DIFFERENT password per SCADAPASS's
+# own separate row — not assumed identical to the router family.
+#
+# Source: SCADAPASS, citing the official B&B Electronics-hosted manual PDF (bb-elec.com) for the
+# ES1A specifically. Single-source-tier (no independent second source found in this pass) —
+# confidence: low regardless, consistent with this sweep's usual treatment.
+
+check_id: http-bb-electronics-es1a-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "B&B Electronics"
+params:
+  path: "/"
+  credentials:
+    - ["root", "dbps"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (root:dbps)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic cm9vdDpkYnBz"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "http://www.bb-elec.com/Products/Manuals/pn-6909-rev003_ES1A-5012m.pdf"
+description: "B&B Electronics ES1A converter ships with a factory-default root/dbps web-UI login — no CVE, documented factory-default behavior."

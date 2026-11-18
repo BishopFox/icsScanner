@@ -1,0 +1,62 @@
+# Default-credentials sweep, Metoree Protective-Relays/switchgear-monitoring pivot session
+# (2026-08-18) — PROMOTED from candidate stub
+# (checks/candidates/mitsubishi-qnucpu-ftp-default-creds.yaml, Phase 9). Uses the standard
+# checks/ftp/native/ftp_default_creds.py executor.
+#
+# Original blocker: SCADAPASS gave MELSEC:MELSEC (QnUCPU/QnUDVCPU) and QNUDECPU:QNUDECPU
+# (QnUCPU/QnUDE(H)CPU) citing an official Mitsubishi manual PDF, but a search pass specifically
+# looking for independent corroboration found none — only aggregator sites restating the same
+# SCADAPASS-derived claim, one explicitly unable to confirm it.
+#
+# RESOLVED 2026-08-18: read the actual manual directly (via pdftotext, not search-summarized) —
+# a current mirror of "QnUCPU User's Manual (Communication via Built-in Ethernet Port)"
+# (SH(NA)-080811-W), CHAPTER 9 "FILE TRANSFER FUNCTION (FTP)", FTP settings table:
+#   "Login Name [Default value] - QnUDVCPU: 'MELSEC' - QnUDE(H)CPU: 'QNUDECPU'"
+#   "Password [Default value] - QnUDVCPU: 'MELSEC' - QnUDE(H)CPU: 'QNUDECPU'"
+# Exact match to SCADAPASS's claim, now independently confirmed against the primary source
+# itself (top tier of this project's source hierarchy) rather than a second aggregator — this
+# resolves the original "no corroboration found" concern; the corroboration was always there,
+# just in the manual text itself rather than in search-engine-indexed prose.
+#
+# No live way to distinguish QnUDVCPU vs. QnUDE(H)CPU sub-family over the wire (no MELSEC-model
+# protocol_probe exists in this project) — both credential pairs are tried per the standard
+# multi-credential executor pattern, same as the Schneider PowerLogic FTP family.
+
+check_id: ftp-mitsubishi-qnucpu-default-creds
+protocol: ftp
+kind: native
+module: checks.ftp.native.ftp_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Mitsubishi Electric"
+params:
+  credentials:
+    - ["MELSEC", "MELSEC"]
+    - ["QNUDECPU", "QNUDECPU"]
+  default_port: 21
+detection_hints:
+  transport: tcp
+  app_protocol: ftp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own FTP USER/PASS login attempt(s) using the documented factory credential(s) (MELSEC:MELSEC, QNUDECPU:QNUDECPU)"
+    patterns:
+      - context: request
+        regex: "USER MELSEC\\r\\nPASS MELSEC\\r\\n|USER QNUDECPU\\r\\nPASS QNUDECPU\\r\\n"
+  broad:
+    description: "Any FTP USER/PASS login attempt on this device — the vulnerability class (default/weak credentials on this product's FTP server), not the specific guessed credential"
+    patterns:
+      - context: request
+        regex: "^USER \\S*\\r\\nPASS \\S*\\r\\n"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://hiflex.nl/downloads/docu/mit_plc/QnUCPU_users_manual_(communication_via_built-in_ethernet_port).pdf"
+description: >
+  Mitsubishi Electric QnUCPU-family PLCs (built-in Ethernet port) ship with factory-default FTP
+  credentials MELSEC/MELSEC (QnUDVCPU) or QNUDECPU/QNUDECPU (QnUDE(H)CPU), port 21 — confirmed
+  directly from Mitsubishi's own official User's Manual, Chapter 9 (File Transfer Function). No
+  CVE — documented factory-default behavior.

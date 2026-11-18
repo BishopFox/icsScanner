@@ -1,0 +1,51 @@
+# Candidate stub — DELIBERATELY kept as a candidate (kind: absent). 2026-08-27, user-supplied
+# document review of ingest/v242_dx-series_web_ui_operation_manual_en.pdf.
+#
+# NOT the same product as checks/candidates/omron-techman-tmflow-administrator-no-password.yaml
+# — that candidate is Omron's TM-series collaborative robot (Techman-built) local TMflow
+# software login (a native GUI app, no web/API surface found in its own manual,
+# ingest/i626_tm_flow_software_installation_manual_en.pdf, re-checked this same pass and
+# confirmed to add nothing new beyond what that candidate already documents). THIS candidate is
+# a completely separate Omron product line: the "Data Flow Controller" (DX-series, model
+# DX100-0010, a CPU Unit / industrial edge data-collection controller with a genuine browser-
+# based Web UI) — do not merge or conflate the two.
+#
+# Source: official Omron manual (V242-E1-03, "Data Flow Controller DX-series Web UI Operation
+# Manual"), read directly (both text extraction and a visual check of the actual login-screen
+# screenshot on p.4): "DFCadmin is the user registered by default in Data Flow Controller."
+# Table gives Login ID: DFCadmin, Permissions: Administrator, Password: omron. The screenshot
+# itself shows a genuine custom HTML login form (title "Data Flow Controller", labeled "id" and
+# "password" input boxes, a "Login" button) — NOT a browser-native HTTP Basic Auth popup.
+#
+# What's confirmed: the credential value, and that it's a custom web form (not Basic Auth).
+# What's NOT confirmed, blocking promotion to checks/:
+#   1. Exact raw HTML form field names (the visible placeholder labels "id"/"password" are a
+#      strong signal but not a captured HTTP request — same blocker shape as the Bosch Rexroth
+#      ctrlX CORE and HMS Anybus X-gateway candidates elsewhere in this project).
+#   2. Exact default port/protocol. The manual documents a configurable "Reverse Proxy Settings"
+#      screen (3.6.4) with an enable/disable TLS toggle — this device's web UI can run behind
+#      HTTP or HTTPS depending on that setting, and no default port number was found in the
+#      extractable text (the setting screen's own field values are in screenshots that didn't
+#      extract as text). A future pass should visually check that page directly.
+# The device's own REST API (documented in the same manual, section 3.11, `/api/v1/fwGetStatus`
+# etc.) does NOT help close this gap: every API endpoint requires an already-issued
+# `X-API-Token` header, and that token can only be created from inside the Web UI after logging
+# in — the API has no login/auth endpoint of its own to test the default credential against.
+#
+# No CVE found for this product.
+
+check_id: candidate-omron-data-flow-controller-dfcadmin-default-creds
+protocol: http
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Omron Corporation"
+  product: "Data Flow Controller DX-series"
+references:
+  - "ingest/v242_dx-series_web_ui_operation_manual_en.pdf"
+description: >
+  Omron Data Flow Controller (DX-series, DX100-0010 CPU Unit) ships with a factory-default
+  DFCadmin:omron login on its browser-based Web UI, per Omron's own official manual (screenshot-
+  verified custom login form, not Basic Auth). Not promoted to an active check — the exact raw
+  form field names and the default port/protocol (HTTP vs. HTTPS, configurable via a reverse-
+  proxy TLS setting) were not confirmed in this pass.

@@ -1,0 +1,67 @@
+# Default-credentials sweep, Phase 41 (2026-08-27) — industrial device-server/gateway vendor
+# pass. Uses the generic checks/telnet/native/telnet_default_creds.py executor.
+#
+# Source: Perle's OWN knowledge-base article (help.perle.com KB 401, "Default userID and
+# passwords for various Perle products," fetched and read directly) plus the official IOLAN
+# User's Guide V5.0 (pp.5, 9) and IOLAN Quick Start Guide PDF ("Default admin Password" box) —
+# all three directly confirm Telnet CLI login "Login: admin / Password: superuser" on port 23,
+# stated to apply across the whole IOLAN DS/TS/DG/TG device/terminal-server family. The web
+# WebManager UI's login form field names were NOT visible in the fetched excerpts — Telnet is
+# used here deliberately as the confirmed, bounded mechanism, same reasoning already applied to
+# other candidates blocked on unconfirmed HTML form fields elsewhere in this project.
+#
+# SEPARATE legacy product line, NOT covered by this check: the older IOLAN+ terminal servers use
+# a different value entirely (no local-login username at all — any string accepted — admin
+# password "iolan") — see checks/candidates/perle-iolan-plus-legacy-default-creds.yaml.
+#
+# SEPARATE, unrelated CVE on a different IOLAN sub-line, do not conflate: CVE-2026-23759 affects
+# IOLAN STS/SCS models (firmware <6.0) — an AUTHENTICATED OS command injection via the
+# restricted shell's `ps` command over Telnet/SSH (post-auth escalation), not a default-
+# credential finding, and not implemented here.
+#
+# KNOWN FINGERPRINT-GATE GAP (same pattern as other vendors this phase): no verifiable "Perle"
+# OUI entry exists in core/fingerprint.py's table yet.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: telnet-perle-iolan-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Perle"
+params:
+  default_port: 23
+  credentials:
+    - ["admin", "superuser"]
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet login attempt using the documented factory credential (admin:superuser)"
+    patterns:
+      - context: request
+        regex: "admin\\r\\n"
+      - context: request
+        regex: "superuser\\r\\n"
+  broad:
+    description: >-
+      No device-specific broad signature. On cleartext Telnet a factory-default login is
+      byte-identical to a legitimate one, so there is no exploitation-class byte pattern distinct
+      from the credential strings themselves (those are the narrow patterns). A generic
+      any-Telnet-line pattern ("\r\n$") was REMOVED 2026-11-11 after real-traffic validation
+      (PNNL OT-IDS) showed it fired on every Telnet line; distinguishing default-credential abuse
+      from legitimate login needs source/asset/frequency context at the SOC, not a wire pattern.
+      Intentionally empty (same precedent as the Beckwith M-3425A check).
+    patterns: []
+references:
+  - "https://help.perle.com/?a=4&q=401"
+  - "https://www.perle.com/support_services/documentation_pdfs/iolan_io_qsg.pdf"
+  - "https://www.perle.com/support_services/documentation_pdfs/iolan_dg-tg_ug.pdf"
+description: "Perle IOLAN device/terminal servers (DS/TS/DG/TG families) ship with a factory-default admin/superuser Telnet CLI login on port 23 — no CVE, documented factory-default behavior across all IOLAN models per Perle's own KB."

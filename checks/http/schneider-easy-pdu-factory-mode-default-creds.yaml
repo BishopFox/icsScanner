@@ -1,0 +1,49 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ "Easy PDU in Factory Mode"
+# directly. New product family for this project: Easy PDU (rack power distribution units,
+# EPDU1016/1116/1132/1216/1232 in both S and M chassis variants).
+#
+# The FAQ's own Solution section: a PDU still in Factory Mode is reached at
+# https://pdu_ip/set/log.html, and "Login with the administrator account. Default user and
+# password is apc" (the page renders in Chinese by default until the unit is switched to User
+# Mode — an unusual but explicitly documented detail, not something assumed).
+#
+# Login mechanism (HTTP Basic Auth over HTTPS) assumed per this project's established
+# convention — the FAQ describes a login prompt at a fixed path, no custom form fields mentioned.
+#
+# No CVE — documented factory-default behavior, and specifically scoped to units still in
+# Factory Mode (an explicit pre-commissioning state, not a claim that every deployed unit is
+# still reachable this way).
+
+check_id: http-schneider-easy-pdu-factory-mode-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/set/log.html"
+  https: true
+  credentials:
+    - ["apc", "apc"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTPS Basic Auth attempt using the documented factory credential (apc:apc) for an Easy PDU still in Factory Mode"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YXBjOmFwYw=="
+  broad:
+    description: "Any HTTP(S) Basic Auth attempt against this device's /set/log.html — the vulnerability class (factory-default credentials on a not-yet-commissioned unit), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET /set/log\\.html HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ, \"Easy PDU in Factory Mode\" (user-supplied)"
+description: "Schneider Electric Easy PDU rack power distribution units (EPDU1016/1116/1132/1216/1232, S and M variants), while still in factory-shipped Factory Mode, expose an HTTPS login at /set/log.html with a factory-default administrator credential of apc:apc. No CVE, documented factory-default behavior per Schneider's own FAQ."

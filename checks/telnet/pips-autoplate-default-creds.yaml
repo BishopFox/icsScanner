@@ -1,0 +1,46 @@
+# Default-credentials sweep, Phase 17 — final SCADAPASS closeout pass. Uses the generic
+# checks/telnet/native/telnet_default_creds.py executor. Sibling:
+# checks/ftp/pips-autoplate-default-creds.yaml.
+#
+# SCOPE NOTE: AUTOPLATE is an automatic license-plate-recognition (ALPR) embedded system —
+# critical-infrastructure-adjacent (tolling, parking, law-enforcement traffic systems) rather
+# than classic industrial process control, but it's a real embedded device with real network
+# credentials and its own dedicated vulnerability disclosure, so it wasn't excluded on a
+# "different sector" judgment call alone the way this sweep initially (and incorrectly) waved
+# off the solar/wind-turbine equipment above before actually researching it.
+#
+# Source: SCADAPASS's own row gives a blank-username/blank-password Telnet account directly
+# (not a vague summary), citing a dedicated Darius Freamon disclosure post — same single-
+# dedicated-source-post tier already treated as sufficient elsewhere in this sweep (e.g. Falcon
+# USHA, Phase 16). The FTP accounts (wl_test, vesstore, ftp_boot) from the same row are a
+# separate, distinct credential set — see the FTP sibling check, not folded in here.
+
+check_id: telnet-pips-autoplate-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "PIPS Technology"
+params:
+  credentials:
+    - ["", ""]
+  default_port: 23
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet username+password login attempt(s) using the documented factory credential(s) ('':'')"
+    patterns: []  # generic "any-line" pattern removed 2026-11-11 (real-traffic validation); no device-specific signature beyond the narrow probe/credential bytes. See lab-notes/zeek-detection-validation-pnnl-2026-11.md
+  broad:
+    description: "No broader wire-level signature applies beyond this scanner's own probe — a blank-username/blank-password Telnet login is already the most general form this credential shape can take, so the narrow pattern above already covers the vulnerability class"
+    patterns: []
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://dariusfreamon.wordpress.com/2014/02/19/pips-technology-autoplate-automatic-license-plate-recognition-alpr-multiple-vulnerabilities/"
+description: "PIPS Technology AUTOPLATE (automatic license-plate-recognition system) ships with a blank-username/blank-password Telnet login — no CVE, documented factory-default behavior."

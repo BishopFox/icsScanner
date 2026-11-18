@@ -1,0 +1,64 @@
+# In-charter gap build (Transportation), 2026-10-07. NTCIP (National Transportation Communications
+# for ITS Protocol) traffic-signal controllers / DMS / ESS speak SNMP (NTCIP 1201/1202 MIBs). They
+# ship documented, weak default SNMP community strings — classically "Public" (read) and
+# "Administrator" (read-write); "private" is the generic SNMP read-write default. A readable device
+# discloses its controller config over SNMP, and the write community (if also default) permits SET of
+# NTCIP objects (signal timing/phases) — a real traffic-safety exposure.
+#
+# This check reuses the generic snmp_oid_password_exposure executor: it GETs the NTCIP 1201 global
+# module-table moduleMake OID (1.3.6.1.4.1.1206.4.2.6.1.3.1.3.1) using each default community, and is
+# CONFIRMED on the first community that returns a well-formed value — proving the NTCIP controller's
+# MIB is readable with a factory-default community. READ-ONLY: this never issues an SNMP SET and never
+# touches signal timing; it only reads the identity OID to demonstrate the community is accepted.
+#
+# Scoped to NTCIP devices via `protocol_probe: ntcip_identity` (not a vendor pair — NTCIP is
+# multi-vendor: Econolite/McCain/Siemens-Yunex/SWARCO/Intelight/Peek), the same discipline as
+# snmp-community-default-creds (which gates on snmp_identity). confidence=low: SNMP silently drops a
+# GetRequest with a wrong community, so NOT_APPLICABLE is a weak negative; and a device may have had
+# its communities changed from default. No CVE — documented default-community behavior.
+
+check_id: snmp-ntcip-traffic-controller-default-community
+protocol: snmp
+kind: native
+module: checks.snmp.native.snmp_oid_password_exposure
+destructive: true
+risk_reason: ["login"]  # SNMP GET community-string attempt; read-only, no SET / no device write
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_probe: ntcip_identity
+params:
+  communities: ["public", "private", "administrator"]
+  oids:
+    - ["1.3.6.1.4.1.1206.4.2.6.1.3.1.3.1", "NTCIP 1201 globalModuleTable moduleMake"]
+detection_hints:
+  transport: udp
+  app_protocol: snmp
+  mitre_attack_id: T0812
+  # config_exposure: this fires whenever the device answers the default SNMP community,
+  # which is a real (weak) misconfiguration finding whether an operator or an attacker
+  # sent the request -- a config state, not an attack. See core/detections.py:_FT_LABEL.
+  finding_type: config_exposure
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's SNMP v1 GetRequest for the NTCIP 1201 moduleMake OID (1.3.6.1.4.1.1206.4.2.6.1.3.1.3.1) using a default community ('public'/'private'/'administrator') — the OID is the distinctive, NTCIP-specific byte pattern (the NEMA 1206 enterprise subtree); the community string itself is not separately matchable since SNMP v1 sends it in a fixed field."
+    patterns:
+      - context: request
+        regex: "\\x06\\x0e\\x2b\\x06\\x01\\x04\\x01\\x89\\x36"
+  broad:
+    description: "Repeated SNMP GetRequests to UDP/161 against a traffic-controller device family from a single source in a short window — a community-guessing pass; the specific community can't be distinguished from legitimate SNMP monitoring on the wire."
+    patterns:
+      - context: request
+        regex: "\\xa0"
+references:
+  - "NTCIP 1201 v03 Global Object Definitions (ite-org/NTCIP-1201, globalModuleTable) + NTCIP 1202 Actuated Signal Controllers"
+  - "https://www.rfc-editor.org/rfc/rfc1157"
+description: >
+  NTCIP traffic-signal controllers / dynamic message signs / environmental sensor stations expose
+  their configuration over SNMP (NTCIP 1201/1202 MIBs) and ship weak documented default community
+  strings — "Public" (read), "Administrator" (read-write), plus the generic SNMP "private". This
+  check GETs the NTCIP 1201 moduleMake OID with each default community and is CONFIRMED if any returns
+  a value, proving the controller's MIB is readable with a factory-default community (config
+  disclosure; a default write community would additionally permit SET of signal-timing objects — not
+  exercised here, read-only). Scoped to NTCIP devices via the ntcip_identity probe. No CVE —
+  documented default-community behavior across the multi-vendor NTCIP ecosystem.

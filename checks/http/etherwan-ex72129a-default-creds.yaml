@@ -1,0 +1,53 @@
+# Default-credentials sweep, Phase 41 (2026-08-27) — industrial device-server/gateway vendor
+# pass. Uses the generic checks/http/native/basic_auth_default_creds.py executor.
+#
+# Source: official EtherWAN EX72129A user manual, page 21 "Default IP; Login Process and
+# Default Credentials" (mirrored on ManualsLib, fetched and read directly — etherwan.com itself
+# returned HTTP 403 on every direct-fetch attempt, same Akamai-style bot-block pattern seen with
+# other vendor sites this session): Web GUI over HTTP, default IP 169.254.1.1, log in with
+# username "root" and no password.
+#
+# MODEL-SCOPE CAVEAT: only EX72129A was independently verified by direct manual read. Two other
+# EtherWAN manuals (EX63402-0YB, EX73922E-0VB) surfaced in search with similarly-titled "Default
+# IP and Login Process" sections, suggesting the pattern is shared across the EX-series, but
+# those pages were NOT independently read in this pass — do not assume coverage beyond
+# EX72129A without separately verifying those models' own manuals.
+#
+# KNOWN FINGERPRINT-GATE GAP (same pattern as Digi/Antaira/Korenix in earlier phases): no
+# verifiable "EtherWAN" OUI entry exists in core/fingerprint.py's table yet — this check's
+# vendor precondition currently has no OUI match to fire against on real hardware.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-etherwan-ex72129a-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "EtherWAN"
+params:
+  path: "/"
+  credentials:
+    - ["root", ""]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (root: blank password)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic cm9vdDo="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://www.manualslib.com/manual/993484/Etherwan-Ex72129a.html?page=21"
+description: "EtherWAN EX72129A managed industrial switch ships with a factory-default root/(blank) web-UI login — no CVE, documented factory-default behavior. Coverage independently verified for EX72129A only; other EX-series models are unconfirmed."

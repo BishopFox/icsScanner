@@ -1,0 +1,45 @@
+# Default-credentials sweep, Phase 10. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Sources (2 independent): SCADAPASS, citing the official Moxa OnCell G3100 series manual;
+# corroborated by an independent WebSearch confirming admin:admin as the default across multiple
+# aggregators and manual excerpts. SCADAPASS's row also lists an "Admin:<blank>" HTTP variant and
+# a PAP admin:<blank> variant (a PPP-level dial-up auth mode, out of scope for this tool's
+# protocol coverage) — only the plain admin:admin HTTP pair is shipped here, the blank-password
+# variant was not independently corroborated.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-moxa-oncell-g3100-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Moxa Technologies"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "admin"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (admin:admin)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46YWRtaW4="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.elvac.eu/files/shop/moxa/manual/OnCell_G3100_Series_Users_Manual_v8_ELVAC15.pdf"
+description: "Moxa OnCell G3100 series cellular IP gateways ship with a factory-default admin/admin web-UI login — no CVE, documented factory-default behavior."

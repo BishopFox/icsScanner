@@ -1,0 +1,60 @@
+# Candidate stub — default-credentials sweep, Phase 14. NOT executable (no `kind`). RESEARCH
+# GAP — likely a CSV field-parsing ambiguity in the source itself, not resolved without reading
+# the manual directly.
+#
+# SCADAPASS's row for the NETLink PRO PoE (HW 1-1a-1, FW 1.54+) Ethernet Gateway for MPI/
+# PROFIBUS reads "NETLink PRO PoE:admin" in the credential column — this looks like it could be
+# the product name accidentally merged into the credential field (a CSV formatting artifact)
+# rather than a genuine "username:password" pair, since "NETLink PRO PoE" as a literal username
+# would be unusual. Citing the official Helmholz quick-start guide PDF directly, but not
+# independently re-read in this pass to disambiguate.
+
+# RESOLVED — SCADAPASS's row was CORRECT all along, 2026-08-30: user supplied Helmholz's own
+# "NETLink Ethernet Products" manual directly. It confirms this candidate's own earlier
+# "CSV artifact" suspicion was WRONG: "NETLink PRO PoE:admin" is genuinely "username:password,"
+# not a merged product-name field — the manual states plainly "The default username is the full
+# NETLink product name" (e.g. literally "NETLink PRO PoE"), and separately: "The standard
+# password 'admin' from older device versions may no longer be used" as of firmware 2.58+.
+#
+# TWO GENUINE CREDENTIAL STATES, firmware-version-gated (same shape as this project's existing
+# Teltonika admin/admin01 finding, which also carries a load-bearing firmware caveat):
+#   - Firmware < 2.58: username = full product name (e.g. "NETLink PRO PoE"), password = "admin"
+#     (a bounded, static default — checks/-eligible).
+#   - Firmware >= 2.58: the static "admin" password is disabled outright; the factory default
+#     becomes the last 8 hex characters of the device's own MAC address (case-insensitive),
+#     printed on the housing — e.g. MAC 00:06:71:19:1B:FC -> password "71191BFC". This is a
+#     DERIVED, non-static credential — same category as this project's existing Schneider PM5500/
+#     Omron RT1-series MAC-derived findings, which are `scripts/` tools, never `checks/`.
+#
+# NOT YET BUILT — one remaining mechanism gap: the web interface's home/status page is reachable
+# without login, but configuration pages require "user name and password" — the manual describes
+# this generically (shared with two OTHER access paths, a desktop "NETLink PRO Family
+# configuration" tool and "Set PG/PC Interface," whose own password dialogs are native Windows
+# dialogs, not evidence about the WEB interface's own rendering). Whether the web interface's own
+# login is HTTP Basic Auth or a custom HTML form is still unconfirmed — same open question as the
+# ENTES EMG/GEM and B&B Vlinx MESR9xx candidates in this same batch.
+#
+# ACTION NEEDED: (1) confirm the web interface's Basic-Auth-vs-form mechanism (live capture or
+# HTML source); (2) if building the old-firmware static credential as a checks/ entry, the
+# fingerprint_precondition should ideally also assert firmware < 2.58 if this project's
+# fingerprinting can express that — otherwise ship with an explicit "firmware-dependent, real
+# negative expected on current units" caveat in the description, same as Teltonika's. The
+# firmware>=2.58 MAC-derived case is a separate, future `scripts/` candidate, not a checks/ entry.
+
+check_id: candidate-helmholz-netlink-pro-default-creds
+protocol: http
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Helmholz GmbH & Co. KG"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.helmholz.com/dnl/NETLink_PRO_PoE_QSG_v2_en.pdf"
+  - "Helmholz \"NETLink Ethernet Products\" manual (\"Manual_NETLink-Ethernet-Products_3.pdf\"), user-supplied, Sections 5.2, 7.1-7.4"
+description: >
+  Helmholz NETLink PRO PoE (Ethernet Gateway for MPI/PROFIBUS) — SCADAPASS's "NETLink PRO
+  PoE:admin" row confirmed genuine (username = full product name, password = "admin") for
+  firmware < 2.58. Firmware >= 2.58 disables that static password and derives the default from
+  the last 8 hex characters of the device's own MAC address instead — a separate, non-static
+  finding (scripts/ territory, not checks/). Not built: the web interface's own login mechanism
+  (HTTP Basic Auth vs. a custom HTML form) is still unconfirmed.

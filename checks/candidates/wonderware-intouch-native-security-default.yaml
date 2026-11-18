@@ -1,0 +1,29 @@
+# Candidate stub — default-credentials sweep, Phase 5 (Wonderware). NOT executable (no `kind`).
+
+check_id: candidate-wonderware-intouch-native-security-default
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+references:
+  - "https://raw.githubusercontent.com/w3h/icsmaster/master/Scada_Password.csv"
+  - "https://www.automation-talk.info/2011/01/default-intouch-login-username-password.html"
+  - "https://knowledge.insourcess.com/aveva-intouch-tech-notes/tn-it190-default-username-and-password-for-intouch"
+description: >
+  Wonderware InTouch's native security login defaults to Administrator/Wonderware (case varies
+  across sources: "Administrator/Wonderware" and "administrator/wonderware" both cited) — CONFIRMED
+  via three independent sources (a targeted search, a direct fetch of w3h/icsmaster's
+  Scada_Password.csv, and InSource's own AVEVA InTouch tech note TN IT190, all agreeing). Found
+  again independently during Phase 21 (Metoree HMI category, 2026-08-16) under the "Aveva Inc"
+  listing — same underlying product family (Aveva acquired/rebranded Wonderware), not a new
+  finding, just a third corroborating source. This is a stronger credential-confirmation than
+  most candidates in this queue.
+  NOT built despite the confirmed credential: InTouch is a Windows HMI APPLICATION, not a
+  network device with an obvious management port (unlike SCALANCE/Stratix). Its "InTouch Access
+  Anywhere" feature (a separate, real CVE family — CVE-2017-5156/5158/5160) IS network-facing,
+  but whether Access Anywhere's own login uses this SAME native-security credential, or a
+  separate credential system for the gateway itself, was not confirmed in this pass. Needs
+  either (a) confirmation that Access Anywhere presents this exact login remotely, or (b)
+  identification of some other network-reachable surface (SuiteLink, a specific TCP port) that
+  presents InTouch's native security prompt, before this is a testable network check.

@@ -1,0 +1,91 @@
+# Candidate stub — 2026-08-26, UPDATED 2026-08-27 (twice). HIGH-STAKES, same "further tier"
+# bucket as `checks/candidates/schneider-micom-px4x-unauthenticated-level2-default.yaml` and the
+# GE SR/UR (CVE-2017-7905) / Rockwell (CVE-2021-22681) items — but ELEVATED, not equal: those gate
+# an electrical relay's breaker-trip function; these gate PHYSICAL ROBOT ARM MOTION on live
+# manufacturing-floor equipment. This consolidated candidate itself stays NOT executable (no
+# `kind`) — all 3 network-narrowable protocols have now been individually resolved and built as
+# real safety-critical tools below; the file is kept as the running record for the whole category.
+#
+# ALL FOUR ORIGINAL PROTOCOLS NOW CLOSED OUT, per the `scripts/safety_critical/` architecture
+# (01-METHODOLOGY-AND-CHECKLISTS.md's "Safety-critical scripts" section, built 2026-08-27 for the
+# TM/Techman TMflow Listen Node finding):
+#
+# - **Fanuc — RESOLVED AND BUILT.** A real, functioning, open-source Fanuc "Socket Messaging" (SM)
+#   client — codeberg.org/hojak/FaRoC — was found and read directly: its own `connect()` source
+#   opens a plain TCP socket, reads one response (a KAREL-program greeting), and sends/receives
+#   commands with NO credential exchanged at any point. Its own `ping()` method sends the literal
+#   command `ping___` (padded to a fixed 127-byte frame, no checksum) and expects the string
+#   "pong" back — a genuinely safe, zero-motion-capability connectivity check. Port 24087
+#   confirmed as the client's own default. Built:
+#   `scripts/safety_critical/fanuc_sm_plan.py` + `fanuc_sm_confirm.py` + `_fanuc_sm_protocol.py`.
+#   Requires a specific KAREL TP program ("FAROC_SERVER"/"FAROC") running — opt-in/integrator-
+#   configured, same shape as TMflow's Listen Node. `tests/smoke_test_safety_critical_fanuc_sm.py`,
+#   20 assertions.
+#
+# - **Denso b-CAP (TCP 5007) — RESOLVED AND BUILT.** User supplied
+#   github.com/DENSORobot/orin_bcap — Denso Wave's OWN official b-CAP client library. Read
+#   `bcapclient.py` directly: connection setup sends no credential, and `service_start("")` (func
+#   ID 1) is the b-CAP session-initialization call every session makes first — it names no
+#   controller/robot/variable object and carries zero motion capability. The exact request bytes
+#   were captured by running Denso's own `_serialize()` against a mocked socket (not hand-derived
+#   — see `_denso_bcap_protocol.py`'s docstring for the exact reproduction command), avoiding any
+#   risk of a transcription error in Denso's materially more complex binary/VARIANT-typed framing
+#   compared to Fanuc/TMflow's plain ASCII protocols. Response success is read straight from
+#   Denso's own `HResult.succeeded()` rule (hresult >= 0). Built:
+#   `scripts/safety_critical/denso_bcap_plan.py` + `denso_bcap_confirm.py` +
+#   `_denso_bcap_protocol.py`. `tests/smoke_test_safety_critical_denso_bcap.py`, 21 assertions.
+#
+# - **Mecademic (TCP 10000) — RESOLVED AND BUILT.** User supplied
+#   github.com/Mecademic/mecademicpy — Mecademic's OWN official Python client. Read
+#   `_robot_base.py`/`mx_robot_def.py`/`robot_classes.py` directly: control port 10000
+#   (`MX_ROBOT_TCP_PORT_CONTROL`), an unsolicited NULL-terminated `[3000][...]` welcome message on
+#   connect with no credential involved, and the literal ASCII command `GetStatusRobot` (NULL-
+#   terminated, no arguments) — a genuine read-only status query, replied to with
+#   `[2007][...]` (`MX_ST_GET_STATUS_ROBOT`). Built: `scripts/safety_critical/mecademic_plan.py` +
+#   `mecademic_confirm.py` + `_mecademic_protocol.py`. `tests/smoke_test_safety_critical_mecademic.py`,
+#   20 assertions.
+#
+# - **ABB — REMOVED from this finding, negative result, not "still blocked."** ABB's real,
+#   vendor-shipped remote interface is Robot Web Services (RWS); ABB's own developer documentation
+#   states directly "All clients using Robot Web Services must logon with a user name and
+#   password." No unauthenticated ABB endpoint was found. `RDK_DriverSocket.mod`'s hardcoded
+#   `SERVER_IP`/port-2000 (the original weak source for this row) is confirmed to be exactly what
+#   it was originally flagged as risking being: a RoboDK-supplied RAPID template an integrator
+#   chooses to install, not a genuine ABB factory default. Do not re-research ABB under this
+#   finding — this is closed, not open.
+#
+# All 3 built tools share the same discipline: two separate scripts per finding (`*_plan.py`/
+# `*_confirm.py`, no single command reaches a live target), an interactive typed one-time
+# confirmation phrase, a short plan-expiry window, and a payload deliberately restricted to the
+# least dangerous action that still demonstrates missing authentication — no motion-function
+# support exists in any of the 3 protocol modules. Full regression suite green after all 3.
+
+check_id: candidate-robot-unauthenticated-motion-control-sockets
+protocol: unknown
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  protocol_only: true
+references:
+  - "https://codeberg.org/hojak/FaRoC"
+  - "https://github.com/DENSORobot/orin_bcap"
+  - "https://github.com/Mecademic/mecademicpy"
+  - "scripts/safety_critical/fanuc_sm_plan.py"
+  - "scripts/safety_critical/denso_bcap_plan.py"
+  - "scripts/safety_critical/mecademic_plan.py"
+description: >
+  Multiple industrial robot control-socket protocols require no per-connection authentication
+  once enabled. Fanuc "Socket Messaging", Denso b-CAP, and Mecademic's TCP text-command interface
+  are all CONFIRMED and BUILT as safety-critical verification tools
+  (scripts/safety_critical/{fanuc_sm,denso_bcap,mecademic}_{plan,confirm}.py) — each backed by
+  the vendor's own official open-source client library read directly for exact wire framing and a
+  genuinely safe, zero-motion proxy command. ABB was researched and removed — its real vendor
+  interface (Robot Web Services) requires authentication; the original weak signal was a RoboDK
+  integration template, not a genuine ABB default.
+
+  CROSS-REFERENCE, 2026-08-30: a fifth entry in this same finding class exists for Comau, sourced
+  independently (a Comau-co-authored academic paper + real PDL2 source code, not a RoboDK
+  template) — see checks/candidates/comau-ros-industrial-unauthenticated-tcp-motion-status.yaml.
+  Filed separately rather than folded in here because its sourcing story and caveats (integrator
+  opt-in, not factory-default; a stale ~2016-era reference implementation) are meaningfully
+  different from this file's own four entries, not because it's a different finding class.

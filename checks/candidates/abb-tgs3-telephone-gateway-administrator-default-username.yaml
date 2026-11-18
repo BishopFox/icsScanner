@@ -1,0 +1,68 @@
+# Candidate stub — 2026-09-15. `IP FIRMWARE TOOL.exe` / `IP_FWTOOL_SOW_XX_V10-03-17_IP_
+# BLOCKER TAG (2026-09-22 triage pass): live-hardware-gap -- No default password value found, and the exact network port/protocol for the HTML config interface wasn't confirmed against the firmware sample in hand; needs a live device.
+# FIRMWARE_TOOL.exe` (2 ingest/ files, never previously opened — both self-extracting Windows
+# archives, opened directly with `7z x`, no unpacking tool needed beyond that) bundle an ABB
+# device-firmware updater (`IP_Firmware_Tool.exe`, a Mono/.NET GUI app) plus 2-4 real device
+# firmware images per package: `ABB_TGS3.2_V0.1.xx_app.bin` (multiple versions across the two
+# packages, up to 7.3MB), `ABB_IPRS2.1_V2.1.0117_app.bin`, `ABB_IPSS2.1_V2.1.0119_app.bin` (both
+# ~80KB). Confirmed no prior TGS3/IPRS2/IPSS2/"Telephone Gateway" candidate or check existed
+# before writing this file.
+#
+# TGS3.2 is a genuinely new product line for this project: an ABB **"Telephone Gateway"** (the
+# exact product name, confirmed directly from the firmware's OWN embedded English help text —
+# "th the Telephone Gateway", "the TG/S will directly call the configured user") — a phone-based
+# alarm-notification/paging gateway: on an alarm condition it calls a configured list of users by
+# phone (with an optional voice message, 8kHz mono GSM 6.10 .wav), and a called user can enter a
+# PIN via phone touch-tone (MFV/DTMF) to acknowledge the alarm. Separately, the device ALSO
+# exposes a web-based (HTML) configuration/monitoring interface with its own username+password
+# login, confirmed by extensive embedded server-side template source code (a Pascal/ASP-style
+# `<% ... %>` templating language, e.g. `tgs.UserOption(USER_PASS, userid)`,
+# `system.GetVar("userpassword")`) plus a login-error string
+# (`"Falscher Benutzername oder falsches Passwort!"` — "Wrong username or password!"). The
+# IPRS2.1/IPSS2.1 firmware images (much smaller, likely simpler I/O modules in the same product
+# family) were also string-scanned and show NO comparable admin/password/login content — this
+# finding is specific to the TGS3.2 unit, not the whole bundled product family.
+#
+# THE FINDING, confirmed directly from the firmware's own embedded help text (both German and
+# English versions present, both read directly, not inferred from one alone):
+#   English: "You can define several users. The user 'Administrator' is predefined. The PIN is
+#     needed to identify the user in case of a phone connection. The password allows log in via
+#     HTML pages. The administrator grants right to the users, what the user can do with the
+#     Telephone Gateway. Only the Administrator has full rights for configuration."
+#   German (same passage): "Hier wird der Name des Benutzers eingestellt (Administrator ist
+#     voreingestellt)." — "the username is set here (Administrator is preset by default)."
+#   This is the vendor's own shipped documentation, embedded directly in the firmware binary
+#   itself (not a manual, not a search summary) confirming a real, named default user account,
+#   "Administrator", with full configuration rights over both the phone-alarm and HTML-config
+#   interfaces.
+#
+# WHAT IS NOT CONFIRMED: no literal default PASSWORD (or default PIN) value was found anywhere in
+# this firmware binary. Every password-field template in the embedded HTML source renders an
+# EMPTY `value=""` by default and reads/writes the real value through
+# `tgs.UserOption(USER_PASS, ...)`/`system.GetVar("userpassword")` — i.e. the actual password is
+# per-device runtime configuration state (stored in NVRAM/config, not compiled into this binary
+# as a fixed string), unlike this sweep's Telenot/comXline finding where a literal default VALUE
+# was compiled in. This may mean the out-of-box password is genuinely blank until a commissioning
+# step sets it, or it may be set via some other mechanism this pass didn't identify — recorded
+# honestly as an open question, not assumed either way.
+#
+# NOT YET BUILDABLE: no fingerprint precondition exists for this product, no default password
+# value was found to test with, and the exact network port/protocol for the HTML config interface
+# was not independently confirmed against this specific firmware sample.
+
+check_id: candidate-abb-tgs3-telephone-gateway-administrator-default-username
+protocol: http
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "ABB"
+  product: "TGS3.2 (Telephone Gateway)"
+references:
+  - "ABB's own official firmware-updater package (user-supplied, never previously reviewed in this sweep): IP FIRMWARE TOOL.exe / IP_FWTOOL_SOW_XX_V10-03-17_IP_ FIRMWARE_TOOL.exe -> Firmware/ABB_TGS3.2_V0.1.40_app.bin, opened directly with 7z, string-scanned"
+description: >
+  An ABB "Telephone Gateway" (TGS3.2) phone-based alarm-notification unit ships firmware whose own
+  embedded help text (both German and English) confirms a predefined default user account named
+  "Administrator" with full rights over both its phone-DTMF and HTML web-configuration interfaces.
+  No default password or PIN value was found compiled into the firmware — the actual credential
+  is stored as per-device runtime state, not a fixed string in this binary. Not yet buildable: no
+  fingerprint precondition exists, and no password value was found to test.

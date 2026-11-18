@@ -1,0 +1,45 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ FA381239 ("NetBotz 250 |
+# Configuring Network Settings") directly. Brand-new product for this project: NetBotz Rack
+# Monitor 250 (NB250/NBRK0250).
+#
+# The FAQ's "Local Access to Command Line Interface" section states: "Use apc for the user name
+# and password" (Step 5). Its separate "Remote Access to Command Line Interface" section
+# confirms the SAME CLI is reachable via Telnet once the appliance has an IP address (ARP+Ping to
+# assign one, then Telnet to access it) — the same account system, just reached remotely instead
+# of over the local USB console. The FAQ does note the credential "may have been changed if the
+# appliance was already configured," consistent with every other factory-default finding in this
+# sweep.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: telnet-apc-netbotz-250-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "American Power Conversion"
+params:
+  credentials:
+    - ["apc", "apc"]
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet login attempt using the documented factory credential (apc:apc) for the NetBotz Rack Monitor 250 command line interface"
+    patterns:
+      - context: request
+        bytes: "apc\\r\\napc\\r\\n"
+  broad:
+    description: "Any Telnet session on this device family authenticating with username 'apc' and password 'apc' — the vulnerability class (factory-default credentials), not a specific guess unique to this device"
+    patterns:
+      - context: request
+        regex: "apc\\r\\napc\\r\\n"
+references:
+  - "Schneider Electric FAQ FA381239, \"NetBotz 250 | Configuring Network Settings\" (user-supplied)"
+description: "APC (American Power Conversion) NetBotz Rack Monitor 250 (NB250/NBRK0250) ships with a factory-default command-line-interface login of apc:apc, reachable both locally (USB console) and remotely via Telnet once the appliance has an IP address. No CVE, documented factory-default behavior per Schneider's own FAQ."

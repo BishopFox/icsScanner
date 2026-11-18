@@ -1,0 +1,78 @@
+# Default-credentials sweep, 2026-08-27 — bulk document review of
+# ingest/i151e_scara_robots,_yrc_series,_ethernet_users_manual_en.pdf (Omron-distributed Yaskawa/
+# Motoman YRC-series SCARA robot controllers, optional Ethernet Unit). Uses the generic
+# checks/telnet/native/telnet_default_creds.py executor.
+#
+# Source: official manual, read directly (section "2-8 TELNET dedicated parameters" +
+# "2-10 Making a connection with TELNET.EXE"). Confirmed:
+#   - TCP port No. — Default value: 23 (TELNET port). Using a value other than 23 disables TELNET
+#     protocol negotiation (falls back to plain socket communication).
+#   - LOGIN check — Default value: Valid (i.e. login IS required by default, not disabled).
+#   - LOGIN user name — Default value: USER
+#   - LOGIN password — Default value: PASSWORD
+# The manual's own TELNET.EXE walkthrough confirms the live sequence: connect -> a login check
+# begins -> "Enter the user name" -> "enter the password" (echoed as asterisks) -> "An OK message
+# appears... when the login check ends normally" -> from then on, robot commands/messages are
+# exchanged freely.
+#
+# CAVEAT, honestly noted: the walkthrough describes the login prompts in prose/screenshots rather
+# than giving the literal prompt byte strings (e.g. exact text of "login:"/"password:" is not
+# confirmed) — built anyway using the executor's generic default prompts ("login:"/"password:",
+# case-insensitive substring match), same practice already used for several other Telnet checks
+# in this project (e.g. Perle IOLAN, TAC Xenta) where the exact banner text wasn't independently
+# confirmed against real hardware. confidence: low reflects this.
+#
+# Fingerprint gate: "Yaskawa Electric Corp." OUI (00:20:B5) added to core/fingerprint.py the same
+# day, IEEE-verified via Wireshark's manuf database derivative (standards-oui.ieee.org itself
+# 403/418s automated fetches). No separate Motoman/robotics-division OUI block was found — robot
+# controllers apparently ship under the parent corporation's own block.
+#
+# SEPARATE, NOT BUILT: the sibling YRCX-series robot controller manual (ingest/
+# i231e_yrcx_series_robot_controller_users_manual_en.pdf) documents a similar "General Ethernet
+# Port (GEP)" TCP/TELNET socket interface on the same default port 23, but its own text shows NO
+# login-check mechanism described at all for that interface — a potentially different, more
+# serious "missing authentication entirely" finding rather than a default-credentials one; not
+# pursued here, would need its own research pass (same "different vulnerability class" treatment
+# as the TMflow Listen Node candidate found in the same document batch).
+#
+# No CVE found — documented factory-default behavior.
+
+check_id: telnet-yaskawa-yrc-scara-ethernet-unit-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Yaskawa Electric Corp."
+params:
+  default_port: 23
+  credentials:
+    - ["USER", "PASSWORD"]
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet login attempt using the documented factory credential (USER:PASSWORD)"
+    patterns:
+      - context: request
+        regex: "USER\\r\\n"
+      - context: request
+        regex: "PASSWORD\\r\\n"
+  broad:
+    description: >-
+      No device-specific broad signature. On cleartext Telnet a factory-default login is
+      byte-identical to a legitimate one, so there is no exploitation-class byte pattern distinct
+      from the credential strings themselves (those are the narrow patterns). A generic
+      any-Telnet-line pattern ("\r\n$") was REMOVED 2026-11-11 after real-traffic validation
+      (PNNL OT-IDS) showed it fired on every Telnet line; distinguishing default-credential abuse
+      from legitimate login needs source/asset/frequency context at the SOC, not a wire pattern.
+      Intentionally empty (same precedent as the Beckwith M-3425A check).
+    patterns: []
+references:
+  - "ingest/i151e_scara_robots,_yrc_series,_ethernet_users_manual_en.pdf"
+description: "Yaskawa/Motoman YRC-series SCARA robot controllers, optional Ethernet Unit, ship with a factory-default USER/PASSWORD Telnet CLI login (port 23, login check enabled by default) — no CVE, documented factory-default behavior per the vendor's own manual."

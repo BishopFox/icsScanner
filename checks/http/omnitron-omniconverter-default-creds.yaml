@@ -1,0 +1,50 @@
+# Default-credentials sweep, Phase 20 (Metoree industrial-switch category) — PROMOTED from
+# candidate stub after the user directly read the primary source and reported back the exact
+# credential (the PDF could not be text-extracted automatically in this environment — see the
+# git history / prior candidate stub, `checks/candidates/omnitron-systems-industrial-switch-
+# default-creds.yaml`, now removed per the promotion pattern established for the Unitronics
+# check in Phase 1.5: promote, don't duplicate). Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Source (primary, human-confirmed): the official Omnitron OmniConverter GHPoE-M/GHPoEbt-M
+# web-interface user manual, quoted directly by the user after reading the actual PDF: "Enter
+# the Username and Password to gain access to the module. The default user name and password
+# is: admin, public." Single-source but the strongest possible tier — a human directly reading
+# the vendor's own manual, not a search summary or automated (and previously failed) extraction
+# attempt.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-omnitron-omniconverter-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Omnitron Systems Technology, Inc."
+params:
+  path: "/"
+  credentials:
+    - ["admin", "public"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (admin:public)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46cHVibGlj"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://us.metoree.com/categories/102285/"
+  - "https://www.omnitron-systems.com/documentation/omniconverter-product-documentation/omniconverter-ghpoe-m/1167-omniconverter-ghpoe-m-and-ghpoebt-m-web-interface-user-manual/file"
+description: "Omnitron OmniConverter GHPoE-M/GHPoEbt-M managed switches ship with a factory-default admin/public web-UI login — no CVE, documented factory-default behavior, confirmed directly from the official manual."

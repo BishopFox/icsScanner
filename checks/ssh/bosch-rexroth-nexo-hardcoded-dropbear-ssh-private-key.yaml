@@ -1,0 +1,62 @@
+# PROMOTED from checks/candidates/bosch-rexroth-nexo-hardcoded-dropbear-ssh-private-key.yaml,
+# 2026-09-14 (user: "build and promote the nexo check"). See that candidate file's own header
+# for the full sourcing and CVE research. Summary here per this project's YAML-header convention.
+#
+# CVE-2023-48251 (BOSCH-SA-711465, CWE-798, CVSS 3.1 8.1 High): Bosch Rexroth Nexo cordless
+# nutrunners, firmware V1000-Release through V1500-SP2 inclusive, ship a hardcoded SSH private
+# key (Dropbear, RSA 2048) as root's ONLY authorized_keys entry, with password authentication
+# explicitly disabled in the device's own boot script — this key is the sole path to a full,
+# unauthenticated remote root shell. Publicly disclosed by Bosch 2024-01-08, fixed in V1.500 SP3.
+# Independently confirmed from a real firmware sample (V13.00 SP1) this session, not a new
+# finding — nothing to report to the vendor.
+#
+# KEY MATERIAL: uses the new checks/ssh/native/ssh_hardcoded_private_key.py executor, built for
+# this check specifically. The actual private key is NEVER embedded in this file or committed to
+# git — params.private_key_path points at `secrets/bosch-rexroth-nexo-id_rsa.pem`, a path under
+# this repo's .gitignore'd `secrets/` directory. This check ERRORs with a clear message (not a
+# silent skip, not a guessed result) if that file isn't present locally — an operator must supply
+# their own extracted copy. See that executor's own module docstring for the full design
+# rationale (matches the established "don't distribute the actual key" precedent from
+# CVE-2022-38465's disposition).
+#
+# Non-destructive framing note: this is `risk_reason: ["login"]` (a real authentication attempt,
+# same tier as every other SSH default-creds check in this project), not a higher tier — the key
+# grants access but this check itself only confirms the login succeeds, it does not exercise any
+# post-login capability.
+
+check_id: ssh-bosch-rexroth-nexo-hardcoded-dropbear-ssh-private-key
+protocol: ssh
+kind: native
+module: checks.ssh.native.ssh_hardcoded_private_key
+cve_id: CVE-2023-48251
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H (8.1 HIGH, per Bosch PSIRT)"
+destructive: true
+risk_reason: ["login"]
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Bosch Rexroth"
+  product: "Nexo"
+params:
+  username: "root"
+  private_key_path: "secrets/bosch-rexroth-nexo-id_rsa.pem"
+  key_type: "rsa"
+  default_port: 22
+detection_hints:
+  transport: tcp
+  app_protocol: ssh
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "No narrow wire-level signature is possible for this check — SSH encrypts the session immediately after key exchange, so the specific key used to authenticate is never visible as a plaintext byte pattern on the wire."
+    patterns: []
+  broad:
+    description: "Repeated SSH authentication attempts against this device family from a single source in a short window — the vulnerability class (a credential-guessing/key-auth pass), not a specific key, since SSH's encryption prevents matching the actual authentication material on the wire"
+    patterns:
+      - context: request
+        regex: "SSH-2\\.0-"
+advisory_url: "https://psirt.bosch.com/security-advisories/bosch-sa-711465.html"  # promoted from references (canonical advisory)
+references:
+  - "https://psirt.bosch.com/security-advisories/bosch-sa-711465.html — BOSCH-SA-711465, \"Multiple vulnerabilities in Nexo cordless nutrunner\", 2024-01-08, CVE-2023-48251"
+  - "https://nvd.nist.gov/vuln/detail/CVE-2023-48251"
+description: "Bosch Rexroth Nexo cordless nutrunners (firmware V1000-Release through V1500-SP2) ship a hardcoded SSH private key as root's sole authorized_keys entry, with password authentication disabled — granting full unauthenticated remote root access. CVE-2023-48251 (CWE-798, CVSS 8.1), publicly disclosed 2024-01-08, fixed in V1.500 SP3. This check requires a locally-supplied copy of the key (never committed to this repository) at secrets/bosch-rexroth-nexo-id_rsa.pem."

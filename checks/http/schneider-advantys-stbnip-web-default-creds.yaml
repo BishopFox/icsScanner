@@ -1,0 +1,48 @@
+# Default-credentials sweep, 2026-08-25 — user supplied two Schneider FAQs directly, both
+# confirming the same default from different angles: "What is the default user name and password
+# for the Advantys STBNIP2212 Ethernet Web page?" and "What is the default user name and password
+# for the Advantys STBNIP2212, STBNIP2311 and STBNIC2212 web server?" New product family for this
+# project: Advantys STB (fieldbus I/O island network interface modules).
+#
+# Both FAQs agree: "The default user name and password for the Advantys NIP Web page is USER USER
+# (Upper Case)... case sensitive" — the second FAQ explicitly extends the same default across
+# three named models (STBNIP2212, STBNIP2311, STBNIC2212), not just the one in the first FAQ's
+# title.
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-advantys-stbnip-web-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["USER", "USER"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory credential (USER:USER) for the Advantys STBNIP/STBNIC web server"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic VVNFUjpVU0VS"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ, \"What is the default user name and password for the Advantys STBNIP2212 Ethernet Web page?\" (user-supplied)"
+  - "Schneider Electric FAQ, \"What is the default user name and password for the Advantys STBNIP2212, STBNIP2311 and STBNIC2212 web server?\" (user-supplied)"
+description: "Schneider Electric Advantys STB fieldbus I/O island network interface modules (STBNIP2212, STBNIP2311, STBNIC2212) ship with a factory-default web server login of USER:USER (case sensitive). No CVE, documented factory-default behavior confirmed by two independent Schneider FAQs."

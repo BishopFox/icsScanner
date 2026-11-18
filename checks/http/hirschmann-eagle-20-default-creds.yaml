@@ -1,0 +1,42 @@
+# Default-credentials sweep, Phase 9. HTTPS variant covering the Hirschmann EAGLE 20 industrial
+# Ethernet firewall specifically — same admin:private/user:public scheme as the sibling HTTP/
+# Telnet checks, but documented over HTTPS (port 443) with its own dedicated source: a Darius
+# Freamon blog post specifically about this device, corroborating the general SCADAPASS pattern
+# with a device-specific confirmation.
+
+check_id: http-hirschmann-eagle-20-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Hirschmann Automation"
+params:
+  path: "/"
+  https: true
+  default_port: 443
+  credentials:
+    - ["admin", "private"]
+    - ["user", "public"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (admin:private, user:public) (this device's web UI uses HTTPS — these bytes are only visible on the wire if TLS is terminated/inspected at the monitoring point, not to a passive plaintext capture)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic (YWRtaW46cHJpdmF0ZQ==|dXNlcjpwdWJsaWM=)"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s) (this device's web UI uses HTTPS — these bytes are only visible on the wire if TLS is terminated/inspected at the monitoring point, not to a passive plaintext capture)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://dariusfreamon.wordpress.com/2013/09/05/hirschmann-automation-and-control-eagle-20-defaults/"
+description: "Hirschmann EAGLE 20 industrial Ethernet firewall ships with a factory-default admin/private + user/public HTTPS web-UI login — no CVE, documented factory-default behavior."

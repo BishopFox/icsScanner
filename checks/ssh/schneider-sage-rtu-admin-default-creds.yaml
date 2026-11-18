@@ -1,0 +1,60 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ FAQ000277652 ("How to
+# Change the Default Password on a SAGE RTU") directly. Brand-new product for this project: SAGE
+# RTU (formerly a Telvent product, now Schneider Electric — a real, widely-deployed utility/oil-
+# and-gas remote terminal unit).
+#
+# Found inside a password-CHANGE procedure, not a "what's the default" FAQ, but the procedure's
+# own screenshot of Schneider's official "User Access File Generator" (C3414-500-S02K5) tool
+# shows the DEFAULT TEMPLATE it loads "if the RTU is still using the default user configuration"
+# (the FAQ's own Step 2 wording) — i.e. this IS the factory-shipped default, not just an example.
+# The template's "Local Users" table: username "Admin", password "Telvent1!", role "Admin"
+# ("Default Administrator role" — Config, Display, Command, Up/Download, File Transfer, Remote
+# Shell, and IED Tunnel all enabled). The SAME row has an "SSH Public Key File (pk2)" column,
+# confirming SSH is the relevant mechanism for this account's "Remote Shell" access.
+#
+# No CVE — documented factory-default behavior.
+#
+# Update 2026-08-25 (5th/final Schneider FAQ batch): two more Schneider docs directly confirm
+# this same product line rather than just corroborating it indirectly:
+#   - "Default Login Credentials for Sage RTU C3414 Red CPU" states the identical Admin:Telvent1!
+#     pair as its own dedicated primary source (stronger citation than the password-CHANGE FAQ
+#     used above — kept both references since each documents a different angle).
+#   - "Default Login Credentials for Sage RTU Legacy C3413 Green CPU" gives a DIFFERENT default
+#     for an older CPU generation of the same RTU family: Admin:Admin. The scanner's
+#     fingerprint_precondition can't distinguish C3413 (Green CPU) from C3414 (Red CPU) hardware
+#     — both are just "Schneider Electric" over SSH — so both credential pairs are tried in
+#     order by the same check rather than splitting into two checks that would collide on the
+#     same precondition.
+
+check_id: ssh-schneider-sage-rtu-admin-default-creds
+protocol: ssh
+kind: native
+module: checks.ssh.native.ssh_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  credentials:
+    - ["Admin", "Telvent1!"]
+    - ["Admin", "Admin"]
+detection_hints:
+  transport: tcp
+  app_protocol: ssh
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "No narrow wire-level signature is possible for this check — SSH encrypts the session immediately after key exchange, so the specific username/password pair this scanner sends is never visible as a plaintext byte pattern on the wire."
+    patterns: []
+  broad:
+    description: "Repeated SSH authentication attempts against this device family from a single source in a short window — the vulnerability class (a credential-guessing pass), not a specific guessed value, since SSH's encryption prevents matching the actual username/password on the wire"
+    patterns:
+      - context: request
+        regex: "SSH-2\\.0-"
+references:
+  - "Schneider Electric FAQ FAQ000277652, \"How to Change the Default Password on a SAGE RTU\" (user-supplied)"
+  - "Schneider Electric FAQ, \"Default Login Credentials for Sage RTU C3414 Red CPU\" (user-supplied)"
+  - "Schneider Electric FAQ, \"Default Login Credentials for Sage RTU Legacy C3413 Green CPU\" (user-supplied)"
+description: "Schneider Electric SAGE RTU (formerly Telvent), a widely-deployed utility/oil-and-gas remote terminal unit, ships with factory-default Admin-role SSH logins: Admin:Telvent1! on the C3414 Red CPU, and Admin:Admin on the older C3413 Legacy Green CPU — both full-privilege accounts including Remote Shell, Config, and Command access. No CVE, documented factory-default behavior confirmed directly by Schneider's own per-CPU-variant FAQs."

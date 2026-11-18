@@ -1,0 +1,49 @@
+# Default-credentials sweep, Phase 9. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Sources (2 independent): SCADAPASS, citing the official WAGO-I/O-SYSTEM 750 manual PDF
+# directly; corroborated by an independent WebSearch converging on admin/wago specifically,
+# including a WAGO forum reference to the "standard passwords" documented across the WBM
+# (Web-Based Management) user manual pages.
+#
+# All three credential pairs from the SCADAPASS row shipped, not just the highest-privilege one
+# — user:user and guest:guest are DIFFERENT accounts with different privilege tiers per the
+# source, not alternate spellings of the same default.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-wago-750-series-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "WAGO GmbH"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "wago"]
+    - ["user", "user"]
+    - ["guest", "guest"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (admin:wago, user:user, guest:guest)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic (YWRtaW46d2Fnbw==|dXNlcjp1c2Vy|Z3Vlc3Q6Z3Vlc3Q=)"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.manualslib.com/manual/2084361/Wago-750-8202-040-001.html?page=113"
+description: "WAGO-I/O-SYSTEM 750 controllers ship with factory-default admin/wago (full access), user/user, and guest/guest web-UI logins — no CVE, documented factory-default behavior."

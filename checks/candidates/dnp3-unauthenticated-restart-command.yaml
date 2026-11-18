@@ -1,0 +1,77 @@
+# Candidate stub — detection-only, NOT executable (no `kind`, no fingerprint_precondition, no
+# BLOCKER TAG (2026-09-22 triage pass): live-hardware-gap -- Not a sourcing gap -- a real Cold Restart reboots the target, needing the same explicit human-authorization gate as this project's other DoS-class checks, independent of firmware or hardware access.
+# probe). Source: PNNL Electricity and Natural Gas System Dataset (Ashok & Edgar, IEEE HST 2021,
+# DOI 10.25584/PNNLDH/1838670) — see project_open_tasks.md -50 for the full extraction/review
+# writeup.
+#
+# "Detailed Data descriptions.pdf" §2.7 ("Handling risky/low-likelihood commands") used Triangle
+# Microworks' Protocol Test Harness to send DNP3 Cold Restart, Warm Restart, and Enable/Disable
+# Unsolicited Responses to a GE relay, an SEL relay, and the SAGE 2300 RTU. Direct quotes from the
+# doc's own Test Observations: "We noticed that the Cold and warm restart worked on all the target
+# devices tested," and "Enable/disable unsolicited messages seemed to work on SEL, GE devices, but
+# not with the SAGE RTU." The doc's own framing of this test: "Some of these scenarios could
+# potentially cause the RTU to crash and become unresponsive if they are not handled properly by
+# the protocol stack and this are actions that could pertain to an attack." The ONLY access control
+# observed anywhere in this test was DNP3 master-IP allowlisting (§2.9's own note: "we did not get
+# any responses from devices that did not list the machine... in the list of approved DNP3
+# masters") — not any command-level authentication. This is the same unauthenticated-DoS-capable-
+# function shape already flagged (but deliberately not built, pending a human go/no-go decision on
+# testing something DoS-capable) for Modbus's own FC 0x08 diagnostic sub-functions (0x01 "Restart
+# Communications Option", 0x04 "Force Listen Only Mode") — see project_open_tasks.md -48.
+#
+# Function code values (0x0D Cold Restart, 0x0E Warm Restart, 0x14 Enable Unsolicited Responses,
+# 0x15 Disable Unsolicited Responses) are IEEE 1815 (DNP3) public standard values, not vendor-
+# specific or invented here. Byte-offset derivation for the pattern below is identical to
+# `dnp3-unauthenticated-crob-command.yaml`'s own derivation note (Function Code sits at a fixed
+# offset of 12, 0-indexed, from the frame start for a single-fragment message) — not repeated in
+# full here.
+#
+# NOT promoted to an active icsScanner check, and not planned to be: testing this for real would
+# itself be a DoS-capable action against a live device (a real Cold Restart reboots the target),
+# needing the same explicit human authorization gate as this project's other DoS-class checks
+# (e.g. snap7-count-max-crash) — this candidate exists purely to carry `detection_hints:` for
+# detection-gen, per `core/check_loader.py`'s "CANDIDATES WITH HINTS" convention.
+
+check_id: candidate-dnp3-unauthenticated-restart-command
+protocol: dnp3
+disclosure_status: public
+destructive: false
+confidence: high
+severity: >-
+  High (protocol-level unauthenticated device-restart/DoS-capable command execution; no
+  per-vendor CVE — real PNNL testbed devices from 2 vendors accepted Cold/Warm Restart from an
+  unauthenticated source, gated only by coarse IP allowlisting, itself confirmed bypassable via
+  ARP spoofing in the same dataset)
+description: >
+  DNP3's Cold Restart / Warm Restart / Enable-Disable-Unsolicited-Responses function codes can be
+  issued with no application-layer authentication of the requesting host — confirmed via the PNNL
+  testbed's own "risky/low-likelihood command" test, where Cold and Warm Restart succeeded against
+  every real device tested (GE relay, SEL relay, SAGE 2300 RTU). This candidate is detection-only:
+  no active probe exists or is planned, since a real test would itself reboot the target device.
+detection_hints:
+  transport: tcp
+  app_protocol: dnp3
+  mitre_attack_id: T0816
+  analytic_story: "ICS Denial of Service"
+  narrow:
+    description: >-
+      A DNP3 Cold Restart (FC 0x0D) request — the single most severe function code in this
+      family (a real device reboot), and the one the PNNL testbed's own report confirms worked
+      against every tested device.
+    patterns:
+      - context: request
+        regex: '\x05\x64[\x00-\xff]{8}[\x00-\xff]{2}\x0d'
+  broad:
+    description: >-
+      Any DNP3 Cold Restart (0x0D), Warm Restart (0x0E), Enable Unsolicited Responses (0x14), or
+      Disable Unsolicited Responses (0x15) request — the underlying vulnerability class
+      (unauthenticated DNP3 device-state/reporting-control commands) across the full family the
+      PNNL testbed exercised, not just the single most severe member.
+    patterns:
+      - context: request
+        regex: '\x05\x64[\x00-\xff]{8}[\x00-\xff]{2}[\x0d\x0e\x14\x15]'
+references:
+  - "PNNL Electricity and Natural Gas System Dataset, DOI 10.25584/PNNLDH/1838670 (Ashok & Edgar, IEEE HST 2021), Detailed Data descriptions.pdf sec. 2.7 and 2.9"
+  - "IEEE 1815-2012 (DNP3), Function Codes 13 (Cold Restart) / 14 (Warm Restart) / 20-21 (Enable/Disable Unsolicited Responses)"
+  - "MITRE ATT&CK for ICS T0816 - Device Restart/Shutdown (also relevant: T0804 - Block Reporting Message, for the unsolicited-responses pair specifically)"
+  - "project_open_tasks.md -48 (Modbus FC 0x08 sibling finding, same unauthenticated-DoS-capable-function shape), -50 (this candidate's own extraction/review writeup)"

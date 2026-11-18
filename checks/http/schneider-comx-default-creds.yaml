@@ -1,0 +1,43 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ FA299649 ("What are the
+# default User name and Password for the EGX, Link, and Com'X gateway devices?") directly.
+# Brand-new product for this project: Com'X Series (a Schneider Electric data-logging/IoT
+# gateway, e.g. Com'X 200/210/510). Webpage login: admin:admin, per the FAQ's own table —
+# a different (and more classically weak) default than the Administrator:Gateway scheme shared
+# by the rest of this document's product line.
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-comx-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "admin"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory credential (admin:admin) for the Com'X series gateway webpage"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46YWRtaW4="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ FA299649, \"What are the default User name and Password for the EGX, Link, and Com'X gateway devices?\" (user-supplied)"
+description: "Schneider Electric Com'X series (e.g. Com'X 200/210/510) data-logging gateways ship with a factory-default webpage login of admin:admin. No CVE, documented factory-default behavior per Schneider's own FAQ."

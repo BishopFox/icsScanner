@@ -1,0 +1,60 @@
+# Teco Tecomat FoxBerry — OpenELEC default root SSH credential (root:openelec).
+#
+# FINDING (static analysis of public FW_FoxBerry_v13..v15_B+ packages, teco ingest; no live device). Teco's
+# FoxBerry (Raspberry-Pi-based Tecomat Foxtrot PLC) bundles the OpenELEC-RPi2 8.0.4 media distro, which
+# ships the DOCUMENTED OpenELEC default root password and SSH enabled by default. Verified 2026-11-05: all
+# four FoxBerry builds' /etc/shadow root $6$ hashes crack to `openelec` (one crypt() test each; each build
+# just re-salts the same documented default). sshd is present and systemd-enabled
+# (usr/lib/systemd/system/multi-user.target.wants/sshd.service), so root:openelec over SSH is reachable by
+# default on a PLC product => remote root. CWE-1392 (use of default credentials). Full sweep + provenance:
+# lab-notes/teco-foxtrot-foxberry-sweep-2026-11.md.
+#
+# NOVELTY: this is the documented OpenELEC default (prior-art, public knowledge), inherited by Teco via the
+# OpenELEC bundle — NOT a novel Teco-set credential. It is a documented-default coverage check (like the
+# Moxa/Phoenix documented-default checks), disclosure_status public. The more novel Teco-specific finding on
+# FoxBerry is the shared baked stunnel TLS key (checks/tls/teco-foxberry-stunnel-shared-plccoms-key.yaml).
+#
+# DETECTION: reuses checks/ssh/native/ssh_default_creds.py (credentials root:openelec; agent/keys disabled)
+# — CONFIRMs only on a successful root:openelec SSH login (fail-closed). Also tries root:libreelec for the
+# LibreELEC successor distro in case a FoxBerry build migrated to it. Not destructive beyond the login
+# attempt (adverse "login" tier). SCOPE: FoxBerry (RPi Foxtrot) only; fingerprint_precondition is kept
+# Teco/FoxBerry-specific so it is not sprayed at arbitrary SSH hosts (the registry forbids protocol_only on
+# a destructive check). A truly GENERIC any-OpenELEC check would need a Kodi/OpenELEC fingerprint probe
+# (port 8080 web UI) which this project does not have, and OpenELEC (EOL media distro) is marginal for an
+# ICS scanner anyway — so this is scoped to the ICS product that embeds it.
+
+check_id: ssh-teco-foxberry-openelec-default-root
+protocol: ssh
+kind: native
+module: checks.ssh.native.ssh_default_creds
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H (remote root via the documented OpenELEC default root:openelec over SSH, enabled by default on the FoxBerry PLC bundle; documented-default/prior-art)"
+destructive: true
+risk_reason: ["login"]
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Teco a.s."
+  product: "Tecomat Foxtrot FoxBerry (Raspberry-Pi-based; bundles OpenELEC-RPi2)"
+params:
+  credentials:
+    - ["root", "openelec"]
+    - ["root", "libreelec"]
+  timeout: 6.0
+  default_port: 22
+detection_hints:
+  transport: tcp
+  app_protocol: ssh
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "SSH password-authentication as root using the documented OpenELEC default password 'openelec' (or LibreELEC 'libreelec') against a device fingerprinted as a Teco FoxBerry; a successful login is the positive signal."
+    patterns: []
+  broad:
+    description: "SSH root login attempts using OpenELEC/LibreELEC default passwords against this device family."
+    patterns:
+      - context: response
+        regex: "SSH-2\\.0-"
+references:
+  - "lab-notes/teco-foxtrot-foxberry-sweep-2026-11.md — sweep, provenance (OpenELEC bundle), and crack verification."
+  - "https://cwe.mitre.org/data/definitions/1392.html — CWE-1392 Use of Default Credentials"
+description: "Teco Tecomat FoxBerry (RPi-based Foxtrot PLC) bundles OpenELEC-RPi2 8.0.4, which ships the documented OpenELEC default root password (root:openelec, verified by cracking all four FoxBerry builds) with SSH enabled by default, giving remote root on the PLC product. Detection reuses ssh_default_creds (root:openelec / root:libreelec), fail-closed. Documented default (prior-art) -> disclosure_status public; scoped to FoxBerry (a generic any-OpenELEC check would need a Kodi fingerprint probe this project lacks). The shared baked stunnel TLS key is the more novel FoxBerry finding."

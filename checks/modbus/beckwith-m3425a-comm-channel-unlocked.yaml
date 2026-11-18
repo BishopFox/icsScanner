@@ -1,0 +1,61 @@
+# Native check — read-only observation of the Beckwith Electric M-3425A's Modbus communication
+# channel lock status. See checks/modbus/native/beckwith_m3425a_comm_channel_unlocked.py for the
+# implementation and checks/candidates/beckwith-m3425a-comm-security-disabled-default.yaml for the
+# full research trail (Beckwith's own official Instruction Book + MODBUS/BECO2200 Communication
+# Database, both read directly 2026-08-19 — not guessed, not search-summarized).
+#
+# EXTRA CAUTION: real power-grid generator protection relay. destructive:false — a deliberate
+# design choice: this check performs exactly ONE Modbus read (FC03), no write of any kind, ever.
+# The source document explicitly warns that writing to the relay's access-code register can
+# UNCONDITIONALLY LOCK the comm channel if security happens to be enabled — a write-based check
+# risks actively locking out a legitimate operator's live session, a real availability hazard
+# this check avoids entirely by design. Requires an explicit `product_hint: "M-3425A"` on the
+# target (see fingerprint_precondition below) — there is no live way to distinguish this model
+# from other Beckwith protection relays over Modbus.
+
+check_id: beckwith-m3425a-comm-channel-unlocked
+protocol: modbus
+kind: native
+module: checks.modbus.native.beckwith_m3425a_comm_channel_unlocked
+destructive: false
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Beckwith Electric"
+  product: "M-3425A"
+detection_hints:
+  transport: tcp
+  app_protocol: modbus
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own read of the Beckwith M-3425A comm-channel lock-status register (0-based address 30) — a benign read, but a real reconnaissance signature for this specific check"
+    patterns:
+      - context: request
+        bytes: "\\xff\\x03\\x00\\x1e\\x00\\x01"
+  broad:
+    description: "The underlying vulnerability class (communication security disabled by the 9999 factory-default access code) is a device configuration state, not independently identifiable on the wire beyond this scanner's own specific register read — no broader byte pattern applies"
+    patterns: []
+  protocol_event:
+    description: >-
+      A field-level (not byte-pattern) detection: any Modbus WRITE toward this relay — function code 6
+      (write single register) or 16 (write multiple registers). The M-3425A Instruction Book warns that
+      a write to the access-code register can UNCONDITIONALLY LOCK the comm channel, so an observed write
+      to this generator-protection relay is exactly the dangerous event the read-only check cannot cover.
+    zeek_event: modbus_message
+    condition: "is_orig && (headers$function_code == 6 || headers$function_code == 16)"
+references:
+  - "docs-books-M-3425A-IB.pdf — Beckwith Electric's own official M-3425A Instruction Book, user-supplied local copy"
+  - "M-3425A-BECO2200-MODBUS.pdf — Beckwith Electric's own official M-3425A MODBUS/BECO2200 Communication Database (Rev. 1.15a), user-supplied local copy"
+description: >
+  Beckwith Electric M-3425A Comprehensive Generator Relay ships with its Communication Access
+  Code set to 9999 — the documented sentinel value that disables communication security
+  entirely (confirmed twice, verbatim, in Beckwith's own Instruction Book). This check reads the
+  relay's own device-computed "Communication channel lock status" register (TYPE 0 POINT 30,
+  documented as REGISTER 31, 0-based Modbus address 30) via Function Code 03 — a direct
+  observation, not an inferred result. A value of 0 means the comm channel is currently
+  unlocked/open with no credential ever supplied; a value of 1 means it is locked. No CVE —
+  documented factory-default behavior, not a disclosed vulnerability. CONFIRMED reports the
+  observed exposure honestly: it cannot, by itself, distinguish "channel open because the
+  factory default was never changed" from "channel open because a legitimate operator is
+  actively using it right now" — see the check module's own docstring for the full caveat.

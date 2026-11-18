@@ -1,0 +1,33 @@
+icsScanner
+Copyright (c) 2026 Bishop Fox
+
+The check corpus, detection-rule templates, and all code in this repository are original to this
+project and licensed under the MIT License (see LICENSE).
+
+---
+
+Third-party Python libraries used at runtime (installed separately via pip; each remains under its
+own license):
+
+  scapy              GPL-2.0            https://github.com/secdev/scapy
+  PyYAML             MIT                https://pyyaml.org/
+  keyring            MIT                https://github.com/jaraco/keyring
+  keyrings.cryptfile MIT                https://github.com/frispete/keyrings.cryptfile
+  paramiko           LGPL-2.1           https://www.paramiko.org/                      (extra: SSH checks)
+  asyncua            LGPL-3.0           https://github.com/FreeOpcUa/opcua-asyncio      (extra: OPC-UA)
+  pymssql            LGPL-2.1           https://github.com/pymssql/pymssql              (extra: MSSQL)
+  paho-mqtt          EPL-2.0 / EDL-1.0  https://github.com/eclipse/paho.mqtt.python     (extra: MQTT/Sparkplug)
+  python-socketio    MIT                https://github.com/miguelgrinberg/python-socketio
+
+---
+
+Reference data bundled under core/data/, redistributed from public sources under their own terms:
+
+  oui.tsv            IEEE MA-L (OUI) registry — IEEE Standards Association
+                     https://standards-oui.ieee.org/
+  odva_vendors.json  CIP vendor identifiers — ODVA
+                     https://www.odva.org/
+  kev.json           Known Exploited Vulnerabilities catalog — CISA (U.S. Government work, public domain)
+                     https://www.cisa.gov/known-exploited-vulnerabilities-catalog
+  epss.csv           Exploit Prediction Scoring System scores — FIRST.org
+                     https://www.first.org/epss/

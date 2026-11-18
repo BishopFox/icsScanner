@@ -1,0 +1,62 @@
+# PROMOTED from checks/candidates/abb-cp600-hmi-vnc-no-authentication-default.yaml, 2026-09-14
+# (user: "add vnc rfb protocol executor" — building on the candidate this same session filed
+# after retrying BSPCP600UN30V231/UN31V231). See the candidate file's own header for the full
+# sourcing detail — summary here per this project's YAML-header convention.
+#
+# ABB CP600 industrial HMI panels (Windows CE-based generation — e.g. CP604/607/610 and
+# siblings, a different OS platform from the newer Linux/JMobile CP6xx generation covered by
+# checks/candidates/abb-cp6xx-jmobile-admin-default-password.yaml, still a candidate itself)
+# support an optional VNC remote-
+# access server (TCP port 5900) that ships with NO PASSWORD and NO AUTHENTICATION enabled by
+# default once activated — confirmed directly, independently, in two separate official ABB
+# application notes describing two different BSP-generation configuration UIs:
+#   - AN00235 "CP600 HMI – Enabling the VNC Server" (2015): "a password (which is null by
+#     default) ... The VNC server uses TCP port 5900."
+#   - 3ADR011288 "How to use VNC Server" (references "PB610 V4.5.0 AND CP600 BSP V1.3", the same
+#     BSP-generation family as the BSPCP600UN30V231/UN31V231 packages that prompted this
+#     investigation): "Set the 'Enable' and 'Autostart' to activate the VNC Server. By default,
+#     the port is 5900 and authentication is disabled."
+# ABB's own documentation recommends disabling VNC if not required, acknowledging the risk rather
+# than shipping a secure default.
+#
+# THIS CHECK confirms the server OFFERS AND ACCEPTS RFB security-type 1 ("None") — i.e. the
+# server itself, live, actually grants unauthenticated access, not just "the vendor manual says
+# this is the shipped default." Stops immediately once the security handshake resolves — never
+# sends a ClientInit, never reads the framebuffer, never transmits an input event (a full remote-
+# control session is NOT established; only the authentication gate itself is probed).
+#
+# No CVE — undocumented (by ABB) factory-default behavior, not covered by any known advisory at
+# time of writing, sourced entirely from ABB's own application notes rather than a security
+# disclosure.
+
+check_id: vnc-abb-cp600-hmi-vnc-no-authentication-default
+protocol: vnc
+kind: native
+module: checks.vnc.native.vnc_no_auth
+destructive: true
+risk_reason: ["login"]
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "ABB"
+  product: "CP600"
+params:
+  default_port: 5900
+detection_hints:
+  transport: tcp
+  app_protocol: vnc
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "No meaningful narrow wire-level signature is possible for this check — a client selecting RFB security-type 1 ('None') is byte-for-byte identical to what any standards-conformant VNC viewer sends; there is no distinguishing 'attack' pattern, only standard protocol conformance."
+    patterns: []
+  broad:
+    description: "Any RFB/VNC ProtocolVersion handshake (\"RFB 0nn.0nn\\n\") followed by a client selecting security-type 1 (a single 0x01 byte, RFB >= 3.7) — the underlying exposure class (an unauthenticated VNC session being established) rather than a specific guessed credential, since there is no credential at all in this scenario"
+    patterns:
+      - context: request
+        regex: "RFB 0\\d\\d\\.0\\d\\d\\n"
+references:
+  - "ABB Application Note AN00235, \"CP600 HMI – Enabling the VNC Server\" (Rev A, 2015) — library.e.abb.com/public/44134122d24a4c97ae7cacba6effb7a5/AN00235-CP600_HMI_Enabling_the_VNC_Server_Rev_A_EN.pdf, fetched and read directly via pdftotext"
+  - "ABB Application Note 3ADR011288, \"How to use VNC Server\" — library.e.abb.com/public/4fa75089d73e4c46b978184c9466947f/Application Note 3ADR011288.pdf, fetched and read directly via pdftotext"
+  - "https://github.com/rfbproto/rfbproto/blob/master/rfbproto.rst — RFB protocol spec this check's executor (checks/vnc/native/_rfb_common.py) implements against"
+description: "ABB CP600 industrial HMI panels (Windows CE-based generation) support an optional VNC remote-access server (TCP 5900) that ships with no password/authentication enabled by default once activated — confirmed directly, twice, in separate official ABB application notes across two BSP-generation configuration UIs. This check confirms the server offers and accepts RFB security-type 1 ('None') live, without establishing a full remote-control session. No CVE — undocumented factory-default behavior."

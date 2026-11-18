@@ -1,0 +1,98 @@
+# Candidate promoted directly to a real check — 2026-09-16. Fourth/final Eaton ingest batch. A
+# genuine firmware-RE win: "RC-v2106 - Livigno/cm3-dc-app2106.fup" (and the sibling "cm4-dc"
+# variant) is a real Eaton Green Motion EV charging-station application firmware update package.
+# Unpacked cleanly with stdlib tools only: gunzip -> tar -> a genuinely UNENCRYPTED SquashFS
+# filesystem (the sibling `.p7b` files alongside it are separately signed/detached, not blocking
+# this image) -> readable Python 3 source code for the charging station's own onboard services
+# ("boxproxy", including real OCPP/EV-charging protocol implementation). Confirmed no prior Eaton
+# Green Motion check existed before this file (a separate, DIFFERENT candidate,
+# `eaton-green-motion-ev-charger-default-password.yaml`, already documents the "Commissioning
+# Tool" / password "eaton" finding from the official manual — this is a SEPARATE mechanism found
+# directly in the device's own firmware source, not a duplicate).
+#
+# THE FINDING, read directly from the firmware's own source files:
+#
+#   `boxproxy/Webservice/BasicAuth.py`:
+#       DEFAULT_USER = 'admin'
+#       DEFAULT_PASS = 'admin'
+#     `Login._reload_login()` falls back to these exact literal values whenever no login file
+#     exists yet or it's corrupted ("Revert Web Login to default credentials !") — i.e. this is
+#     the device's own genuine factory-default/recovery state, not a placeholder.
+#
+#   `boxproxy/Webservice/AppService.py`:
+#     - The "AppService" REST API listens on a FIXED port, 8082, plain HTTP (no TLS context
+#       passed to `web.TCPSite`), bound to `host = '0.0.0.0'` -- read directly from the actual
+#       `start()` method: despite an older, version-gated code comment suggesting 0.0.0.0 binding
+#       was only for firmware < 2.1.4, the literal, unconditional line immediately below that
+#       check (`host = '0.0.0.0'`) always executes regardless of version in this exact shipped
+#       build -- a real, current, network-reachable-on-all-interfaces exposure, not a legacy-only
+#       one, confirmed by reading the actual control flow rather than trusting the comment.
+#     - `check_routes_auth` (the app's own auth middleware) applies standard HTTP Basic Auth
+#       (`self.auth.authenticate(request)`, decoding a real `Authorization: Basic ...` header) to
+#       every route EXCEPT the dedicated `/authenticate`/certificate-pairing endpoints -- including
+#       the simple, parameter-free `GET /api/v1/Dictionaries` endpoint this check uses.
+#
+# DIRECTLY BUILDABLE, ZERO NEW CODE: this is architecturally identical to this project's existing
+# `checks.http.native.basic_auth_default_creds` module (the same reuse pattern as Altus and Moxa
+# AWK-1121) -- a plain HTTP Basic Auth credential check against a known, parameter-free path.
+#
+# SCOPE/HONEST CAVEAT: this is a DIFFERENT credential and DIFFERENT mechanism from the sibling
+# `eaton-green-motion-ev-charger-default-password.yaml` candidate (password "eaton", via a
+# separate desktop "Commissioning Tool" and an unconfirmed wire protocol). This check's own
+# `post_authenticate` handler (a JSON-POST login at
+# `/api/v1/System/charging-stations/{chargingStationId}/authenticate`) is presumably what the
+# Commissioning Tool actually uses, and would need a live `chargingStationId` value this project
+# doesn't have -- NOT the mechanism this check targets. This check instead targets the plain HTTP
+# Basic Auth gate on the AppService's own parameter-free REST endpoints directly, a genuinely
+# separate and simpler path into the same underlying credential store (`Login.verify()`).
+
+check_id: eaton-green-motion-appservice-basic-auth-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no lockout mechanism found in the firmware source reviewed
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Eaton"
+  product: "Green Motion EV charging station (Livigno/cm3-dc/cm4-dc AppService REST API)"
+params:
+  credentials:
+    - ["admin", "admin"]
+  path: "/api/v1/Dictionaries"
+  success_status: 200
+  https: false
+  default_port: 8082
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth header carrying the literal default credential against the AppService's own Dictionaries endpoint — verified directly against basic_auth_default_creds.py's own base64 encoding of admin:admin"
+    patterns:
+      - context: request
+        regex: "GET /api/v1/Dictionaries"
+      - context: request
+        regex: "Authorization: Basic YWRtaW46YWRtaW4="
+  broad:
+    description: "Any request to the AppService's /api/v1/* REST namespace on TCP/8082 — the underlying charging-station application platform, not just this specific guessed credential"
+    patterns:
+      - context: request
+        regex: "GET /api/v1/"
+references:
+  - "boxproxy/Webservice/BasicAuth.py, extracted directly from RC-v2106 - Livigno/cm3-dc-app2106.fup (gunzip -> tar -> unsquashfs, genuinely unencrypted), user-supplied ingest"
+  - "boxproxy/Webservice/AppService.py, same firmware extraction — confirms port 8082, plain HTTP, 0.0.0.0 binding, and the check_routes_auth middleware's use of HTTP Basic Auth"
+description: >
+  Eaton Green Motion EV charging stations (Livigno firmware, cm3-dc/cm4-dc charging modules) run
+  an "AppService" REST API on TCP port 8082, plain HTTP, bound to all interfaces (0.0.0.0) —
+  confirmed by directly extracting and reading the actual Python source code from a genuinely
+  unencrypted firmware update package (gunzip -> tar -> unsquashfs, no decryption needed). The
+  service's own BasicAuth.py module hard-codes DEFAULT_USER='admin'/DEFAULT_PASS='admin' as the
+  factory-default/recovery credential, verified via standard HTTP Basic Auth against a real,
+  parameter-free endpoint (/api/v1/Dictionaries). High confidence: both the credential and the
+  exact wire protocol/port/binding come directly from the device's own shipping firmware source
+  code, not documentation or inference. Distinct from the sibling
+  eaton-green-motion-ev-charger-default-password.yaml candidate (a different credential, "eaton",
+  via a separate Commissioning Tool mechanism this check does not target).

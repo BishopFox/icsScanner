@@ -1,0 +1,48 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ FA130396 ("For ATV61/71
+# Ethernet IP (VW3A3316), what is the web page default password?") directly. Brand-new product
+# for this project: Altivar 61/71/61Q/71Q variable-speed drives fitted with the VW3A3316
+# EtherNet/IP communication card — an older Altivar generation, distinct from the already-built
+# Altivar Process ATV600 (checks/http/schneider-altivar-atv600-legacy-default-creds.yaml).
+#
+# Two default accounts for the drive's embedded webpage, both tried here:
+#   Monitor and Setup Security: USER:USER
+#   Administrator:              ADMIN:ADMIN
+# Both stated as case-sensitive, all caps.
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-altivar-61-71-ethernetip-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["USER", "USER"]
+    - ["ADMIN", "ADMIN"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credentials for both account roles (USER:USER monitor/setup, ADMIN:ADMIN administrator) on Altivar 61/71 drives with the VW3A3316 EtherNet/IP card"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic (VVNFUjpVU0VS|QURNSU46QURNSU4=)"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ FA130396, \"For ATV61/71 Ethernet IP (VW3A3316), what is the web page default password?\" (user-supplied)"
+description: "Schneider Electric Altivar 61/71/61Q/71Q variable-speed drives, fitted with the VW3A3316 EtherNet/IP communication card, ship with 2 factory-default webpage logins — USER:USER (Monitor and Setup Security) and ADMIN:ADMIN (Administrator). No CVE, documented factory-default behavior per Schneider's own FAQ."

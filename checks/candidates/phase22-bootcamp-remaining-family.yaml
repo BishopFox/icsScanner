@@ -1,0 +1,54 @@
+# Candidate stub — default-credentials sweep, Phase 22 (scadasecuritybootcamp.com triage). NOT
+# executable (no `kind`). Now down to a single remaining lead after two promotions.
+#
+# PROMOTED 2026-08-16: ABB RTU500 (real defaults, safety-critical, exact value unconfirmed) was
+# here — the user supplied a direct link into the official manual's Table 4, independently
+# fetched and confirmed verbatim, plus the HTTPS-by-default transport detail. Promoted to
+# `checks/http/abb-rtu500-default-creds.yaml` (5 role-based accounts), no longer part of this
+# stub.
+#
+# PARTIALLY PROMOTED 2026-08-16: Schneider PowerLogic PM8000/PM8240/PM8243/PM8244's WEBPAGE
+# login was here as "unclear field format" — the user supplied a link to Schneider's own FAQ
+# (FA299252), and directly reading that page's PDF confirmed a plain "PM8000 | User1 | 0" table
+# entry. Promoted to `checks/http/schneider-powerlogic-pm8000-default-creds.yaml`. The bootcamp
+# row's other half ("FTP: 8000:") is NOT resolved by this — see below, still open.
+#
+# DATA-QUALITY ISSUE — source row appears mislabeled:
+# - "General Electric / CIMPLICITY WebView" and "General Electric / Cimplicity" (bootcamp: both
+#   rows typed as Device Type "Video Streaming Recorder" with credentials admin:admin/12345
+#   [Log In], 0000 [Advanced Menu], 8111 [Factory], 1111 [Ethernet Access Reset], 2222 [DDNS]) —
+#   this credential SHAPE (a DVR-style admin login plus several separate numeric reset/factory/
+#   DDNS codes) is characteristic of a cheap consumer DVR/NVR web panel, not GE's real CIMPLICITY
+#   HMI/SCADA software, and doesn't match "Video Streaming Recorder" being applied to a SCADA
+#   product at all. Reads as a data-entry mix-up in the source (a DVR vendor's credential set
+#   copy-pasted under GE's name) rather than a genuine GE CIMPLICITY finding. GE CIMPLICITY's
+#   real, confirmed vulnerability in this sweep is the unrelated CVE-2014-0751 directory
+#   traversal (`checks/candidates/CVE-2014-0751-ge-cimplicity-traversal.yaml`, a different vuln
+#   class, already excluded) — this row doesn't add to or corroborate that finding.
+#
+# RESOLVED NEGATIVE 2026-08-25 — Schneider PowerLogic PM8000 FTP login (bootcamp: "FTP: 8000:"):
+#   user directly supplied FA243275 (the FAQ that had been blocked from automated fetch — its
+#   "Environment" is "Web server" only, no FTP) and the current official PM8000 series User
+#   Manual (7EN02-0336-12), whose "Default meter security settings" table exhaustively lists
+#   every default-enabled protocol (HTTPS, SSH Terminal, SFTP, SNMP, Modbus TCP, ION, Secure ION,
+#   MQTT, BACnet/IP) — no FTP at all, only SFTP. The "8000" in the bootcamp row is the same
+#   standard-security-mode webpage username already captured in the built check, not a separate
+#   FTP service. No FTP check exists or is planned for PM8000. Full detail in
+#   `checks/http/schneider-powerlogic-pm8000-default-creds.yaml`'s own header comment.
+#
+# Only remaining open item in this stub: the GE CIMPLICITY row below (a data-quality issue, not
+# a research gap needing a source).
+
+check_id: candidate-phase22-bootcamp-remaining-family
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_only: true
+references:
+  - "http://scadasecuritybootcamp.com/SCADA-Default-Password-List.php"
+description: >
+  Phase 22 leftover: GE CIMPLICITY WebView/Cimplicity (source row looks like a mislabeled
+  consumer-DVR credential set, not a genuine GE finding). The Schneider PowerLogic PM8000 FTP
+  question that used to also live in this stub is resolved negative — see this file's own header
+  comment.

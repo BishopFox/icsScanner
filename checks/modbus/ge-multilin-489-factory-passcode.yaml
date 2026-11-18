@@ -1,0 +1,64 @@
+# Native check — write-then-verify confirmation of the GE Multilin 489's factory default
+# Communications Port Passcode ("0") over Modbus. See
+# checks/modbus/native/ge_multilin_489_factory_passcode.py for the implementation and
+# checks/candidates/ge-multilin-relay-factory-passcode.yaml / lab-notes/human-review-queue.md
+# (Priority 1) for the full research trail. Built 2026-08-17 after the user supplied GE's own
+# dedicated "489 Generator Management Relay COMMUNICATIONS GUIDE" (GEK-106495A) directly.
+#
+# EXTRA CAUTION: real power-grid generator protection relay, same review bar the 850 check got.
+# destructive:true — a real write to the relay's Communications Port Passcode register, followed
+# by a read-back of its own access-status register for an unambiguous device-reported
+# confirmation (a real design improvement over the 850 check's write-fallback ambiguity — see
+# the module docstring). Requires an explicit `product_hint: "489"` on the target (see
+# fingerprint_precondition below) — there is no live way to distinguish the 489 from its GE
+# Multilin siblings over Modbus.
+#
+# WIRE FRAMING NOTE, explicitly flagged: GEK-106495A documents ONLY RS485/RS232 serial
+# interfaces, no native Ethernet port (unlike the 850's own manual, which confirms one) — this
+# check assumes network reachability via a transparent serial-to-Ethernet gateway (raw Modbus
+# RTU framing, CRC-16 included) rather than true Modbus TCP/MBAP. Not independently confirmed;
+# see the module docstring for the full reasoning.
+
+check_id: ge-multilin-489-factory-passcode
+protocol: modbus
+kind: native
+module: checks.modbus.native.ge_multilin_489_factory_passcode
+destructive: true
+risk_reason: ["device_write"]  # write-fallback path is a real Modbus register write, not just an auth handshake; lockout unconfirmed for this model (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "GE Automation"
+  product: "489"
+params:
+  slave_address: 1
+detection_hints:
+  transport: tcp
+  app_protocol: modbus
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own write of the factory-default passcode '0' to the Communications Port Passcode register (0088h, FC06), followed by its read of the Communications Setpoint Access status register (0203h, FC03) — both raw Modbus RTU-over-TCP frames (slave address 1, the default params.slave_address; CRC-16 included per the module's own _crc16(), verified by executing _write_passcode_pdu(1)/_read_access_status_pdu(1) directly rather than hand-computing the CRC)"
+    patterns:
+      - context: request
+        bytes: "\\x01\\x06\\x00\\x88\\x00\\x00\\x09\\xe0"
+      - context: request
+        bytes: "\\x01\\x03\\x02\\x03\\x00\\x01\\x75\\xb2"
+  broad:
+    description: "Any Modbus RTU write to holding register 0088h (Communications Port Passcode) via Function Code 06 — the underlying GE Multilin 489 passcode-based access-control mechanism in general (any passcode value, any slave address), not this scanner's specific factory-default '0' guess"
+    patterns:
+      - context: request
+        regex: "\\x06\\x00\\x88"
+references:
+  - "GE Publication Code GEK-106495A, GE Multilin Part Number 1601-0149-A2 — '489 Generator Management Relay COMMUNICATIONS GUIDE', supplied directly by the user (no stable public URL on hand)"
+description: >
+  GE Multilin 489 Generator Management Relay ships with a factory-default Communications Port
+  Passcode of "0" (holding register 0088h, Function Code 06) — GE's own dedicated Communications
+  Guide (GEK-106495A) documents this as the Modbus Memory Map's stated default value, and its
+  "Passcode Operation" section states a passcode of "0" grants full setpoint-access rights.
+  Confirmed via a genuine device-reported status register (0203h, "Communications Setpoint
+  Access") rather than an inferred write-echo. No CVE — documented factory-default behavior, not
+  a disclosed vulnerability. Access Lockout semantics are not separately documented for this
+  model the way the 850's are, but this check performs exactly one write + one read, never
+  retries, matching the conservative single-attempt posture used for every other GE Multilin
+  relay check in this project.

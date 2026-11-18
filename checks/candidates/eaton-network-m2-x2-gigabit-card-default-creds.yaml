@@ -1,0 +1,51 @@
+# Candidate stub — 2026-09-16. User-supplied ingest: Eaton knowledgehub PDF cache (see sibling
+# PXGX/PXGMS candidate for the full context on why this unblocks a prior JS-rendering research
+# dead end). Confirmed no prior Eaton Network-M2/X2 candidate/check existed before this file.
+#
+# THE FINDING, confirmed across multiple user-supplied PDFs, read via pdftotext:
+#
+#   "How to access to the WebUI on the M2 using the peer-to-peer method_.pdf": states the card's
+#   default static IP is 192.168.1.2, and "The default username and password are 'admin'."
+#
+#   "How to recover the main administrator password for M2_X2 card_.pdf" and "Resetting Network-M2
+#   Card via Dip Switch.pdf" (two independent, slightly differently-worded articles describing the
+#   same procedure): both confirm the dip-switch-3 sanitization/factory-reset procedure restores
+#   "the default credentials of the main administrator: admin/admin," after which the card "will
+#   be forced to change the password accordingly to the current password strength rules."
+#
+# HONEST MITIGATING FACTOR, current-firmware only: "What are the cybersecurity enhancements of the
+# Gigabit Network Card (NETWORK-M2)_.pdf" states current-generation cards "require change of
+# password on setup" as a documented security enhancement — meaning admin/admin is the FACTORY-
+# SHIPPED/POST-RESET state an operator must move through, not necessarily a value that survives a
+# completed normal commissioning on current firmware. This is the same "real exposure window
+# during commissioning/reset, not necessarily a permanent state" nuance already recorded for the
+# SICAM WEB unclaimed-administrator candidate elsewhere in this project — worth the same honest
+# framing here rather than claiming an unconditional bypass.
+#
+# NOT YET A REAL CHECK, same single missing piece as the sibling PXGX/PXGMS candidate: no source
+# checked this pass shows the exact HTTP login request shape (Basic Auth vs. form) for the
+# Network-M2/X2 WebUI — only the browser-facing flow is described. If confirmed as HTTP Basic
+# Auth, directly reuses `checks.http.native.basic_auth_default_creds` with zero new code.
+
+check_id: candidate-eaton-network-m2-x2-gigabit-card-default-creds
+protocol: http
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Eaton"
+  product: "Network-M2 / X2 Gigabit UPS network card"
+references:
+  - "How to access to the WebUI on the M2 using the peer-to-peer method_.pdf, user-supplied Eaton knowledgehub export, read directly via pdftotext"
+  - "How to recover the main administrator password for M2_X2 card_.pdf, user-supplied Eaton knowledgehub export, read directly via pdftotext"
+  - "Resetting Network-M2 Card via Dip Switch.pdf, user-supplied Eaton knowledgehub export, read directly via pdftotext"
+  - "What are the cybersecurity enhancements of the Gigabit Network Card (NETWORK-M2)_.pdf, user-supplied Eaton knowledgehub export, read directly via pdftotext"
+description: >
+  Eaton Network-M2/X2 Gigabit UPS network cards ship with default credentials admin/admin
+  (default static IP 192.168.1.2) — confirmed directly across three of Eaton's own official
+  support documents, including two independent factory-reset procedure articles that both restore
+  the same admin/admin value. Current-generation firmware documents "requires change of password
+  on setup" as a security enhancement, so admin/admin is confirmed as the factory-shipped/post-
+  reset state specifically, not necessarily a value that survives normal commissioning — the same
+  honest "real but commissioning-window" framing already used for the SICAM WEB unclaimed-
+  administrator candidate elsewhere in this project. Not yet a check: the exact HTTP login request
+  shape (Basic Auth vs. form) isn't confirmed from any source checked this pass.

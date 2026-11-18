@@ -1,0 +1,45 @@
+# Candidate stub — default-credentials sweep, Phase 12. NOT executable (no `kind`). RESEARCH
+# GAP — ambiguous credential value and no port/protocol given.
+#
+# SCADAPASS gives "<blank>" for both the Vlinx VESR4x4 (Serial Server) and Vlinx MESR9xx (Modbus
+# Gateway), citing official B&B Electronics manual PDFs, but doesn't state a port, protocol, or
+# username — genuinely unclear whether this means "blank password, any/no username," "entirely
+# no authentication," or something else. No independent second source found in this pass either.
+
+# MECHANISM AND VALUE CONFIRMED for MESR9xx, 2026-08-30: user supplied two B&B Electronics/
+# Advantech manuals directly ("BB-MESR90x ModbusGateways_0920m.pdf" and
+# "B-and-B-MESR9xx-ETHERNET-TO-RS485-MODBUS-ADAPTER-MANUAL.pdf", both covering the same MESR9xx
+# Vlinx Modbus Gateway product, one via Advantech's current branding). Both state identically,
+# in "APPENDIX A: DEFAULT GATEWAY SETTINGS": "Password: Password field is blank from factory" —
+# confirms SCADAPASS's "<blank>" value directly, no username field exists at all. Mechanism: a
+# genuine web "Login page"/"Login Screen" ("Click the Login button") reached by browsing to the
+# gateway's IP — a custom HTML form, not HTTP Basic Auth (no browser-native credential dialog is
+# described). Default IP (no DHCP available): 169.254.102.39 (link-local), not itself a
+# credential. `checks/http/native/form_post_default_creds.py` (password_only: true) is the right
+# executor once the remaining gap below is resolved.
+#
+# STILL NOT BUILT — same gap as the ENTES EMG/GEM candidate: the login page and password field
+# are shown only as screenshots ("Figure 43. Modbus Gateway Login Screen") which didn't extract
+# as text, so the exact POST path, password field name, and success/failure signal remain
+# unconfirmed. Needs a live capture or the raw HTML page source.
+
+check_id: candidate-bb-electronics-vlinx-serial-modbus-gateway-default-creds
+protocol: http
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "B&B Electronics"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "http://www.bb-elec.com/Products/Manuals/VESP211-5012m.pdf"
+  - "BB-MESR90x Modbus Gateways User Manual (Advantech), \"BB-MESR90x ModbusGateways_0920m.pdf\", user-supplied, Appendix A"
+  - "B&B Electronics MESR9xx Ethernet-to-RS485 Modbus Adapter Manual, user-supplied, same Appendix A content"
+description: >
+  B&B Electronics/Advantech Vlinx MESR9xx Modbus Gateway — factory-default web login password is
+  blank (no username field at all), confirmed directly and identically across two vendor manuals.
+  Mechanism confirmed as a custom HTML login form, not HTTP Basic Auth — this project's
+  form_post_default_creds.py (password_only: true) is the right executor. Not built: the login
+  page is only shown as an unextracted screenshot in both manuals, so the exact POST path,
+  password field name, and success/failure signal are still unconfirmed. Vlinx VESR4x4 (Serial
+  Server) remains a separate, still-unconfirmed sibling product not covered by either manual
+  supplied here.

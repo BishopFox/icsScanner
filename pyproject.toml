@@ -1,0 +1,83 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "icsscanner"
+dynamic = ["version"]
+description = "Safety-first active + passive vulnerability scanner for ICS/OT protocols, with CVE correlation and deployable detection content."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Bishop Fox" }]
+keywords = [
+  "ics", "ot", "scada", "security", "vulnerability-scanner",
+  "passive", "cve", "modbus", "dnp3", "s7comm", "enip", "bacnet",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Information Technology",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Topic :: Security",
+  "Topic :: System :: Networking :: Monitoring",
+]
+
+# Core runtime: check/inventory parsing, credential storage, and passive capture.
+dependencies = [
+  "pyyaml>=6.0",
+  "keyring>=25.0",
+  "keyrings.cryptfile>=1.3",
+  "scapy>=2.5",
+]
+
+# Protocol libraries used only by specific checks; install with `pip install icsscanner[full]`.
+[project.optional-dependencies]
+full = [
+  "asyncua>=2.0",      # OPC-UA checks
+  "paramiko>=3.0",     # SSH checks
+  "pymssql>=2.3",      # MSSQL checks
+  "paho-mqtt>=2.0",    # MQTT / Sparkplug-B
+  "python-socketio>=5.0",
+]
+
+[project.scripts]
+icsscanner = "icsscanner:main"
+
+[project.urls]
+Homepage = "https://github.com/BishopFox/icsscanner"
+Repository = "https://github.com/BishopFox/icsscanner"
+
+[tool.setuptools]
+py-modules = ["icsscanner"]
+
+# Single-source the version from icsscanner.py's VERSION literal (read statically).
+[tool.setuptools.dynamic]
+version = { attr = "icsscanner.VERSION" }
+
+[tool.setuptools.packages.find]
+include = ["core*", "web*", "checks*"]
+
+# Bundle runtime data. The recursive glob under the top-level `checks` package pulls in the whole corpus
+# (including non-package data dirs like checks/candidates/), so an installed `icsscanner` finds the corpus
+# at <site-packages>/checks next to the top-level module — the same path the editable/clone layout uses.
+[tool.setuptools.package-data]
+core = ["data/*"]
+web = ["static/*", "static/**/*"]
+checks = ["**/*.yaml", "**/*.yml"]
+
+# Lint: real-bug rules (pyflakes + syntax), not style churn. Run via `ruff check .`.
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+extend-exclude = ["dist", "output", "lab-notes", "ingest", "old"]
+
+[tool.ruff.lint]
+select = ["E9", "F"]
+
+# NOTE: the check corpus (checks/) loads relative to icsscanner.py at runtime, so `pip install -e .`
+# (editable) is the supported install today and gives the `icsscanner` command with the corpus in place.
+# Bundling checks/ into a wheel for a non-editable `pip install icsscanner` is the one remaining Track-1
+# packaging item (relocate checks/ under a package or resolve it via importlib.resources).

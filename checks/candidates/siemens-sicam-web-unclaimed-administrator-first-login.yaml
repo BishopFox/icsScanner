@@ -1,0 +1,141 @@
+# Candidate stub — 2026-09-16. Ingest triage of a new 126-file batch (all PDFs, ~1GB — Siemens
+# SICAM/S7/HMI manuals, Yaskawa drive/CNC documentation, misc.), read directly via pdftotext, not a
+# search summary. Confirmed no prior candidate/check for this specific finding existed before
+# writing this file (distinct from the existing `sicam-a8000-cpc80-web-default-creds.yaml` check,
+# which covers a DIFFERENT, older, already-bounded scope — see the cross-reference below).
+#
+# THE FINDING: TWO independent, CURRENT (2025/2026-dated) official Siemens manuals confirm that
+# the SICAM WEB HTTPS/HTTP management interface's "administrator" account ships with NO PASSWORD
+# ASSIGNED AT ALL — not a guessable static credential, but a genuinely unclaimed account that
+# grants a "define a password now" flow to WHOEVER connects first:
+#
+#   1. `Manual_CP-8000_CP-802x_ENG_DC8-037-2.11.pdf` ("SICAM A8000 Series, CP-8000, CP-8021,
+#      CP-8022, Manual", DC8-037-2, Edition 07.2025), section 9.1.1.1 "Registration at Initial
+#      Startup": "When the target device is started up for the first time or after a factory
+#      reset ..., the web server of the target device operates with the preset user
+#      'administrator'. No password is assigned to this user in the factory settings, so you will
+#      be asked to define a password after confirming ... If you do not enter a password, you will
+#      be logged off." The same section confirms the web server "must be enabled (corresponds to
+#      the presets)" — i.e. it is reachable over the network BY DEFAULT, not an opt-in feature.
+#      This is the CURRENT/patched CPC80 behavior (firmware revision >= 14) already noted as
+#      out-of-scope in the sibling `sicam-a8000-cpc80-web-default-creds.yaml` check's own "SCOPE"
+#      section — this file expands on what that "no default password set" note actually means in
+#      practice, rather than treating it as simply "fixed."
+#
+#   2. `Manual_SICAM_8_Core_Hardware_EN_V2620.pdf` ("SICAM 8, Core Functions & Hardware, Manual",
+#      DC8-127-2, Edition 07.2026 — the newest-dated document found anywhere in this whole research
+#      thread), section 4.10 "Secure Factory Reset", the "Difference between Factory Settings and
+#      Default Settings" table, explicitly for applications "SICORE, CPCI85, SWEB00" (the
+#      CP-8030/CP-8031/CP-8050 "SICORE" hardware generation that was previously blocked at
+#      comprehensive firmware encryption in the sibling AK3 candidate — see cross-reference below):
+#        "Web browser for SICAM WEB (https): Enabled via X3 (LAN 1)"  -- BOTH factory-settings AND
+#            default-settings (post-commissioning) columns.
+#        "Default user: Administrator (no password set)"              -- BOTH columns, identically.
+#      This is the SAME finding, independently confirmed on the NEWER SICORE/CPCI85 hardware
+#      generation, in a manual dated one year newer than the CP-8000/CP-802x one above.
+#
+# WHY THIS IS ITS OWN CANDIDATE, not just a note on the existing CPC80 check: the existing check
+# targets a BOUNDED, OLD-FIRMWARE-ONLY static credential ("administrator"/"1703", CPC80 revision
+# <= 07 — explicitly said to be fixed in newer revisions). This finding is the opposite shape: it
+# is the CURRENT, by-design, still-shipping behavior on BOTH the "fixed" CPC80 generation AND the
+# brand-new SICORE/CPCI85 hardware — i.e. it is NOT something a firmware update resolves, because
+# the "fix" for the old static password (1703) is itself this "no password, first login claims it"
+# design. The vulnerability class is genuinely different: not a guessable static value, but an
+# unauthenticated-attacker-wins-the-race condition on the Administrator account itself.
+#
+# WHY THIS IS NOT BUILT AS A CHECK, and should not be, without a strong caveat if ever attempted:
+# the ONLY way to detect whether an administrator account is truly "unclaimed" over the SICAM WEB
+# wire protocol (POST /sicweb-ajax/auth, Cmd_LogOn -- see
+# checks/http/native/sicam_web_logon_default_creds.py for the already-reverse-engineered protocol)
+# is to attempt a login as "administrator" and observe the response. Per the manual's own text,
+# an unclaimed account's response to ANY submitted password is apparently to ACCEPT it and set it
+# as the permanent administrator password going forward ("you will be asked to define a password
+# ... If you do not enter a password, you will be logged off" implies entering ANY compliant
+# password succeeds and finalizes it as the new admin credential). This means the very act of
+# testing this condition would, on a genuinely vulnerable/unclaimed device, PERMANENTLY CLAIM the
+# administrator account with an attacker/scanner-chosen password -- a real, irreversible,
+# destructive side effect indistinguishable from actually exploiting the device, not a safe
+# read-only probe. This directly conflicts with this project's safety-first charter (see
+# feedback_scanner_check_vs_standalone_script memory: destructive-uncertain actions never belong
+# in the automated check pipeline). Filed as a candidate/Field Reference entry only, explicitly
+# flagged UNSAFE TO ACTIVELY TEST, not a buildable network check.
+#
+# NOT YET CONFIRMED (honest hedge): whether the login response actually distinguishes "no password
+# assigned yet" (any password wins) from "already claimed, wrong password" at the wire-protocol
+# level was not verified against a live device or packet capture — this is an inference from the
+# manuals' own operator-facing prose, not a confirmed protocol behavior. If a live capture or
+# device access is ever available, this should be re-examined for a genuinely passive/non-mutating
+# detection signal (e.g. a distinct HTTP response code or XML status value for the unclaimed state
+# BEFORE any credentials are submitted) before any check is built.
+#
+# CROSS-REFERENCE 1: resolves an open uncertainty in
+# `checks/candidates/siemens-sicam-ak3-toolbox-ii-remote-admin-no-password.yaml`'s own 2026-09-16
+# entry, which found RBAC-related parameter names (`rbac_web_sess`) in the SICORE/CPCI85 firmware
+# and speculated the newer hardware generation "may have moved AWAY from AK3's own 'no password'
+# design entirely." The SICAM 8 Core Hardware manual found in this batch directly contradicts that
+# speculation: RBAC exists as a FEATURE, but the shipped DEFAULT state on this same CPCI85 hardware
+# is still "Administrator (no password set)," identical in shape to the older AK3 finding. The RBAC
+# capability is presumably something an operator must configure and populate with real roles/users
+# before it changes this default state.
+#
+# CROSS-REFERENCE 2: the CP-8000/CP-802x manual's own confirmation that the web server "must be
+# enabled (corresponds to the presets)" directly supports the reachability assumption already made
+# in the sibling CPC80 check (that SICAM WEB is on by default, not an opt-in feature) — useful
+# corroboration even though this candidate's own finding is distinct from that check's credential.
+#
+# UPDATE 2026-09-16: user asked for this finding to be built as a runnable tool. Per this
+# project's own scanner-check-vs-standalone-script convention, "account_creation" risk (an
+# exploitation that creates/claims a privileged account) is routed to `scripts/`, never the
+# automated `checks/` registry — and this finding is NOT placed in `scripts/safety_critical/`
+# either, since that tier's own stated scope is physical-actuation risk specifically (robot
+# motion, breaker switching), a different axis from a permanent credential claim. Built instead as
+# a plain `scripts/` tool pair, reusing that tier's plan/confirm two-script isolation discipline
+# (justified here by severity: claiming a live device's administrator account is at least as
+# severe and irreversible as anything in that tier) plus a double typed-confirmation (phrase +
+# explicit risk acknowledgment), same as this project's highest-uncertainty safety-critical tools:
+#   scripts/sicam_web_admin_claim_plan.py / scripts/sicam_web_admin_claim_confirm.py
+#   scripts/_sicam_web_admin_claim_protocol.py (shared request/response logic, no network I/O)
+# Honestly stated in the tool's own docstring: unlike most safety-critical-tier tools, there is NO
+# zero-effect way to test this finding — the login request IS the claiming action on a vulnerable
+# device. The plan step generates a random password up front so the operator retains recovery
+# access; the confirm step prints an explicit "NOTIFY POINT OF CONTACT" block with the new
+# credential on any positive (claimed) result, per the user's own explicit request, since the most
+# important consequence of a positive result is that someone needs that credential immediately.
+# End-to-end tested against a local mock HTTP server (claimed, rejected, wrong-phrase-refused, and
+# expired-plan-refused paths all verified) before this note was written.
+
+check_id: candidate-siemens-sicam-web-unclaimed-administrator-first-login
+protocol: local-only
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Siemens AG"
+  product: "SICAM A8000 Series (CPC80 firmware >= revision 14; CPCI85/SICORE hardware)"
+references:
+  - "Manual_CP-8000_CP-802x_ENG_DC8-037-2.11.pdf (\"SICAM A8000 Series, CP-8000, CP-8021, CP-8022, Manual\", DC8-037-2, Edition 07.2025), section 9.1.1.1, user-supplied, read directly via pdftotext"
+  - "Manual_SICAM_8_Core_Hardware_EN_V2620.pdf (\"SICAM 8, Core Functions & Hardware, Manual\", DC8-127-2, Edition 07.2026), section 4.10, user-supplied, read directly via pdftotext"
+  - "checks/http/native/sicam_web_logon_default_creds.py — the already reverse-engineered SICAM WEB Cmd_LogOn wire protocol this finding would need to use, if ever tested against a live device with explicit authorization and full awareness of the destructive side effect"
+physical_access_reference:
+  summary: "Siemens SICAM A8000 devices (both the older CPC80 module at 'fixed' firmware revisions >= 14, and the current CPCI85/'SICORE'-based hardware) ship with their SICAM WEB 'administrator' account carrying NO PASSWORD ASSIGNED AT ALL in the factory-default state, while the SICAM WEB HTTPS/HTTP interface itself is reachable over the network by default. The account is not just weakly protected — it is genuinely UNCLAIMED until whoever connects first defines a password for it, which (per the vendor's own operator-facing documentation) appears to succeed for essentially any submitted value."
+  steps:
+    - "Reach the target SICAM A8000 device's SICAM WEB interface (HTTP/HTTPS, default IP 172.16.0.3 or the site's configured address) before the legitimate operator completes first-login setup."
+    - "At the login prompt, authenticate as 'administrator' and submit any compliant password (8-54 characters)."
+    - "Per the vendor's own documented flow, this claims the administrator account with the submitted password, granting full engineering access — this step is NOT a safe/reversible test and should only ever be performed with explicit authorization, since it permanently alters the device's credential state."
+  network_note: "Unlike the SICAM AK3 candidate's own no-password Administrator account (gated behind a USB-first, network-disabled-by-default posture), this finding's network path (SICAM WEB over LAN1) is reachable by default on current SICAM A8000 hardware per the vendor's own factory-settings tables — this is a live, present-day exposure window during commissioning, not a legacy/patched issue."
+description: >
+  Siemens SICAM A8000 devices — both the CPC80 module at 'fixed' firmware revisions (>= 14, where
+  the sibling sicam-a8000-cpc80-web-default-creds check's own static "1703" credential no longer
+  applies) and the current CPCI85/"SICORE"-based hardware generation — ship with their SICAM WEB
+  "administrator" account carrying NO PASSWORD ASSIGNED AT ALL by default, confirmed directly in
+  two current (2025/2026) official Siemens manuals' own text and factory-settings tables. The
+  SICAM WEB web interface itself is reachable over the network by default (not an opt-in feature).
+  This is a genuinely unclaimed-account / first-login-race condition, not a guessable static
+  credential — the vendor's own documentation implies that whoever authenticates as "administrator"
+  first, with any compliant password, claims the account permanently. This is filed as a
+  physical/network Field Reference entry, explicitly NOT built as an automated check: probing it
+  would require an actual login attempt that, on a genuinely vulnerable device, permanently and
+  irreversibly claims the administrator account — a destructive side effect this project's
+  safety-first scanning charter does not allow in the automated check pipeline. Also resolves an
+  open uncertainty in the sibling SICAM AK3 candidate about whether the newer SICORE/CPCI85
+  hardware moved away from the "no password" default design — it has not; RBAC exists as an
+  optional feature, not the shipped default.

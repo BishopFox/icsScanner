@@ -1,0 +1,63 @@
+# Default-credentials sweep, 2026-09-02 — resolves the other half of
+# checks/candidates/proscend-industrial-switch-default-creds.yaml (Phase 20). The original
+# candidate found root:2wsx#EDC for "the M351 router/850G switch series specifically" but
+# couldn't confirm it was the same credential/product generation, or whether it applied broadly.
+# User supplied Proscend's own official manuals/quick-installation-guides for FIVE separate
+# cellular router models — M330, M331 (both standard and "-IG" variant), M335-W6, M350 (via its
+# QIG), and M351-5G — all stating the IDENTICAL web-login instruction verbatim: "enter the
+# default username root and the default password 2wsx#EDC and then click the Login button" (IP
+# 192.168.1.1). This is a genuine platform-wide default across Proscend's entire M-series
+# cellular/LTE/5G router line, not a single-model value — resolves the original blocker in favor
+# of "yes, applies broadly."
+#
+# Telnet is a SEPARATE, disabled-by-default toggle on this router line per its own manual
+# ("Management > Telnet ... Default is disable") with no stated credential of its own in that
+# section — not built here; only the always-reachable HTTP web UI is in scope.
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention — the
+# manuals describe "fill in Name/Password, click Login" without a screenshot or field-name markup
+# proving a custom HTML form either way.
+#
+# Also confirms the SAME password (2wsx#EDC) is shared with the "root" account on Proscend's
+# 850X-28P managed PoE switch (see checks/http/proscend-850x-28-managed-switch-default-creds.yaml
+# — one of that check's two documented credential pairs), suggesting a company-wide default
+# convention rather than a coincidence, though each product line is still verified and shipped
+# from its own primary source, not assumed from the other.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-proscend-m-series-cellular-router-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Proscend"
+params:
+  credentials:
+    - ["root", "2wsx#EDC"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory credential (root:2wsx#EDC) against a Proscend M-series cellular router (M330/M331/M335/M350/M351 family)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic cm9vdDoyd3N4I0VEQw=="
+  broad:
+    description: "Any HTTP Basic Auth attempt using 'root' as the username against a Proscend M-series router — the vulnerability class (factory-default credential), not the specific guessed password"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic cm9vdA=="
+references:
+  - "Proscend M330 Quick Installation Guide, v1.01, 2024-03-25 (user-supplied)"
+  - "Proscend M331 User Manual, v1.00, 2023-04-25, and M331/M331-IG Quick Installation Guides (user-supplied)"
+  - "Proscend M335-W6 Quick Installation Guide, v1.00, 2025-11-10, and User Manual v1.1, 2026-03-11 (user-supplied)"
+  - "Proscend M350 Quick Installation Guide, v1.00, 2021-08-20 (user-supplied)"
+  - "Proscend M351-5G Quick Installation Guides (v1.01/v1.02) and User Manual v1.01, 2025-03-27 (user-supplied)"
+description: "Proscend's M-series industrial cellular routers (M330, M331, M335-W6, M350, M351-5G confirmed; likely the whole M-series line) ship with a factory-default web-UI login of root:2wsx#EDC, stated identically across at least 5 official manuals/quick-installation-guides. No CVE, documented factory-default behavior."

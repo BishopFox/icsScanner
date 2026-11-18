@@ -1,0 +1,37 @@
+# Candidate stub — DELIBERATELY kept as a candidate (kind: absent). Phase 41 (2026-08-27),
+# robots identification category.
+#
+# Value corroborated by THREE independent robot-forum.com threads (#24184 "wiring and password
+# reset", #45380 "CS9 password", #46544 "Password staubli maintenance mobile.html") — meets this
+# project's 2-source forum-corroboration bar (same standard used for the existing Emerson
+# ControlWave SYSTEM:666666 candidate), but NOT a primary-source confirmation: Stäubli's own
+# official CS8C Instruction Manual (ManualsLib, p.159, "FTP Access To A PC") documents the FTP
+# configuration FIELDS (name/IP/path/user/password) but does not publish the default VALUES
+# themselves.
+#
+# Values: username "default" with a blank password, and a separate "maintenance" account with
+# password "spec_cal" — standard FTP (21/TCP), no non-standard port documented.
+#
+# NOT included: a separate /mobile.html HTTPS web interface ("maintenance" user) mentioned in
+# the same forum thread (#46544) — that thread explicitly states Stäubli does not publicly
+# disclose this password anywhere; no value to document, not guessed.
+#
+# No CVE found.
+
+check_id: candidate-staubli-cs8c-cs9-ftp-default-creds
+protocol: ftp
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Staubli"
+  product: "CS8C/CS9"
+references:
+  - "https://www.robot-forum.com/robotforum/staubli-robot-forum/24184-wiring-and-password-reset"
+  - "https://www.robot-forum.com/robotforum/staubli-robot-forum/45380-cs9-password"
+  - "https://www.robot-forum.com/robotforum/staubli-robot-forum/46544-password-staubli-maintenance-mobile-html"
+description: >
+  Stäubli CS8C/CS9 robot controllers reportedly ship with FTP account default:(blank password)
+  and maintenance:spec_cal, per 3 independent robot-forum.com threads. Stäubli's own official
+  CS8C manual documents the FTP config fields but not the default values — forum-corroborated
+  only, no primary source found. Not promoted to an active check pending a primary-source
+  confirmation.

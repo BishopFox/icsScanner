@@ -1,0 +1,61 @@
+# Default-credentials sweep, Phase 5 (Wonderware/AVEVA). Uses the new generic
+# checks/mssql/native/mssql_default_creds.py executor.
+#
+# detection_hints: DELIBERATELY OMITTED (2026-08-22, detection-gen rollout pass). Investigated by
+# capturing pymssql's REAL first outbound packet against a local throwaway TCP listener (not
+# hand-derived): a 58-byte TDS PRELOGIN packet (type 0x12), verified live —
+# 1201003a0000000000001a00060100200001020021000c03002d00040400310001ff090000000000004d5353514c5365727665720044c1030000.
+# This packet carries NO credential material at all (PRELOGIN happens before any login is
+# attempted) and is byte-identical for any TDS client connecting to any SQL Server, including
+# completely legitimate DBA tools (SSMS, sqlcmd) — the same "benign, ubiquitous, non-
+# discriminating" problem as the EtherNet/IP List Identity check above, not a useful narrow OR
+# broad security signature. The actual credential-bearing packet is TDS LOGIN7, sent only after
+# a full two-way handshake (the server must first reply to PRELOGIN) — reaching and safely
+# verifying its exact byte layout (variable-offset UCS-2-encoded username/password fields) needs
+# a fake PRELOGIN-responding mock server, not attempted this pass. Real follow-up opportunity,
+# not a shortcut: build that mock, capture a genuine LOGIN7 packet, verify the offsets, then add
+# detection_hints properly — hand-deriving TDS LOGIN7's binary layout from memory without a
+# captured reference would risk exactly the kind of unverified-byte-pattern mistake this
+# project's own discipline exists to avoid.
+#
+# Sources (cross-checked, not a single search summary): initial search citing the account-name
+# pattern, independently corroborated by a direct fetch of w3h/icsmaster's Scada_Password.csv
+# (a community-compiled ICS default-credential reference) — both agree on the same 8 pairs. The
+# underlying AVEVA/Schneider security bulletin (LFSec00000115.pdf) was located but returned
+# unreadable binary content on fetch; the CVE and account-name existence are independently
+# confirmed via CISA (ICSA-17-024-01) and NVD (CVE-2017-5155).
+
+check_id: mssql-wonderware-historian-default-logins
+protocol: mssql
+kind: native
+module: checks.mssql.native.mssql_default_creds
+cve_id: CVE-2017-5155
+severity: "score not confirmed in this pass — see CISA ICSA-17-024-01 for the full CVSS vector before treating any score as authoritative"
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_probe: mssql_identity
+advisory_url: "https://www.cisa.gov/news-events/ics-advisories/icsa-17-024-01"  # promoted from references (canonical advisory)
+references:
+  - "https://www.cisa.gov/news-events/ics-advisories/icsa-17-024-01"
+  - "https://nvd.nist.gov/vuln/detail/CVE-2017-5155"
+  - "https://threatpost.com/default-credentials-found-in-schneider-electric-wonderware-historian/123346/"
+  - "https://raw.githubusercontent.com/w3h/icsmaster/master/Scada_Password.csv"
+params:
+  default_port: 1433
+  credentials:
+    - ["aadbo", "pwddbo"]
+    - ["wwdbo", "pwddbo"]
+    - ["aaAdmin", "pwAdmin"]
+    - ["wwAdmin", "wwAdmin"]
+    - ["aaPower", "pwPower"]
+    - ["wwPower", "wwPower"]
+    - ["aaUser", "pwUser"]
+    - ["wwUser", "wwUser"]
+description: >
+  Wonderware Historian (2014 R2 SP1 P01 and earlier) creates 8 default SQL Server logins at
+  install time (aadbo, wwdbo, aaAdmin, wwAdmin, aaPower, wwPower, aaUser, wwUser), each with a
+  predictable default password. An attacker with database access can compromise the Historian
+  database and, per the advisory, potentially resources beyond it depending on the installation.

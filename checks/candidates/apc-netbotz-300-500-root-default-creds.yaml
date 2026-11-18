@@ -1,0 +1,37 @@
+# Candidate stub — 2026-08-25. User supplied Schneider FAQ FA158398 ("NetBotz 300-500 Series |
+# Password reset procedure") directly. NOT executable (no `kind`). Older NetBotz generation
+# (v3) than the already-built NetBotz 750/755 checks (v5) — Wall 355/356/455/456
+# (NBWL0355/6, NBWL0455/6), Rack 450/451/550/570 (NBRK0450/1, NBRK0550, NBRK0570).
+#
+# What's confirmed: after the documented hardware reset-switch procedure, the resulting login is
+# "User ID: root / Password: apc" — the same "apc" password convention already confirmed
+# elsewhere in this sweep for related APC/NetBotz products (though NetBotz 750's OWN root default
+# is a DIFFERENT value, "apc" only on 750 firmware 5.3.0+ per its own dedicated FAQ — this is a
+# distinct, older product line, not assumed to share that exact scoping).
+#
+# RESOLVED, OUT OF SCOPE, 2026-08-25: user supplied a second, related Schneider FAQ, FA308010
+# ("NetBotz v3 | How do I configure network settings?"), directly. Its own "Configuration Option
+# 2 - Terminal Emulation" section confirms root:apc is reached specifically via a USB-cable
+# TERMINAL EMULATION session (PuTTY/HyperTerminal over a local serial COM port) — NOT Telnet, SSH,
+# or any other network-reachable protocol. The same FAQ also refines the version scoping:
+# "Netbotz 4.7 and above does not have a default password, and must be set by the user" — so this
+# only applies below firmware 4.7, consistent with (and now more precise than) the original
+# reset-procedure FAQ. Local-serial-only access is out of this project's network-scanning
+# architecture entirely, same bucket as the OMICRON/Emerson WiFi-credential and EcoStruxure
+# Control Expert local-Windows-account precedents. Not building this — closing out this
+# candidate as a resolved negative rather than leaving it open pending more sourcing.
+
+check_id: candidate-apc-netbotz-300-500-root-default-creds
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "American Power Conversion"
+references:
+  - "Schneider Electric FAQ FA158398, \"NetBotz 300-500 Series | Password reset procedure\" (user-supplied)"
+  - "Schneider Electric FAQ FA308010, \"NetBotz v3 | How do I configure network settings?\" (user-supplied, resolves protocol as local-serial-only)"
+description: >
+  Older APC NetBotz v3 appliances (Wall 355/356/455/456, Rack 450/451/550/570), on firmware below
+  4.7, use root:apc — but confirmed reachable ONLY via local USB-serial terminal emulation, not
+  any network-facing protocol. Architecturally out of scope for this project — resolved negative,
+  not building.

@@ -1,0 +1,73 @@
+# Candidate stub — 2026-09-18. Ingest triage, 8th Moxa batch. Confirmed no prior candidate/check
+# BLOCKER TAG (2026-09-22 triage pass): firmware-gap -- No MXsecurity firmware/server software was available in this ingest batch to reverse-engineer the login wire protocol (manual-only source).
+# for MXsecurity existed before writing this file (`grep -rli "mxsecurity" checks/` returned
+# nothing).
+#
+# THE FINDING, from Moxa's own official "MXsecurity User Manual" (v5.1, user-supplied,
+# fetched/read directly via pdftotext): "If you are logging in for the first time, use the
+# default administrator credentials: Username: admin / Password: moxa... If this is your first
+# time logging in, the Change Password window will appear... You must change the default login
+# name and password before you can access the management console." Same admin/moxa credential as
+# every other current Moxa product examined this batch, but with the SAME forced/blocking
+# first-login change behavior documented for the Industrial Linux 4.x platform (not the merely-
+# recommended pattern seen on the MGate/MDS/MRX switch lines) -- explicitly narrower exploit
+# window, same discipline as noted for that finding.
+#
+# PRODUCT CONTEXT: MXsecurity is Moxa's centralized security management console/platform
+# (referenced elsewhere in this session's own default-config sweep as a security-adjacent
+# product) -- notable as a security-MANAGEMENT product itself shipping a documented default
+# credential, same irony already flagged for other vendors' security tooling earlier in this
+# broader research thread.
+#
+# NOT YET BUILDABLE AS A LIVE CHECK: no MXsecurity firmware/server software was available in this
+# ingest batch to reverse-engineer the actual login wire protocol (manual-only source, same
+# situation as the DLM candidate). Whether this is delivered as an on-premises server, a virtual
+# appliance, or embedded firmware was not clarified by the manual excerpt reviewed this pass.
+#
+# SEVERITY: CVSS v3.1 scored via the same scripted formula used throughout this session, same
+# forced-first-login caveat as the Industrial Linux candidate:
+#   Vector: CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
+#   Base Score: 9.8 (CRITICAL) -- scored for the vulnerability class as documented, exploitable
+#   only against a genuinely never-yet-logged-into instance given the forced-change behavior.
+#
+# UPDATE 2026-09-22 (Moxa re-pass): SOURCING ATTEMPTED, CONFIRMED GENUINELY LOGIN-GATED. Checked
+# Moxa's own "Software & Documentation" page and product page for MXsecurity directly (not
+# assumed) -- both confirm downloading the actual software (a VMware OVA virtual-appliance image)
+# requires logging in to Moxa's separate "Software License" portal with a registered Moxa
+# account, distinct from the plain no-login CDN access that worked for several other Moxa
+# products this pass (DLM, MXview, SMG, ThingsPro, MXIO). Also worth noting even if obtained:
+# MXsecurity ships as a full VM OVA image, not a firmware/installer package, so "extracting" it
+# would mean booting a VM rather than static analysis -- a genuinely different effort shape from
+# every other candidate in this batch. No further sourcing attempted this pass given the
+# confirmed login gate; still manual-only sourced, unchanged from before this update.
+
+check_id: candidate-moxa-mxsecurity-admin-moxa-first-login-default
+protocol: http
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Moxa Technologies"
+  product: "MXsecurity"
+references:
+  - "Moxa MXsecurity User Manual, v5.1, user-supplied"
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "Not yet determined -- no MXsecurity firmware/software was available this pass to reverse-engineer the login wire protocol."
+    patterns: []
+  broad:
+    description: "Not yet determined."
+    patterns: []
+description: >
+  Moxa's MXsecurity centralized security management console ships a documented factory-default
+  administrator credential, admin/moxa, per Moxa's own official user manual — enforced as a
+  first-login-only default (a blocking Change Password prompt appears before the management
+  console can be accessed), the same forced-change behavior already documented for the Industrial
+  Linux 4.x Arm-based Computer platform, narrower in exploit window than the persistent defaults
+  found on Moxa's MGate/MDS/MRX product lines. CVSS 3.1: 9.8 CRITICAL
+  (AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H). Disclosure status: public (sourced from Moxa's own
+  manual). Not yet built as a live check — no MXsecurity firmware/software was available this
+  pass to reverse-engineer the actual login wire protocol.

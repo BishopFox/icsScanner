@@ -1,0 +1,104 @@
+# Default-credentials sweep, Phase 11. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Sources (3 independent, strong tier): SCADAPASS, citing the official eWON "Getting Started"
+# guide directly; a dedicated Darius Freamon post specifically titled "eWON Devices Multiple
+# Default Credentials"; and eWON's OWN "Ewon – Security at Every Level" document explicitly
+# warning that "the eWON comes with a default password for the administrator user 'Adm' and
+# this password must be changed on first connection" — the vendor's own security guidance
+# confirming its own default, the strongest corroboration tier (same pattern as Tridium's
+# hardening guide in Phase 9).
+#
+# eWON is a significant, widely-deployed industrial remote-access/VPN gateway vendor (Talk2M/
+# eCatcher ecosystem) — this is a "row applies to all models" entry, not a single niche product.
+#
+# KNOWN FINGERPRINT-GATE GAP (2026-08-15): unlike every other Phase 9-11 vendor, no eWON-specific
+# OUI entry exists in core/fingerprint.py, and a dedicated search of the official IEEE OUI
+# registry for "Ewon"/"eWON" turned up nothing — eWON SA (acquired by HMS Industrial Networks in
+# 2016) doesn't appear to have its own registered OUI, or devices may report HMS's own prefixes
+# (already in the table as "HMS Networks", 00:30:11 and others) instead. Rather than guess which,
+# this check's `vendor: "eWON"` precondition will currently never match via OUI lookup against
+# real hardware — loads and runs fine, just can't pass the fingerprint gate yet. Shipped anyway
+# (rather than held back as a candidate) because the credential/finding itself is solid; the gate
+# gap is a separate, disclosed, fixable-later architecture issue, not a research uncertainty
+# about the finding.
+#
+# UPDATE 2026-09-23 (new eWON Flexy firmware/doc batch, vendor firmware ingest):
+# two things checked with real material in hand, one real finding, one real doubt raised but not
+# resolved.
+#
+# 1. STALENESS CAVEAT, same shape as this project's Teltonika RUT admin01 finding: Ewon's own
+#    current "Flexy Family User Manual" (UM-0002-00, en-US, fetched/read directly via pdftotext)
+#    states plainly: "starting from their respective serial number (please consult IG-0014-00 and
+#    IG-0028-00), default login is 'adm' and password is the unique password you can find on the
+#    label sticker on the right..." and, more specifically, "For Ewon(R) Flexy devices produced
+#    after 10th of September 2024, default login is 'adm' and password is the unique password on
+#    the label sticker..." — i.e. current-production Flexy units do NOT ship the static adm/adm
+#    default this check tests; they ship a per-unit, physically-printed password unrecoverable
+#    over the network. adm/adm remains the documented default for units before that cutover
+#    ("The Flexy comes with an initial default user with username adm and password adm.", same
+#    manual, System Wizard section) and is presumably still accurate for eWON's other/older
+#    product lines (Cosy, non-Flexy legacy units) not covered by this specific manual. A negative
+#    result against a current-production Flexy should be read as "inconclusive/likely patched by
+#    design," not "confirmed vulnerable was ruled out" — same honesty framing already applied to
+#    the Teltonika check's own firmware/batch caveat.
+#
+# 2. REAL DOUBT ON THE BASIC-AUTH MECHANISM, NOT RESOLVED: this project has repeatedly found an
+#    assumed "HTTP Basic Auth" web-login mechanism to be wrong once real material is examined
+#    (Teltonika RUT this same session: assumed Basic Auth, actually a JSON REST /api/login). The
+#    real Flexy firmware in this ingest batch (er14/er15 *.ebu update packages) was checked
+#    directly: confirmed genuine eWON firmware containers (magic "EBU 14.9s3"/"EBU 15.1s0" text
+#    header, matching the *.edf "eWON D.F." companion data-feed files), but the actual payload is
+#    HIGH-ENTROPY (~7.997-7.998 bits/byte measured across five 64KB samples spanning the full
+#    file) starting immediately after a short plaintext header — i.e. genuinely encrypted, not
+#    merely compressed, consistent with eWON's documented secure firmware-update design. Static
+#    extraction of the real login wire format was NOT possible from this material. A targeted
+#    WebSearch of eWON's own public GUI-reference documentation
+#    (help.ewon.biz/devices/default/FLEXY20500_00/en/14.5/users.html) describes THREE separate
+#    login-related mechanisms for a Flexy, one of which is explicitly "a user defined page which
+#    is based on a Basic Access authentication" — worded as one OF SEVERAL mechanisms, which
+#    reads as evidence the MAIN configuration web UI (what this check actually targets, `path:
+#    "/"`) may NOT itself be the Basic-Auth-protected surface, that may instead be a separate,
+#    user-defined page. This is a real signal worth flagging, but it is NOT wire-format proof
+#    (no field names, path, or status codes recovered) — NOT acted on by changing the executor,
+#    per this project's convention of never replacing one unverified guess with another. Left
+#    exactly as basic_auth_default_creds.py for now; a live Flexy device, a non-encrypted
+#    firmware/SDK release, or the vendor's own developer API docs would resolve this properly.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-ewon-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "eWON"
+params:
+  path: "/"
+  credentials:
+    - ["adm", "adm"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (adm:adm)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtOmFkbQ=="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://dariusfreamon.wordpress.com/2017/11/13/ewon-devices-multiple-default-credentials/"
+  - "https://pearsonpkg.com/wp-content/uploads/2019/08/eWON-Security.pdf"
+  - "User-supplied ingest: um-0002-00-en-flexy-family.pdf, 'Flexy Family User Manual' (UM-0002-00), fetched and read directly via pdftotext -- per-unit label-sticker password cutover for units produced after 2024-09-10"
+description: "eWON industrial remote-access/VPN gateways ship with a factory-default adm/adm web-UI login, per eWON's own security documentation -- no CVE, documented factory-default behavior. CAVEAT (2026-09-23): Ewon's own current Flexy Family User Manual states Flexy units produced after 2024-09-10 instead ship a per-unit, physically-printed label-sticker password, not the static adm/adm default -- a negative result against a current-production Flexy is inconclusive, not a confirmed patch. Separately, the check's HTTP-Basic-Auth mechanism assumption is now in real doubt (eWON's own GUI-reference docs describe Basic Auth as only ONE of several distinct login mechanisms, for user-defined pages specifically) but not disproven with wire-format evidence -- real Flexy firmware in a 2026-09-23 ingest batch turned out to be genuinely encrypted (~7.997 bits/byte entropy), preventing static verification. See this file's own header for the full detail."

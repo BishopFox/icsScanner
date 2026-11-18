@@ -1,0 +1,48 @@
+# Default-credentials sweep, Phase 17 — final SCADAPASS closeout pass. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Sources (2 independent): SCADAPASS, whose own row explicitly labels this device "ICS device
+# for data logging"; corroborated by a dedicated Darius Freamon post, "Sunny WebBox Default
+# Password and Denial of Service" (also notes a separate DoS finding, a different vulnerability
+# class, not covered by this credential check).
+#
+# IMPORTANT: fingerprint vendor string carefully verified against "SMA Solar Technology AG"
+# specifically, not confused with the unrelated "SMA Railway Technology GmbH" (a different
+# company that also happens to appear in the IEEE OUI registry — checked directly to avoid a
+# mix-up before adding this entry to core/fingerprint.py).
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-sma-sunny-webbox-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "SMA Solar Technology AG"
+params:
+  path: "/"
+  credentials:
+    - ["Installer", "sma"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (Installer:sma)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic SW5zdGFsbGVyOnNtYQ=="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://dariusfreamon.wordpress.com/2015/05/02/sunny-webbox-default-password-and-denial-of-service/"
+description: "SMA Sunny WebBox (ICS device for solar PV data logging) ships with a factory-default Installer/sma web-UI login — no CVE, documented factory-default behavior."

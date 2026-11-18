@@ -1,0 +1,60 @@
+# Armed 2026-11-12 (WWS Tier-1 build, water-wws-coverage-and-gaps-2026-11.md). DNP3 (IEEE 1815) is the
+# dominant SCADA protocol for water/wastewater RTU telemetry (TCP 20000), alongside Modbus. The base
+# protocol has no authentication; DNP3 Secure Authentication (SAv5) is an optional add-on most field
+# deployments do not enable, so a network-reachable master can read all points AND issue control
+# (Operate/CROB, Analog Output). This is the missing-authentication exposure class (CWE-306), the same
+# shape as the FINS / MELSEC-SLMP / OptoMMP unauthenticated-access checks here. disclosure_status:
+# public -- a documented exposure class, not a novel finding.
+#
+# SAFETY: the executor reuses probe_dnp3_identity, which sends ONLY a benign Group 0 Device Attributes
+# READ (function code READ) -- never an Operate/CROB/Analog-Output. A CROB actuation proof-of-impact is
+# the isolated scripts/safety_critical/dnp3_crob_select_* plan-confirm tool, NEVER this armed check.
+#
+# PASSIVE detection is field-level (Zeek dnp3_application_request_header), firing on DNP3 control
+# function codes (Operate 4 / Direct Operate 5 / Direct Operate No-Response 6) -- the actual control
+# action this exposure permits -- rather than a byte pattern (DNP3's interleaved data-link CRCs make
+# byte matching unreliable, and the benign read is normal traffic that must not alert).
+
+check_id: dnp3-outstation-unauthenticated-access
+protocol: dnp3
+kind: native
+module: checks.dnp3.native.dnp3_unauthenticated_access
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:H/A:H (9.4 CRITICAL for the enabled capability) -- a DNP3 outstation with no Secure Authentication lets any reachable master read all points and issue control (Operate/CROB on binary outputs such as pumps/valves, and Analog Output setpoints). This check confirms the exposure via a benign Group 0 device-attributes READ only; it sends no control command."
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  protocol_probe: dnp3_identity
+params:
+  default_port: 20000
+  timeout: 4.0
+references:
+  - "IEEE 1815 (DNP3) + DNP3 Secure Authentication (SAv5, IEEE 1815-2012): SA is optional and commonly not enabled in the field, leaving the outstation open to any master (read + control)."
+  - "CISA / NSA ICS guidance on DNP3 exposure and the water/wastewater sector; DNP3 default TCP port 20000."
+  - "core/fingerprint.py probe_dnp3_identity -- the benign Group 0 Device Attributes READ (Var 243/245) identity gate this check reuses (read-only, no control)."
+  - "scripts/safety_critical/dnp3_crob_select_* -- the isolated CROB control proof-of-impact tool; actuation never runs from an armed check."
+detection_hints:
+  transport: tcp
+  app_protocol: dnp3
+  mitre_attack_id: T0855
+  analytic_story: "ICS Unauthorized Command"
+  protocol_event:
+    description: >-
+      A field-level (not byte-pattern) detection: a DNP3 control request toward an outstation -- function
+      code Operate (4), Direct Operate (5), or Direct Operate No-Response (6). On an outstation reachable
+      without DNP3 Secure Authentication, this is the unauthenticated control action the exposure permits
+      (e.g. a CROB start/stop of a pump or valve), which the read-only active check cannot observe.
+    zeek_event: dnp3_application_request_header
+    condition: "is_orig && (fc == 4 || fc == 5 || fc == 6)"
+description: >
+  DNP3 (IEEE 1815, TCP 20000) is the dominant water/wastewater RTU telemetry protocol. Its base form has
+  no authentication, and DNP3 Secure Authentication (SAv5) is an optional add-on most field deployments
+  do not enable; without it, any network-reachable master can read all points (tank levels, pump/valve
+  status, flows) and issue control -- Operate/CROB on binary outputs and Analog Output setpoints
+  (CWE-306). This check confirms the exposure by reusing a benign Group 0 Device Attributes READ
+  (manufacturer/model); an outstation that answers with no Secure Authentication challenge accepts an
+  unauthenticated master, so the control path is reachable the same way. The executor issues ONLY the
+  read -- never a control command; a CROB proof-of-impact is the isolated scripts/safety_critical/
+  dnp3_crob_select_* plan-confirm tool. Outstations without Group 0 attributes fail closed
+  (NOT_APPLICABLE), so a CONFIRMED is always a true unauthenticated read. disclosure_status public: a
+  documented exposure class, not a novel finding.

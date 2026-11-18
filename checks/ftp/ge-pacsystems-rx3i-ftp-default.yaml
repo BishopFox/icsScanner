@@ -1,0 +1,81 @@
+# Default-credentials sweep, Phase 3 (GE) candidate, PROMOTED 2026-08-16 after the user supplied
+# three official GE/Emerson manuals, read directly:
+#
+# - GFK-2224AG, "PACSystems RX3i and RSTi-EP TCP/IP Ethernet Communications User Manual" —
+#   "Configuring Advanced User Parameters," FTP Parameters (task t): `tpassword` default value
+#   is literally "system" (0-8 characters). This resolves the original ambiguity directly:
+#   "system" is the PASSWORD, not the username, correcting an earlier unsourced search summary.
+# - GFK-2830AD, "PACSystems RXi, RX3i and RSTi-EP Controller Secure Deployment Guide" —
+#   independently corroborates: its own credential-hardening table lists "FTP user" as an
+#   account changed via `tpasswd=<newpass>`, same value.
+# - GFK-2225B, "PACSystems TCP/IP Communications Station Manager Manual" (a related but distinct
+#   service on the same Ethernet interface module) — states plainly its own login is
+#   password-only, no username prompt at all: "Type in the password... The default password is
+#   'system' (lower case)." Read at the user's direction (page 14).
+#
+# USERNAME NOTE: neither of the two FTP-relevant manuals documents a username field for the FTP
+# task at all — every AUP task with a password parameter in GFK-2224AG (FTP's `tpassword`, the
+# Station Manager's `stpasswd`) has NO corresponding username parameter anywhere in either
+# document, and GFK-2225B directly confirms the Station Manager's own login is genuinely
+# password-only. This is architecturally consistent enough across two unrelated services in two
+# independently-authored manuals to treat as a real pattern, not a documentation gap. Tried here
+# against username "anonymous" (the standard FTP convention for "no real username needed") — NOT
+# a literal empty string: `checks/ftp/native/ftp_default_creds.py` calls stdlib ftplib's
+# `login()`, which silently substitutes user="anonymous" for any falsy username itself (confirmed
+# by reading ftplib's source, not assumed), so an empty-string credential here would actually
+# test "anonymous" on the wire regardless — made explicit instead of relying on that silent
+# behavior. Deliberately did NOT modify the shared ftp_default_creds.py module to send a truly
+# blank username instead — that module's login path is already relied on by the shipped HollySys
+# check for a DIFFERENT ftplib substitution (empty password + "anonymous" user -> "anonymous@"),
+# and changing shared login mechanics for this one check's marginal precision gain risked
+# regressing that one. This is the one part of the credential that isn't independently sourced;
+# unlike a guessed password, this is safe to try because ftplib.login()'s success is entirely the
+# SERVER's own decision (raises on any rejection) — a CONFIRMED result here is fully real
+# regardless of the username guess, it just means a wrong guess risks a false NOT_APPLICABLE, not
+# a false CONFIRMED.
+#
+# Possibly related, NOT reconciled: `checks/ftp/native/../ge-pacsystems-ic695-ic698-telnet-ftp-default-creds.yaml`
+# (RX7i product line, Phase 8, SCADAPASS-sourced) assumes `user:system` — a username:password
+# PAIR, differing from what RX3i's own primary sources show. Worth a future look, not resolved
+# here — different product line, not assumed to share the same scheme.
+
+check_id: ftp-ge-pacsystems-rx3i-default-creds
+protocol: ftp
+kind: native
+module: checks.ftp.native.ftp_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "GE Automation"
+references:
+  - "https://www.manualslib.com/manual/1258748/Ge-Rx3i.html?page=218"
+params:
+  credentials:
+    - ["anonymous", "system"]
+detection_hints:
+  transport: tcp
+  app_protocol: ftp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own FTP USER/PASS login attempt(s) using the documented factory credential(s) (anonymous:system)"
+    patterns:
+      - context: request
+        bytes: "USER anonymous\r\nPASS system\r\n"
+  broad:
+    description: "Any FTP USER/PASS login attempt on this device — the vulnerability class (default/weak credentials on this product's FTP server), not the specific guessed credential"
+    patterns:
+      - context: request
+        regex: "^USER \\S*\\r\\nPASS \\S*\\r\\n"
+description: >
+  GE/Emerson PACSystems RX3i (and RSTi-EP) controllers, accessed through the Ethernet interface
+  module, ship with FTP Advanced User Parameter `tpassword` defaulting to "system" — confirmed
+  directly from GE's own Ethernet Communications User Manual (GFK-2224AG) and independently
+  corroborated by the Secure Deployment Guide (GFK-2830AD). No documented username field exists
+  for this service; tried against "anonymous" (the standard FTP no-real-username convention),
+  consistent with the password-only login model GE's own Station Manager manual (GFK-2225B)
+  confirms for a related service on the same interface — see the module comment above for why
+  this isn't a literal empty string. No CVE — documented factory-default AUP behavior, not a
+  disclosed vulnerability.

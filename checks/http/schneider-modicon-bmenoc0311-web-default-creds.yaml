@@ -1,0 +1,52 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ "How to access the webpage
+# of BMENOC0311 V1.03 without using the password and login details" directly. Product line:
+# Modicon M580/M340/X80 BMENOC0301/BMENOC0311 Ethernet modules (the FAQ names both in its own
+# Product Line field).
+#
+# The FAQ's own Resolution: "The Default username and password are admin, factorycast for
+# BMENOC0311" — stated as plain fact while explaining an unrelated topic (how to later disable
+# the module's access-management gate entirely). The same value was independently spotted during
+# this project's own pdftotext-triage-workflow validation test earlier this session, on a
+# different sample document; this FAQ is the first time a check was actually built for it.
+#
+# Distinct from the sibling FAQs reviewed the same batch ("User lost the username and password to
+# the BMENOC0301/BMENOC0311 module") describing recovery AFTER a customer changed this password —
+# those describe an unrecoverable-without-factory-repair scenario for a CHANGED credential, not a
+# contradiction of the factory-shipped default documented here.
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-modicon-bmenoc0311-web-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "factorycast"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory credential (admin:factorycast) for the Modicon BMENOC0301/BMENOC0311 module's webpage"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46ZmFjdG9yeWNhc3Q="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ, \"How to access the webpage of BMENOC0311 V1.03 without using the password and login details\" (user-supplied)"
+description: "Schneider Electric Modicon M580/M340 BMENOC0301/BMENOC0311 Ethernet modules ship with a factory-default webpage login of admin:factorycast. No CVE, documented factory-default behavior per Schneider's own FAQ."

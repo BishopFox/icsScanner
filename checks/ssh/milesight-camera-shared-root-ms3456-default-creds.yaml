@@ -1,0 +1,76 @@
+# ARMED in checks/ssh/ (not candidates/). Status-verified before arming, per the disclosure gate:
+# disclosure_status is PUBLIC — this is a KNOWN, already-CVE'd hardcoded-credential issue, NOT an
+# undisclosed finding of ours. We independently confirmed it; we are not the discloser.
+#   - CVE-2026-27785 / CISA ICSA-26-113-03 (2026): Milesight AIoT cameras ship HARD-CODED CREDENTIALS
+#     (affected builds incl. MS-Cxx63-PD up to 51.7.0.77-r12).
+#   - CVE-2016-2360: root password in /etc/shadow identical across all customer installations
+#     (Milesight IP cameras); CVE-2016-2358 (default privileged accounts); CVE-2016-2357 (hardcoded
+#     SSL key in /etc/config).
+#
+# Mechanism confirmed DIRECTLY from firmware (this project, 2026-10-17, sidecar sweep of 222 Milesight
+# images + user-run john): the OS `root` account's password is the SHARED, hardcoded value `ms3456`,
+# reused fleet-wide. Our crack recovered `ms3456` from ELEVEN of fourteen distinct firmware across
+# THREE hash algorithms — DES (S_52 `T6RD1CUW422yY`, MSFImage_64 `mSYGpe07.UvOY`), md5-crypt
+# (`$1$acQMceF9$4er4Zf...` shared by ~8 product lines: C_21, MSFImage_31/32/45/51/71, T_45, T_47) and
+# sha512-crypt (`$6$.37IPhH5...` on V_125/V_126/MSFImage_48) — all = `ms3456`. (Two images used a
+# different, uncracked root: C_31 and a V-series recovery account.) `/etc/passwd` gives root /bin/sh;
+# the device ships dropbear SSH.
+#
+# SCOPE / REACHABILITY CAVEAT: these units start dropbear from the main camera application binary
+# (init `S90app`), not a shell script, so whether root SSH *password* login is enabled by default
+# could not be confirmed from static files — the console root login (getty /bin/login + ms3456) IS
+# confirmed; SSH-root is "reachable where the app enables it" (verify on a live unit). Scored low
+# accordingly. The camera web UI has its own admin credential (separate from this OS root).
+#
+# NOTE (fingerprint): this check is gated on vendor "Milesight", which on a remote scan is only
+# satisfied by a baseline/OUI vendor identification (not remote-capable), so it stays effectively
+# INERT on remote targets until a CAMERA-specific active identity probe exists. The camera web UI
+# could not be grounded into a probe from firmware (empty <title>, brand only in minified JS, no
+# distinctive Server header), and — unlike the router line — the Milesight CAMERA platform has no
+# documented unauthenticated identity endpoint (its public CVEs are hardcoded-creds/CWE-798, not an
+# identity leak), so no camera probe is groundable yet. IMPORTANT: a Milesight ROUTER identity probe
+# (probe_milesight_router_identity, added 2026-10-19, grounded on CVE-2023-43261) now exists, but it
+# identifies the UR/M35x ROUTER httpd — a DIFFERENT platform that does NOT carry the camera `ms3456`
+# root — so it deliberately does NOT gate this camera check (that would fire root/ms3456 at a router).
+# Do NOT run this check ungated (would fire root/ms3456 at arbitrary SSH hosts). The durable fact
+# here is the documented/CVE'd credential.
+check_id: ssh-milesight-camera-shared-root-ms3456-default-creds
+protocol: ssh
+kind: native
+module: checks.ssh.native.ssh_default_creds
+destructive: true
+risk_reason: ["login"]  # single SSH login attempt (documented/CVE'd default); no device write
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Milesight"
+params:
+  credentials:
+    - ["root", "ms3456"]
+detection_hints:
+  transport: tcp
+  app_protocol: ssh
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "No narrow wire-level signature — SSH encrypts the session after key exchange, so the root/ms3456 login this scanner sends is not visible as a plaintext pattern."
+    patterns: []
+  broad:
+    description: "SSH authentication attempts against a Milesight device from a single source in a short window (shared-root default-credential login attempt)."
+    patterns:
+      - context: request
+        regex: "SSH-2\\.0-"
+references:
+  - "CVE-2026-27785 (CISA ICSA-26-113-03) — Milesight AIoT cameras hardcoded credentials"
+  - "CVE-2016-2360 / CVE-2016-2358 / CVE-2016-2357 — Milesight IP camera shared root password, default accounts, hardcoded SSL key"
+  - "This project's firmware analysis (222 Milesight images, 2026-10-17): OS root = shared 'ms3456' cracked across 11/14 firmware (DES/md5/sha512); see project_milesight_firmware_sweep"
+references_note: "known/CVE'd documented default — this check gives scanner coverage of the public issue, it is not a novel disclosure"
+description: >
+  Milesight cameras (and IoT/LoRa gateways on the same platform) ship a shared, hardcoded OS `root`
+  password `ms3456`, reused across the product line — the hardcoded-credential issue covered by
+  CVE-2026-27785 (CISA ICSA-26-113-03, 2026) and the 2016 cluster (CVE-2016-2360/2358/2357), and
+  independently confirmed here by cracking `ms3456` out of 11 of 14 firmware images across DES,
+  md5-crypt and sha512-crypt hashes. This check attempts a single root/ms3456 SSH login against a
+  fingerprinted Milesight device. No new CVE — scanner coverage of a documented/known issue; flags
+  units still shipping the shared default. Fingerprint-gated on Milesight (identity probe is a
+  follow-up; inert until then).

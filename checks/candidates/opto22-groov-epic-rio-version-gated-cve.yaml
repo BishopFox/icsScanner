@@ -1,0 +1,51 @@
+# Candidate stub — 2026-11-10, opto22 sweep follow-up (lead #3 from the SNAP PAC / groov EPIC CVE
+# buildability review). NOT executable (no `kind`). Deconfliction: no prior groov EPIC/RIO candidate or
+# check existed.
+#
+# FINDING (ICSA-25-324-03, Opto 22 groov EPIC / groov RIO):
+#   CVE-2025-13087: OS command injection in the groov Manage REST API -> remote code execution with
+#     root privileges. Fixed in firmware 4.0.3. (A related groov View metadata information-exposure was
+#     disclosed in the same window; fix groov View Server for Windows R4.5e + GRV-EPIC firmware 4.0.3.)
+# disclosure_status: public (published CISA advisory + CVE).
+#
+# SCANNER CHARTER NOTE: the CVE is an AUTHENTICATED command-injection -> root RCE. Exploiting it is OUT
+# OF CHARTER (offensive/destructive). This candidate is ONLY the benign VERSION-GATE detection: identify
+# a groov EPIC / groov RIO running groov Manage and read its firmware version, then flag versions
+# < 4.0.3 as exposed to CVE-2025-13087. It NEVER sends the injection payload or authenticates.
+#
+# NOT YET BUILDABLE -- blockers (reviewed 2026-11-10 against developer.opto22.com + Opto 22 KB):
+#  1. NO unauthenticated groov version source. groov firmware is ENCRYPTED (the update has a decrypt
+#     stage: "Failed to decrypt system update. Confirm that the firmware is correct for this device
+#     type"), so it canNOT be extracted to pin an httpd banner / version read the way SNAP PAC R10.7c
+#     (plaintext) was. The groov Manage REST API is API-key authenticated, and no unauthenticated
+#     version/info endpoint appears in the public docs. => need a LIVE groov EPIC/RIO unit to observe
+#     what the web UI / API reveal unauthenticated, or confirmation that the OptoMMP firmware-version
+#     read (0xF030001C) returns the groov 4.0.x version on a groov EPIC (unconfirmed -- likely a PAC
+#     component version, not the groov Manage version).
+#  2. Must stay READ-ONLY identity + version only.
+#  VERSION BOUNDARY CONFIRMED: < 4.0.3 across TWO groov EPIC CVEs -- CVE-2025-13087 (groov Manage REST
+#  API OS-cmd-inj -> root RCE) AND CVE-2025-13084 (groov View API-key exposure, KB91325). (Clickjacking
+#  KB91363 fixed 4.1.0.) The gate value is solid; only the remote version-READOUT mechanism is missing.
+#
+# BUILDABLE once the groov Manage identity + version is pinned -> a version-gated detection (flag
+# < 4.0.3) gating on optommp_identity or a new groov_manage probe. Detection only; never the RCE.
+
+check_id: candidate-opto22-groov-epic-rio-version-gated-cve
+protocol: http
+cve_id: CVE-2025-13087
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Opto 22"
+  product: "groov EPIC / groov RIO"
+references:
+  - "Opto 22 groov EPIC / groov RIO, ICSA-25-324-03 (CVE-2025-13087 groov Manage REST API OS command injection -> root RCE; fixed firmware 4.0.3): https://www.cisa.gov/news-events/ics-advisories/icsa-25-324-03"
+  - "core/fingerprint.py probe_optommp_identity -- protocol-layer groov EPIC/RIO identity + firmware-version read (0xF030001C), candidate input for the version-gate."
+description: >
+  Opto 22 groov EPIC / groov RIO run groov Manage, whose REST API had an OS command-injection giving
+  root RCE (CVE-2025-13087, fixed firmware 4.0.3; ICSA-25-324-03). The exploit is out of this scanner's
+  charter; this candidate is ONLY the benign version-gate detection -- identify a groov Manage instance,
+  read its firmware version, and flag versions < 4.0.3 as exposed. It never sends the injection payload
+  or authenticates. Not yet buildable: no groov Manage identity + version probe exists; the groov Manage
+  version read must be pinned from firmware or a live unit (the OptoMMP firmware-version read may
+  suffice if it maps to the groov 4.0.x scheme). disclosure_status: public (published CVE).

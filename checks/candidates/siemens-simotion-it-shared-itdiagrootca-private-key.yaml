@@ -1,0 +1,67 @@
+# Candidate — 2026-10-13. firmware-sidecar batch review of vendor firmware ingest
+# (SIMOTION memory-card images: SIMOTION_Card_PN_V3.0.0.1 / SIMOTION_Card_DP_V3.0.0.1 / SIMOTION_Card_PN).
+# Surfaced by the sidecar's generic_secret_grep routine ("private key shipped in firmware") inside the
+# nested addon.zip = the SIMOTION IT (embedded web diagnostics) package at /SIEMENS/SIMOTION/HMI/.
+#
+# FINDING (structurally CONFIRMED): the SIMOTION IT web stack ships a ROOT CA private key in firmware:
+#   file: /SIEMENS/SIMOTION/HMI/ITDiagRootCA.key  (+ ITDiagRootCA.crt / .der)
+#   cert: self-signed, C=DE / O=Siemens AG / CN=ITDiagRootCA, X509v3 BasicConstraints critical CA:TRUE,
+#         notBefore 2018-01-23, notAfter 2048-01-16 (30-year root).
+#   key<->cert: modulus MATCHES (openssl, identical) -> it IS the private key for this CA.
+#   SHARED/HARDCODED: the SAME key (modulus md5 8a3bcf08b6d096de4f4502912e1fbc15) and the SAME cert
+#   (SHA1 92:59:C5:44:5B:43:0C:C0:C0:51:E3:77:86:6E:4B:02:0B:BA:0C:4E) ship IDENTICALLY across THREE
+#   independent SIMOTION card packages (Card_DP, Card_PN, Card_PN_V3.0.0.1 -- different product variants).
+#   => not per-device; a fleet-wide hardcoded CA key. CWE-321 (hard-coded crypto key) / CWE-798.
+# EXPOSURE MODEL: the SIMOTION IT "Manage Config" page (manitdiagcert.mwsl) serves the root cert at
+#   /fileaccess/rootcertdownload/itdiagrootca.crt for operators to install as a trusted root; the device's
+#   HTTPS server cert is chained to ITDiagRootCA. Anyone holding the firmware (public on Siemens support)
+#   holds the CA private key -> can forge server certs that any SIMOTION-IT-trusting client accepts ->
+#   TLS MITM / impersonation of SIMOTION IT HTTPS. (The device's own server keypair is CA-signed, not the
+#   CA key itself -- so this is a trust-anchor compromise, broader than one shared server cert.)
+#
+# PRIOR ART (WebSearch extended 2026-10-13) -> DOCUMENTED-DEFAULT, NOT NOVEL. Siemens' own "SIMOTION IT
+# Diagnostics and Configuration" manual states the as-delivered device ships "a standard server
+# certificate and a private key of the Web server provided as a file" and that "these files should be
+# replaced with your own to increase the security of HTTPS access." i.e. Siemens DOCUMENTS the default
+# shared cert/key and tells operators to replace it -> this is the documented-default/hardening class,
+# which Siemens (like Moxa/WAGO, see [[project_cve_submissions]]) declines. Distinct known Siemens
+# hardcoded-key advisories are OTHER issues: SSA-542701 / CVE-2019-10920 (project-data decryption key,
+# port 10005/tcp) and CVE-2022-38465 (S7-1200/1500 global key) -- neither is this web CA key.
+# => NOT a disclosable novel finding. Real (shared key confirmed) but vendor-documented + replaceable.
+#
+# RELATED, SAME PACKAGE (also documented-default, NOT a live cred): USERDATABASE.XML ships with the
+# default admin <USER NAME="simotion" PASSWORD="simotion" ... "administrator with all rights"> but it is
+# COMMENTED OUT (empty DB as shipped; "passwords will be replaced by A1-hash on startup"). So simotion/
+# simotion is the documented default-when-enabled, not an active shipped credential. No finding.
+#
+# DETECTABLE (if ever pursued, PUBLIC class): a SIMOTION IT device still presenting a cert chained to /
+# equal to this known ITDiagRootCA is fingerprintable at the TLS layer (known cert SHA1 above / known CA
+# modulus). cf. the existing tls_hardcoded_server_key executor -- though that matches the SERVER cert
+# modulus; this is a CA, so a chain/issuer match (or GET /fileaccess/rootcertdownload/itdiagrootca.crt
+# returning the known cert) would be the detection. Low value (documented, legacy SIMOTION V3-era).
+# Key material WITHHELD from this file (private); only public fingerprints recorded. Legacy/EoL-ish
+# (addon files 2016, cert 2018; current SIMOTION is V5.x) -- further tempers value.
+#
+# DISCLOSURE: public (vendor-documented default). KEEP AS CANDIDATE/research record; do NOT arm, do NOT
+# disclose (declined documented-default class). Logged to [[project_firmware_sidecar]].
+
+check_id: candidate-siemens-simotion-it-shared-itdiagrootca-private-key
+protocol: https
+disclosure_status: public
+confidence: high        # for the CONFIRMED fleet-shared CA keypair; it is a vendor-DOCUMENTED default (not novel)
+fingerprint_precondition:
+  vendor: "Siemens"
+  product: "SIMOTION (D4xx/P320/C240) SIMOTION IT web diagnostics"
+references:
+  - "SIMOTION_Card_PN_V3.0.0.1/..../addon.zip -> /SIEMENS/SIMOTION/HMI/ITDiagRootCA.key(+.crt/.der): self-signed CA:TRUE CN=ITDiagRootCA O=Siemens AG, 2018-2048; key modulus matches cert; identical key (modulus md5 8a3bcf08..e1fbc15, cert SHA1 92:59:C5:44:..:0C:4E) across SIMOTION_Card_DP/PN/PN_V3.0.0.1 = fleet-shared (CWE-321/798)."
+  - "Siemens 'SIMOTION IT Diagnostics and Configuration' manual: ships a standard server certificate + web-server private key as a file, 'should be replaced with your own' -> DOCUMENTED default (declined class). support.industry.siemens.com SIMOTION_IT_diagnostics_and_configuration_en-US.pdf"
+  - "manitdiagcert.mwsl: 'Manage Config' page serves /fileaccess/rootcertdownload/itdiagrootca.crt and accepts <DevName>cert.ZIP uploads -> ITDiagRootCA is the operator-trusted root anchor."
+description: >
+  Siemens SIMOTION IT (embedded web diagnostics) ships a fleet-shared ROOT CA private key
+  (CN=ITDiagRootCA, O=Siemens AG, CA:TRUE, 2018-2048) in firmware at /SIEMENS/SIMOTION/HMI/ITDiagRootCA.key
+  -- identical across SIMOTION Card DP/PN variants (CWE-321/798). The SIMOTION IT HTTPS trust anchor is
+  therefore forgeable by anyone with the public firmware (MITM/impersonation). HOWEVER Siemens' own
+  SIMOTION IT manual documents the default shipped cert/key and instructs operators to replace it -> this
+  is the documented-default/hardening class (declined), NOT a novel disclosable vulnerability. The
+  same package's simotion/simotion admin user is COMMENTED OUT (not an active shipped credential).
+  Public/documented research record; keep as candidate, do not arm or disclose. Legacy SIMOTION V3-era.

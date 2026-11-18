@@ -1,0 +1,49 @@
+# Native check (multi-connection loop — doesn't fit the declarative single-connection model).
+# See checks/modbus/native/espmodbus_pool_exhaust.py for the implementation, ported from
+# a companion fuzzing toolkit:_check_pool_exhaust.
+#
+# detection_hints: narrow/broad are DELIBERATELY OMITTED — each of the 7 rapid connections sends a
+# standard, valid FC03 read-holding-registers request (hex 000100000006010300000001), byte-identical
+# to any normal Modbus poll, so a content pattern would be "any valid FC03 read" (useless) or nothing.
+# The real signal is the CONNECTION RATE (7 opened rapidly), now expressed via the `behavioral` block
+# below (2026-11-11) instead of a byte pattern — see core/detect_match.py:BehavioralTracker.
+detection_hints:
+  transport: tcp
+  app_protocol: modbus
+  mitre_attack_id: T0814
+  analytic_story: "ICS Denial of Service"
+  behavioral:
+    description: "TCP connection-pool exhaustion: rapid connection cycling to Modbus TCP/502 (the
+      module opens ~7 in a burst to exhaust the ESP32's small pool). Volumetric connection rate, not a
+      byte pattern — flag 5+ new connections to the service port within a 2s window."
+    signal: connection_rate
+    threshold: 5
+    window_seconds: 2
+    target: resp
+    tuning: >-
+      HUNTING-GRADE, expect false positives. Validated against real OT traffic (PNNL OT-IDS):
+      legitimate Modbus masters reconnect in bursts of 8-9 connections per 2s and hold 2-5 open at
+      once, so connection RATE alone does NOT separate this attack (~7 rapid connections) from a
+      reconnect-heavy master -- no single rate threshold is clean. Before deploying: baseline YOUR
+      segment's normal connection churn to TCP/502 and raise count/seconds above it. Treat a hit as a
+      hunt lead, not a confirmed attack. Correlate with (a) source IP -- an unexpected/off-asset
+      originator, (b) the target's documented connection-pool size (ESP32 esp-modbus default is ~1-2
+      concurrent; the attack holds ~7 open), and (c) whether the connections complete normal Modbus
+      reads or sit idle/half-open. For a reliable signal prefer the generated Zeek connection-
+      CONCURRENCY policy (zeek-behavioral): set its threshold just above the device's real pool size
+      and alert on concurrent-open count, which separates attack from baseline where rate cannot.
+
+check_id: modbus-espmodbus-pool-exhaust
+protocol: modbus
+kind: native
+module: checks.modbus.native.espmodbus_pool_exhaust
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Espressif Inc."
+  # Destructive check — protocol_only is not allowed here (see core/registry.py's load-time
+  # enforcement); real vendor narrowing is required exactly because this check can disrupt
+  # service. Same OUI-only-narrows-to-"some-ESP32" caveat as the other checks in this family.
+description: "TCP connection pool exhaustion via rapid connection cycling — espressif/esp-modbus (assessed by vendor as robustness, not a vulnerability; BBP#582, no CVE)"

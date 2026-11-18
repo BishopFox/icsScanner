@@ -1,0 +1,46 @@
+# Default-credentials sweep, 2026-08-25 — user supplied the official WIFER Quick Start Guide
+# (NHA24030-00) directly. Brand-new product for this project: WIFER (TCSEGWB13FA0), a "Portable
+# Battery Powered WIFI Access Point" — a Schneider TCSEGW-series Ethernet gateway used to bridge
+# a wired device/network to WiFi, e.g. for temporary field access to industrial equipment.
+#
+# The guide's own "Software Connection" section states plainly: "For the fist [sic] time you open
+# the WIFER WEB site enter: User Name: admin / Password: admin." Independently re-confirmed in
+# the guide's own Troubleshooting section, which lists the same value as "The default User
+# Password" alongside the default IP (223.22.33.223) and subnet (255.255.255.0).
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-wifer-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "admin"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory credential (admin:admin) for the WIFER portable WiFi access point web site"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46YWRtaW4="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "WIFER Quick Start Guide, NHA24030-00 (user-supplied)"
+description: "Schneider Electric WIFER (TCSEGWB13FA0), a portable battery-powered WiFi access point/Ethernet gateway, ships with a factory-default web site login of admin:admin at default IP 223.22.33.223. No CVE, documented factory-default behavior per the official Quick Start Guide."

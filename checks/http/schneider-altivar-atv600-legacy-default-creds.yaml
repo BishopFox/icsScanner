@@ -1,0 +1,71 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ FA272575 ("What is the
+# password to the embedded Ethernet Modbus TCP Webserver on the Altivar Process Drive?") directly.
+#
+# IMPORTANT SCOPE NOTE, read before touching this check: this FAQ documents a genuinely NARROWING
+# credential lifecycle across firmware versions, not one flat default:
+#   - ATV600 series, firmware < V1.5: static default User ID + password, BOTH "ADMIN" — this is
+#     the ONLY case this check covers.
+#   - ATV600 firmware >= V1.5 (and ATV900 from V2.1, ATV340E from V1.6): "ADMIN" is no longer a
+#     valid default password — a UNIQUE password is generated per drive, retrievable only via the
+#     drive's own local HMI keypad (webserver submenu 8.7), and only once the drive has an IP
+#     address assigned. This is NOT a static or remotely-derivable credential (unlike the PM5500
+#     MAC-derived case, which at least be computed from a value the scanner CAN observe) — there
+#     is no remote path to this value at all. Not buildable as a check OR a standalone script;
+#     genuinely out of scope for this project's architecture.
+#   - A further cybersecurity update (V3.3 for ATV600/ATV900, V3.2 for ATV340E) forces a password
+#     change on first Ethernet connection, closing even the narrow default-password window
+#     entirely on updated firmware.
+# This check therefore only fires against genuinely old ATV600 firmware — a real, narrow, but
+# still-relevant finding (old firmware in the field is common in ICS/OT environments), not a
+# blanket Altivar-family finding. Do not widen the credential list or fingerprint_precondition to
+# ATV900/ATV340E without an equally explicit static-default source for those specific
+# lines/firmware ranges.
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention for
+# Schneider embedded webservers described only as "[Webserver]" with no contrary signal (custom
+# form, language dropdown, session-cookie flow) — same posture already used for PM8000/PM5500/
+# RTU500/EGX100, none of which had their mechanism independently confirmed beyond this same
+# "Webserver" FAQ framing either.
+#
+# No CVE — documented factory-default behavior, explicitly scoped to legacy firmware by Schneider
+# themselves.
+
+check_id: http-schneider-altivar-atv600-legacy-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["ADMIN", "ADMIN"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory credential (ADMIN:ADMIN) for legacy Altivar Process ATV600 firmware"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic QURNSU46QURNSU4="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on legacy firmware), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ FA272575, \"What is the password to the embedded Ethernet Modbus TCP Webserver on the Altivar Process Drive?\" (user-supplied)"
+description: >
+  Schneider Electric Altivar Process ATV600 series variable-speed drives, on firmware versions
+  older than V1.5, ship with a static factory-default embedded webserver login of ADMIN:ADMIN.
+  Firmware V1.5 and later replace this with a unique per-drive password (not a static or
+  remotely-derivable credential — out of scope for this check and this project's architecture
+  entirely) and later cybersecurity updates (V3.3+) force a password change on first Ethernet
+  connection. This check therefore only detects genuinely old, unpatched ATV600 firmware. No
+  CVE — documented factory-default behavior, explicitly scoped by Schneider to legacy firmware.

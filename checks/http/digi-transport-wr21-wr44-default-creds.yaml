@@ -1,0 +1,48 @@
+# Default-credentials sweep, Phase 12. Different Digi product line than the Connect/ConnectPort
+# family (checks/http/digi-connect-family-default-creds.yaml) — the TransPort series industrial
+# routers, with a DIFFERENT (and genuinely unusual) default: the literal words "username" and
+# "password" as the account, not root:dbps. Not a placeholder in the source data — independently
+# confirmed as the real, documented default.
+#
+# Sources (2 independent): SCADAPASS, citing the official Digi TransPort WR21 quick-start guide;
+# corroborated by an independent WebSearch converging on literal username:password, distinct
+# from the more common root:dbps default used elsewhere in Digi's lineup.
+#
+# Same fingerprint-gate gap as the sibling Digi Connect check — see that file's header for the
+# full explanation (no verifiable "Digi International" OUI found in the official IEEE registry).
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-digi-transport-wr21-wr44-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Digi International"
+params:
+  path: "/"
+  credentials:
+    - ["username", "password"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (username:password)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic dXNlcm5hbWU6cGFzc3dvcmQ="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://ftp1.digi.com/support/documentation/transport/assets/guides/IG_Digi_WR21.pdf"
+description: "Digi TransPort WR21/WR44 industrial routers ship with a literal factory-default username/password web-UI login — no CVE, documented factory-default behavior."

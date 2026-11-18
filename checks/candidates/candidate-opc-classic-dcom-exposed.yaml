@@ -1,0 +1,46 @@
+# Candidate stub — exposed OPC Classic (OPC DA/A&E/HDA over DCOM / MS-RPC). NOT executable (no `kind`):
+# a fingerprint-only correlation stub. Flags the legacy no-auth OPC-Classic exposure class when any of
+# core/dcom.py's three discovery vectors identify an OPC Classic server (model "OPC Classic (DCOM)
+# server"): passive Zeek dce_rpc.log interface-UUID match, or active EndpointMapper enumeration.
+#
+# WHAT THIS IS: detection coverage of a DOCUMENTED exposure class, same shape as the Geo SCADA WebX and
+# ATG serial-command-port exposure checks -- NOT a novel vulnerability, so disclosure_status: public.
+# OPC Classic is COM/DCOM over MS-RPC with no transport authentication of its own; the OpcEnum service
+# "disables all security" (OPC Foundation's own guidance), and Microsoft's DCOM hardening
+# (CVE-2021-26414) exists precisely because OPC Classic deployments ran with authentication at None.
+# A reachable OPC Classic server on an untrusted segment is the exposed-legacy-OPC surface: it fronts
+# unauthenticated tag read (and, for DA servers that write, tag write into the connected instruments).
+#
+# WHAT THIS IS NOT (no overclaim): this reports reachability + protocol identity only. It does not
+# assert a specific server's DCOM ACLs, does not send credentials, and does not demonstrate read/write
+# of any tag -- the actual DCOM authentication posture is per-host configuration. A confirmed anonymous
+# OpcEnum/EndpointMapper enumeration (core/dcom.py probe_dcom_opc_epm) is the stronger, host-specific
+# signal that security really is off.
+#
+# IDENTITY: core/dcom.py — passive classify_opc_dcerpc_endpoint (13 well-known OPC DA/A&E/HDA/OpcEnum
+# interface IIDs) or active probe_dcom_opc_epm (RPC EndpointMapper), both yielding model
+# "OPC Classic (DCOM) server". probe_dcom_serveralive2 identifies a generic Windows DCOM host (model
+# "Windows DCOM/MS-RPC host") and intentionally does NOT match this stub (DCOM != confirmed OPC).
+
+check_id: candidate-opc-classic-dcom-exposed
+protocol: dcom
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  product: "OPC Classic (DCOM) server"
+references:
+  - "core/dcom.py — OPC Classic (DCOM/MS-RPC) discovery: passive dce_rpc UUID match + active EndpointMapper enumeration + ServerAlive2."
+  - "Microsoft DCOM hardening CVE-2021-26414 (KB5004442) — raised the default RPC authentication level because OPC Classic ran at None."
+  - "OPC Foundation: OpcEnum disables DCOM security; a DA server should never run exposed on the network (OPC Classic is insecure by design over DCOM)."
+description: >
+  An OPC Classic server (OPC DA/A&E/HDA over DCOM / MS-RPC) is reachable on the network. OPC Classic has
+  no transport authentication of its own, the OpcEnum enumerator disables DCOM security, and Microsoft's
+  DCOM hardening (CVE-2021-26414) exists because these servers commonly ran at authentication level None
+  — so a reachable OPC Classic server on an untrusted segment is the exposed-legacy-OPC-management
+  surface (unauthenticated tag read, and tag write on DA servers that support it, into the connected
+  instruments). This stub emits a FINGERPRINT_ONLY likely-affected result when the scanner identifies an
+  OPC Classic server (model "OPC Classic (DCOM) server") via core/dcom.py — passively from Zeek
+  dce_rpc.log interface UUIDs, or actively via the RPC EndpointMapper. It sends no credentials and
+  demonstrates no tag access; the per-host DCOM authentication posture is not asserted (NOT claiming
+  unauthenticated control). disclosure_status public: a documented exposure class, i.e. detection
+  coverage, not a novel vulnerability.

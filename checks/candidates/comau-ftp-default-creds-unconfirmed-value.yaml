@@ -1,0 +1,45 @@
+# Candidate stub — 2026-08-26. User-supplied URL, RoboDK documentation. NOT executable (no `kind`).
+#
+# What's confirmed: Comau robot controllers support FTP-based program transfer ("FTP into program
+# memory"), and the setup UI explicitly implies a factory-default username/password pair exists:
+# "If the FTP username and password are not the default values, you can configure them under
+# 'more options'." The default communication port for Comau's own driver/socket service is
+# separately stated as 1102.
+#
+# What's blocking it: the ACTUAL default username/password VALUES are never stated anywhere in
+# this source — only that defaults exist and are overridable. Same "mechanism confirmed, value
+# unconfirmed" shape as several PowerLogic front-panel candidates, just inverted (there value was
+# known/mechanism unknown; here mechanism is known/value unknown).
+#
+# Action needed: a Comau controller manual/technical reference giving the actual default FTP
+# username/password strings.
+#
+# STILL BLOCKED, 2026-08-30 — genuine documents reviewed, none resolve this specific question:
+# user supplied several Comau/related documents. IMPORTANT NAMING COLLISION CAUGHT: files named
+# "c4g-*.pdf" in this batch (c4g-cli-guide-g4.pdf, c4g-user-guide.pdf, etc.) are actually for the
+# UNRELATED "EtherWAN C4G Series" router (EtherWAN Systems Limited) — a pure naming coincidence
+# with Comau's own "C4G" 4th-generation robot controller family. NOT used for this candidate; do
+# not conflate. The genuinely-Comau document reviewed, "C5G控制单元.pdf" (English-language content
+# despite the Chinese filename — a C5G Control Unit reference manual), documents a real,
+# DIFFERENT proprietary login system (Teach Pendant / TP-INT / WinC5G) with confirmed predefined
+# accounts (admin:admin, pu:pu "programmer", mu:mu "maintenance") — see the new sibling candidate
+# `comau-c5g-teach-pendant-default-logins.yaml` for that separate finding. This document's own
+# "FTP Server mode connection" section describes the OPPOSITE direction from what this candidate
+# needs: the ENGINEERING PC (WinC5G) acts as an FTP server that the CONTROLLER connects OUT to
+# (for firmware/software transfer) — not the controller running its own FTP server for external
+# clients to connect to, which is what RoboDK's own page describes and what this candidate is
+# actually asking about. Still no document found describing the controller's own FTP server's
+# default credentials.
+
+check_id: candidate-comau-ftp-default-creds-unconfirmed-value
+protocol: ftp
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Comau"
+references:
+  - "RoboDK documentation, \"Comau robots\" (robodk.com/doc/en/Robots-Comau.html) (user-supplied URL)"
+description: >
+  Comau robot controllers ship with a default FTP username/password pair (confirmed to exist by
+  RoboDK's own setup UI text), but the actual default values are not stated by this source. Not
+  built — needs a Comau manual/technical reference for the real values.

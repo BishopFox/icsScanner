@@ -1,0 +1,58 @@
+# Default-credentials sweep, Phase 17 — final SCADAPASS closeout pass. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# SCOPE NOTE: initially mis-triaged as "solar/wind, out of scope" during Phase 16 planning
+# without actually researching it — caught and corrected during this closeout pass, same as the
+# Kostal Solar/SMA checks above. Small wind turbine, same OT-equipment category as DEIF's AWC 500
+# (Phase 15).
+#
+# Sources (3 independent, including a real CISA advisory): SCADAPASS, citing a dedicated Darius
+# Freamon post, "Xzeres 442S Wind Turbine Web Interface Default Credentials"; corroborated by
+# CISA advisory ICSA-15-076-01 ("XZERES 442SR Wind Turbine Vulnerability") — a related-but-
+# distinct CSRF vulnerability disclosed by researcher Maxim Rupp (the same researcher behind the
+# Honeywell XL Web II finding, Phase 4) that specifically allows retrieving/changing this default
+# credential; and general aggregator agreement on MyTurbine:m442+SRt.
+#
+# No CVE cited on THIS check specifically — ICSA-15-076-01/the CSRF finding is a distinct,
+# separate vulnerability (an attack that abuses the web interface to read/change the password,
+# not the hardcoded-default-password fact itself) — noted as a related lead, not conflated with
+# this check's own default-credential test.
+#
+# KNOWN FINGERPRINT-GATE GAP (same pattern as several Phase 15-17 checks): no Xzeres-specific
+# OUI entry was found in the official IEEE registry. No OUI was guessed.
+
+check_id: http-xzeres-442sr-wind-turbine-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Xzeres"
+params:
+  path: "/"
+  credentials:
+    - ["MyTurbine", "m442+SRt"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (MyTurbine:m442+SRt)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic TXlUdXJiaW5lOm00NDIrU1J0"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+advisory_url: "https://www.cisa.gov/news-events/ics-advisories/icsa-15-076-01"  # promoted from references (canonical advisory)
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://dariusfreamon.wordpress.com/2015/05/03/xzeres-442s-wind-turbine-web-interface-default-credentials/"
+  - "https://www.cisa.gov/news-events/ics-advisories/icsa-15-076-01"
+description: "Xzeres 442SR small wind turbine ships with a factory-default MyTurbine/m442+SRt web-UI login (full admin rights) — no CVE on this check specifically; a related CSRF vulnerability against the same web interface is tracked separately under CISA ICSA-15-076-01."

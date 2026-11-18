@@ -1,0 +1,146 @@
+# Candidate stub — default-credentials sweep, Phase 7 (InduSoft/AVEVA), MAJOR RE-EXAMINATION
+# 2026-09-05. NOT executable (no `kind`) — STILL NOT BUILT, but the wire protocol is now
+# byte-exact confirmed, not a prose description. One specific gap remains (see "STILL BLOCKING"
+# below) before this can ship without guessing.
+#
+# Distinguish from CVE-2019-6543/CVE-2019-6545 (InduSoft TCP/IP Server Task RCE via command 66,
+# fully unauthenticated): that pair is the wrong vuln class for this sweep (missing-
+# authentication-for-critical-function, CWE-306 — same category as GE Multilin CVE-2017-7905 and
+# GE CIMPLICITY CVE-2014-0751, both already excluded). Read Tenable's own techblog writeup
+# directly this pass (Jacob Baines, "Poppin' Calc: Web Studio Edition," pdftotext'd from a
+# user-supplied PDF copy after both WebFetch and an r.jina.ai proxy attempt on the live Medium
+# URL were blocked/lossy) — confirms command 66 (wire byte 0x42) is a totally separate feature
+# (CClient::DBProcessCall, an SMB-sourced DB-connection-string parser abused for RCE) from
+# command 69 (login). Not flagged here, a different finding.
+#
+# THIS finding is CVE-2018-17914 / CVE-2018-17916 (Tenable Research Advisory TRA-2018-34).
+# **RE-FETCHED THE RAW ADVISORY PAGE DIRECTLY VIA CURL** this pass (not a WebFetch/AI summary,
+# which had truncated the hex mid-string in an earlier pass) — the full, untruncated PoC command
+# line is now decoded byte-for-byte in Python and cross-checked against the Medium techblog's own
+# independently-shown command-66 example, which uses the IDENTICAL field-encoding scheme. Two
+# independent Tenable publications (the formal advisory + the techblog technical writeup) now
+# corroborate the wire format, satisfying this project's 2-source policy for the FORMAT itself.
+#
+# ## Confirmed wire format (byte-exact, reproduced by direct hex decode of the real PoC)
+#
+# 1. Client always opens with a FIXED hello frame before any command:
+#    `\x02\x31\x10\x31\x10\x38\x10\x31\x10\x31\x03` (STX, then ASCII digits separated by \x10/DLE,
+#    then ETX) — confirmed identically in 4 independent examples across both Tenable sources
+#    (3 in the techblog: Pi(), GetAppPath(), WinExec(); 1 in the advisory's own command-69 PoC,
+#    which differs only in its last two digit pairs — "11822" vs the techblog's "11811" — an
+#    unexplained but immaterial variation, likely session/version-echo digits that don't affect
+#    parsing).
+# 2. Each subsequent command is its own `\x02<cmd_byte>...\x03` frame. The command byte IS the
+#    raw command number as a single byte where confirmed: command 66 = `\x42` (66 decimal,
+#    verified in the techblog's own working Python PoC `cmd = '\x02\x42' + cmd + '\x03'`);
+#    command 69 = `\x45` (69 decimal, verified in the advisory's own hex dump, immediately after
+#    the second STX).
+# 3. String fields inside a command-69 frame use a `\xff\xfe\xff<1-byte length><UTF-16LE chars>`
+#    encoding (length is CHARACTER count, not byte count) — confirmed identically in the
+#    command-66 "CO"/"DB" fields shown in the techblog's own working exploit AND in the
+#    command-69 fields decoded from the advisory's PoC below. This is the same encoding scheme
+#    observed independently in two different commands from two different Tenable publications.
+#
+# ## Fully decoded, byte-exact: the "blank Main Password" login bypass (command 69)
+#
+# Decoded directly (Python, `bytes.fromhex()` + manual field-walk) from the advisory's own raw
+# PoC command line (`cat <(echo -n '02311031...0000000000' | xxd -r -p) - | nc <target> 1234`,
+# fetched via curl against the live tenable.com page, not a lossy AI summary):
+#
+#   STX(0x02) CMD(0x45=69) + 13 zero bytes (header/reserved, unexplained but consistently
+#   present) + 5 length-prefixed UTF-16LE string fields:
+#     [0] "Reserved"  (8 chars)
+#     [1] "Reserved"  (8 chars)
+#     [2] ""          (0 chars, empty)
+#     [3] "DistributedToken|2393bf8557a3bda8f3197877a7d1f5be"  (49 chars — THIS is the identity/
+#         credential value Tenable's prose separately calls out as
+#         `username='DistributedToken|2393bf8557a3bda8f3197877a7d1f5be'` for the blank-Main-
+#         Password bypass)
+#     [4] "HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH"  (32 chars, all 'H' — filler; the PoC chains
+#         straight into a SEPARATE command-67/function-15 buffer-overflow frame immediately after
+#         this one closes, so field 4's exact role in a login-only context is not otherwise
+#         explained by the source)
+#   ...followed by a few trailing zero bytes and the closing ETX(0x03).
+#
+# This IS a real, complete, unguessed, byte-verified authentication-bypass frame — this specific
+# variant (the blank-Main-Password "DistributedToken" bypass) could be built into a real check
+# TODAY with zero guessing on the wire format.
+#
+# ## STILL BLOCKING (the one gap left, do not build past this without resolving it)
+#
+# NEITHER Tenable source ever verifies or even checks the command-69 response before proceeding —
+# both PoCs are blind attack chains that fire the login frame and immediately follow with the
+# command-67 overflow frame in the SAME payload, on the assumption login always succeeds. There is
+# no documented success/failure response signature anywhere in either source. The only observed
+# response shapes in this project's research are from UNRELATED commands (command 55's Pi()/
+# GetAppPath()/WinExec() echoing results, and command 66's DB-open error text) — both start with a
+# similar-looking decimal-ish prefix ("112200131" / "1122001B"), which MIGHT be a fixed response
+# preamble the protocol always uses regardless of success/failure, but this is inferred from only
+# 2 data points on 2 different commands, not confirmed for command 69 specifically. A WebSearch for
+# a dedicated Metasploit module or exploit-db PoC for CVE-2018-17914/17916 specifically (as
+# opposed to the exploit-db #46342 module for the DIFFERENT command-66/67 CVE pair) found nothing.
+#
+# **This is a real, not cosmetic, blocker**: without a verified success signature, a check could
+# only ever report FINGERPRINT_ONLY (frame sent, connection didn't drop) rather than CONFIRMED
+# (login actually succeeded) — and even FINGERPRINT_ONLY risks a false read if the "response
+# preamble" theory above is wrong and the server sends the SAME shape of response on failure too.
+# Also note the Guest-specific variant (`username='Guest'`, `credentials=
+# 'c72e49742b20b3672482f70c17f95902'` per the advisory's prose) was NEVER hex-verified by either
+# source — only the DistributedToken variant was. Tenable's prose implies Guest uses a DIFFERENT
+# field layout (username and credentials as two separate named values, vs. DistributedToken's
+# single combined field) which field-slot mapping is NOT independently confirmed — do not guess
+# it into the build even though the DistributedToken variant alone is enough to demonstrate the
+# same underlying "authentication bypass with a known default value" finding class.
+#
+# **BUILT 2026-09-05**: FINGERPRINT_ONLY, around the fully-verified DistributedToken bypass
+# specifically, per explicit user sign-off. See checks/indusoft_tcp/ (core/indusoft_tcp.py,
+# checks/indusoft_tcp/native/distributed_token_bypass.py, the YAML check itself). The Guest
+# variant described in THIS candidate file remains unbuilt — its field layout is still only
+# described in prose, never hex-verified — this candidate file stays open for that reason alone.
+#
+# **Same-day follow-up research, did not change the outcome**: user supplied 3 more sources —
+# the official IWS v8.1 Technical Reference (1500+ pages, read via pdftotext, grepped for
+# "TCP/IP Server Task"/"Remote Agent"/"Guest"/"Distributed"), CVE-2015-7374, and its ZDI-15-451
+# advisory. Two real findings, neither resolving the response-signature gap:
+#   1. The manual's own "Distributed - Client/Server" Security Mode documentation (a genuine
+#      IWS concept, config-time project security architecture) explains WHY the wire value is
+#      literally named "DistributedToken" -- good corroborating context that Tenable's finding
+#      reflects a real internal IWS mechanism, not a misreading. This is application/config-layer
+#      documentation, though -- it does NOT reach down to the internal Data Server socket
+#      protocol's wire format, so it doesn't supply the missing command-69 response signature.
+#   2. CVE-2015-7374 (ZDI-15-451) is a DIFFERENT, EARLIER, wrong-vuln-class finding: totally
+#      unauthenticated remote code execution via the SAME command-55 "Built-in Language" API the
+#      Medium techblog article separately describes (before a later patch added the "security
+#      system" gate the article mentions) -- same disposition as CVE-2019-6543/6545 (missing-
+#      authentication-for-critical-function, not a default-credential finding), not flagged as a
+#      separate candidate here, just noted for context. The manual's own "Remote Agent"
+#      documentation (185 hits) turned out to describe a DIFFERENT product component
+#      (CEServer.exe, an embedded-device remote-management utility) than the Data Server /
+#      "TCP/IP Server Task" this CVE actually targets -- Tenable/Baines's own "remote agent"
+#      phrasing is their casual description, not this manual's own named feature. Flagged
+#      explicitly so a future pass doesn't waste time re-conflating the two.
+
+check_id: candidate-indusoft-aveva-tcpip-server-task-guest-login
+protocol: indusoft-tcp
+cve_id: CVE-2018-17914
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_only: true
+references:
+  - "https://www.tenable.com/security/research/tra-2018-34"
+  - "https://medium.com/tenable-techblog/poppin-calc-web-studio-edition-a51226e1d478"
+  - "https://www.exploit-db.com/exploits/46342"
+description: >
+  AVEVA InduSoft Web Studio / InTouch Edge HMI "TCP/IP Server Task" agent (port 1234) accepts an
+  authentication bypass via a known default value — either a fixed-hash Guest login or a
+  "DistributedToken|<hash>" blank-Main-Password bypass — per Tenable TRA-2018-34
+  (CVE-2018-17914/CVE-2018-17916). The wire protocol is now byte-exact confirmed (STX/cmd-byte/
+  ETX framing, FF-FE-FF-length-prefixed UTF-16LE string fields) and the DistributedToken bypass
+  variant's full login frame is verified byte-for-byte from the advisory's own raw PoC — zero
+  guessing needed on the request side. NOT BUILT: neither Tenable source ever documents or
+  verifies a success/failure response signature for command 69 (both PoCs blindly chain into a
+  separate buffer-overflow attack without checking), so a check could only report
+  FINGERPRINT_ONLY at best, and even that risks a false read without a confirmed response
+  signature. Needs explicit human sign-off before building given this gap, same bar as this
+  project's other Milestone-4-adjacent decisions.

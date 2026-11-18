@@ -1,0 +1,148 @@
+# Candidate stub — default-credentials sweep, Phase 10. NOT executable (no `kind`). RESEARCH
+# GAP — ambiguous exact auth mechanism.
+#
+# SCADAPASS gives "HTTP on Port 9020: 1)none:root, 2)none:none" for Moxa Railway Remote I/O
+# (ioLogik E12xx/E15xx), citing a toolswatch.org DPE XML database announcement from 2013. An
+# independent WebSearch on the current ioLogik E1200 manual instead found: "does not come with a
+# default password... accessible without authentication" — consistent in spirit (no real auth
+# barrier) but NOT a clean confirmation of the specific "none:root" username/password framing,
+# and it's unclear whether this reflects a firmware change since 2013 or a description
+# mismatch. Given the ambiguity between "blank-username/root-password" and "no auth at all,"
+# this wasn't shipped as a guess.
+
+# MECHANISM AND VALUE SUBSTANTIALLY RESOLVED for E1200, 2026-08-30: user supplied two revisions
+# of Moxa's own "ioLogik E1200 Series User Manual" (v15.2, v16.2) directly. Both confirm: the
+# "Web Console" (a "browser-based configuration utility") has a password-only login — "The
+# default password is 'moxa'" (no username field described anywhere) — for firmware 3.3+; the
+# manual's own port table lists this explicitly as "Password: moxa (version 3.3 or later), N/A
+# (version 3.2 or prior)" i.e. older firmware genuinely has no password set by default.
+#
+# SCADAPASS's PORT WAS WRONG, now corrected from a primary source: the manual's own port table
+# lists port 80/TCP as "Web console service" — port 9020/TCP is actually "Peer-to-peer (default)"
+# (a completely different feature, I/O signal forwarding between paired units, confirmed
+# separately at "The default local listen port number is 9020"), not the web login at all.
+# SCADAPASS's "HTTP on Port 9020" framing was a real error; the corrected value is HTTP port 80.
+#
+# STILL NOT BUILT: (1) the exact login mechanism (HTTP Basic Auth vs. a custom HTML form) isn't
+# confirmed — "web console" is described as a rendered browser UI, suggestive of a custom form
+# like several other candidates in this batch, but not proven; (2) this manual covers the E1200
+# specifically — E1500 is NOT independently confirmed to share the same default, though it's a
+# plausible sibling (not assumed without its own source, same discipline as every other sibling-
+# model case in this project).
+
+# UPDATE 2026-09-17 (ingest batch 6): DIRECTLY VERIFIED against real firmware, resolving most of
+# the open questions above (in a more complicated direction than "just build it", see below).
+# `moxa-iologik-e1200-series-iologik-e1210-e1210-t-firmware-v4.0.1kp` and the sibling
+# `...-e1260-e1260-t-firmware-v4.0.1kp` (both eCos RTOS, Moxa "DAC!"-framed container format) ship
+# the literal standalone string "moxa\x00\x00\x00\x00" in their compiled firmware -- the hardcoded
+# factory-default password, matching the manual's "3.3+" claim, now confirmed directly rather than
+# from documentation alone. A hidden `<INPUT type="hidden" name="defaultPwd">` field plus inline
+# JavaScript (`if(x==1){alert("WARNING! It is recommended to change default password...")}`)
+# confirms the device itself tracks and warns when still on this factory default.
+#
+# LOGIN MECHANISM RESOLVED: it is a CUSTOM CHALLENGE-RESPONSE form, NOT HTTP Basic Auth and NOT a
+# plaintext credential POST. The password field is client-side masked/hidden, and submission
+# computes `SHA256(password + Token)` (older E1200H/E1200W firmware uses MD5 instead of SHA256,
+# see below) where Token comes from a prior page load's hidden `<LOGIN_TOKEN>` field -- i.e. a
+# scanner would need to first GET the login page to obtain the current token, then compute the
+# hash client-side before POSTing. This is MORE complex than a zero-code reuse of the generic HTTP
+# default-creds executor; would need a small dedicated native module (fetch token, hash, submit)
+# to build as a live check -- not attempted this pass, flagged as a genuine follow-up.
+#
+# E1200H/E1200W VARIANTS DIFFER: `moxa-iologik-e1200h-series-e1261h-t-firmware-v1.1.1kp` and
+# `moxa-iologik-e1200w-series-e1261w-t-firmware-v1.1.1kp` (Hazardous-location and Wireless
+# variants) use the SAME "Input Password" page CONCEPT but a GENUINELY SIMPLER, DIFFERENT wire
+# protocol from the core E1200 line, AND do NOT contain the literal "moxa" default-password
+# string anywhere in the firmware image -- NOT assumed to share the "moxa" default.
+#
+# UPDATE 2026-09-17 (user asked to also build a live check for E1200H/E1200W; the protocol was
+# examined in full to answer that, but a live check was NOT built -- see the decision below):
+# read directly out of `moxa-iologik-e1200h-series-e1261h-t-firmware-v1.1.1kp`'s own HTML/JS:
+#     function SetPass(b){
+#       var a=getCookie("ChallID");           // read but NEVER used in the hash below -- dead code
+#       var c=MD5(b.Password.value);          // straight MD5(password), no token/challenge mixed in
+#       setCookie("MoxaPass",c,null);         // sets the session cookie client-side, pre-submit
+#       b.Password.value=c; return true
+#     }
+#     <FORM name=InputPassword method=GET action=home.htm onSubmit="return SetPass(this);">
+#     <P>Password : <INPUT type=password name=Password size=8 maxlength=8></P>
+#     <P><INPUT type=submit value=Submit name=Submit></P>
+# i.e. no hidden Token field exists on this page at all, the form method is GET (not POST), and
+# the wire request is simply `GET /home.htm?Password=MD5(password)&Submit=Submit` -- SIMPLER than
+# the core E1200's SHA256(password+token) scheme, not just "MD5 instead of SHA256" as first
+# suspected. `getCookie("ChallID")` is read into a variable that is then never referenced again --
+# genuinely dead code, not a hash ingredient we missed.
+#
+# NO DEFAULT CREDENTIAL VALUE CONFIRMED for this simpler protocol: searched the firmware directly
+# for (a) any hardcoded MD5-looking 32-hex-char constant that might be a precomputed default hash,
+# and (b) any "defaultPwd"/"no password"/"blank" string near the password-handling code --
+# neither turned up anything. The only lead remains the CORE E1200 line's own manual language
+# ("N/A" / no password for firmware 3.2 and earlier) applied to a DIFFERENT product line's
+# DIFFERENT firmware-version numbering track (E1200H/W use their own "v1.1" scheme, not
+# comparable to the core line's "3.3+" cutoff) -- an indirect inference, not a statement about
+# these specific models. Consistent with this same file's own EARLIER decision (see the very top
+# of this file, "Given the ambiguity ... this wasn't shipped as a guess"), explicit user decision
+# 2026-09-17: HOLD as a documented research gap rather than ship a low-confidence guessed
+# credential. No live check built for E1200H/E1200W at that time.
+#
+# RESOLVED 2026-09-17 (same day, next ingest batch): the research gap turned out to have a
+# different shape than expected, not a missing data point on the SAME question. The user supplied
+# Moxa's own official manuals for BOTH products directly (ioLogik E1200H/E1200W Series User
+# Manual, v2.2 each) -- both state, identically: "Factory Default Settings" table lists
+# "Password: N/A", and the Change Password section describes setting up protection as an opt-in
+# first-time action ("Leave this blank if you are setting up password protection for the first
+# time"). This means there IS NO hardcoded default credential to guess for these two models --
+# password protection itself is simply OFF by default. Re-examined the same two firmware images
+# and confirmed the real "I/O Server general information" page is served directly at the same
+# `home.htm` URL the login form uses, with no challenge at all, when unprotected. Built as a
+# MISSING-AUTHENTICATION finding (CWE-306, not CWE-798/521) instead of a credential check:
+# checks/http/native/iologik_unauthenticated_web_console.py +
+# checks/http/moxa-iologik-e1200h-e1200w-unauthenticated-web-console.yaml (public, confidence
+# high, non-destructive read-only GET). This is a stronger, more direct evidentiary chain than the
+# original inference this file flagged as insufficient -- primary-source manuals for the exact
+# products in question, not an extrapolation from a different product line.
+#
+# E1500 UPDATE 2026-09-17 (6th ingest batch): firmware now available --
+# `moxa-iologik-e1500-series-e1510-t-firmware-v1.1.1kp` and the e1512-t sibling (both v1.1, same
+# version-numbering track as E1200H/E1200W, NOT the core line's v3.3+/v4.0 track). Their
+# `SetPass()` JS is BYTE-FOR-BYTE IDENTICAL to E1200H/E1200W's (`MD5(password)`, no token, GET
+# home.htm), and they ship the same "Welcome to ioLogik" info page. This strongly suggests E1500
+# shares E1200H/E1200W's "no password by default" behavior rather than the core line's "moxa"
+# default (no literal "moxa" string found in this firmware either) -- but NOT independently
+# confirmed via an E1500-specific manual (none supplied this batch), so the shipped
+# `moxa-iologik-e1200h-e1200w-unauthenticated-web-console.yaml` check's fingerprint_precondition
+# was deliberately NOT broadened to include E1500 yet. A strong, protocol-level-corroborated lead
+# for a future update once an E1500 manual or independent source turns up.
+#
+# E1500 RESOLVED 2026-09-17 (next ingest item, a single document): user supplied Moxa's own
+# official "ioLogik E1500 Series Manual" (v5.0) directly. Identical wording to the E1200H/E1200W
+# manuals -- "Password    N/A" in the Factory Default Settings table, same opt-in Change Password
+# language. This directly confirms the protocol-level lead above. Broadened
+# `moxa-iologik-e1200h-e1200w-unauthenticated-web-console.yaml`'s fingerprint_precondition to
+# include E1500 (check_id kept stable). This now fully resolves EVERY open question this
+# candidate file originally raised: E1200 core line (moxa/password, built), E1200H/E1200W
+# (no-auth-by-default, built), and E1500 (no-auth-by-default, folded into the E1200H/W check) are
+# all now either built as live checks or explicitly, evidence-backed accounted for.
+
+check_id: candidate-moxa-iologik-e1200-e1500-railway-remote-io
+protocol: http
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Moxa Technologies"
+  product: "ioLogik E1210/E1211/E1213/E1214/E1240/E1241/E1242/E1260/E1262 (core E1200 line, firmware 3.3+/v4.0 confirmed) -- NOT the E1200H/E1200W hardware variants, which were checked and do not share this specific default"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "http://www.toolswatch.org/2013/02/new-scada-default-passwords-added-to-dpe-xml-database/"
+  - "Moxa ioLogik E1200 Series User Manual, v15.2 and v16.2, user-supplied"
+  - "moxa-iologik-e1200-series-iologik-e1210-e1210-t-firmware-v4.0.1kp, moxa-iologik-e1200-series-iologik-e1260-e1260-t-firmware-v4.0.1kp, user-supplied ingest, literal 'moxa' default-password string + defaultPwd/challenge-response login flow read directly from firmware strings"
+description: >
+  Moxa ioLogik E1200 Railway Remote I/O — factory-default web-console password "moxa"
+  (password-only, firmware 3.3+; no password at all on 3.2 and earlier) on HTTP port 80, now
+  DIRECTLY CONFIRMED via real firmware (E1210/E1260, both v4.0) rather than manual sourcing alone.
+  Login is a custom SHA256(password+token) challenge-response form, not Basic Auth or a plaintext
+  POST -- a live check would need a small dedicated module to fetch the token and compute the hash
+  first, more than a zero-code reuse of the generic HTTP default-creds executor (not built this
+  pass). The E1200H/E1200W hardware-variant firmware (checked directly) uses the same shape but
+  MD5 instead of SHA256 and does NOT contain the literal "moxa" default string -- not assumed to
+  share this default. E1500 sharing this default remains independently unverified.

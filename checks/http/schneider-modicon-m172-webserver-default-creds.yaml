@@ -1,0 +1,48 @@
+# Default-credentials sweep, 2026-08-24 — user-supplied Schneider Electric support FAQ
+# (FAQ000192125, "Which is the default user and password for the Modicon M172?", Schneider
+# Electric Ireland, published 31/3/2021, last modified 2/2/2026), read directly. States TWO
+# separate default credentials: (1) EcoStruxure Machine Expert HVAC via USB cable — a local
+# engineering-software login, not network-reachable, out of scope for this project's TCP/IP-only
+# model (same category as the InTouch/WinCC application-login exclusions elsewhere in this
+# sweep); (2) the M172's own embedded WebServer — network-reachable, in scope, built here.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-modicon-m172-webserver-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+  product: "M172"
+params:
+  path: "/"
+  credentials:
+    - ["administrator", "password"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory WebServer credential (administrator:password)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW5pc3RyYXRvcjpwYXNzd29yZA=="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://www.se.com/ie/en/faqs/FAQ000192125/"
+description: >
+  Schneider Electric Modicon M172 (TM171SW / M171/M172 range HVAC controller) ships with a
+  factory-default embedded WebServer login (administrator:password) — no CVE, documented
+  factory-default behavior per Schneider's own official support FAQ (directly confirmed, not
+  search-summarized). A separate USB/EcoStruxure Machine Expert HVAC engineering-software login
+  uses the same credential but is local-only, not covered by this network check.

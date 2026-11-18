@@ -1,0 +1,60 @@
+# Default-credentials sweep, Phase 14. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Sources (2 independent): SCADAPASS, citing a Russian ICS security research site (dsec.ru,
+# "IPM Research Center — notification of vulnerabilities — tecomat_plc_paroli_po_umolchaniyu",
+# i.e. "Tecomat PLC default passwords"); corroborated by an independent WebSearch confirming the
+# same role-based numeric pattern and a CVSS v2 base score of 7.5, plus a Vulners.com database
+# entry ("Tecomat Foxtrot Default Password Security Bypass Vulnerability") and access specifically
+# over the device's HTTP web interface.
+#
+# All 10 role levels (0-9) ship as separate credential pairs — each is a genuinely distinct
+# account/privilege tier per the source, not a single credential with variant spellings.
+#
+# No CVE number found/confirmed (the Vulners/dsec.ru sources track this as a security-bypass
+# advisory, not a numbered CVE) — left blank rather than guessed.
+
+check_id: http-tecomat-foxtrot-role-based-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+severity: high
+fingerprint_precondition:
+  vendor: "TECO a.s."
+params:
+  path: "/"
+  credentials:
+    - ["0", "0"]
+    - ["1", "1"]
+    - ["2", "2"]
+    - ["3", "3"]
+    - ["4", "4"]
+    - ["5", "5"]
+    - ["6", "6"]
+    - ["7", "7"]
+    - ["8", "8"]
+    - ["9", "9"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (0:0, 1:1, 2:2, 3:3, 4:4, 5:5, 6:6, 7:7, 8:8, 9:9)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic (MDow|MTox|Mjoy|Mzoz|NDo0|NTo1|Njo2|Nzo3|ODo4|OTo5)"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "http://dsec.ru/ipm-research-center/notification-of-vulnerabilities/tecomat_plc_paroli_po_umolchaniyu/"
+  - "https://vulners.com/openvas/OPENVAS:1361412562310103397"
+description: "Tecomat Foxtrot PLC ships with 10 role-based numeric default web-UI accounts (0:0 through 9:9, CVSS 7.5) — no CVE number found, documented factory-default behavior."

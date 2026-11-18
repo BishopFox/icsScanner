@@ -1,0 +1,78 @@
+# Built 2026-11-09 (industry-gap-sweep-2026-11.md, semiconductor/SMT gap). Closes the HSMS
+# probe->check gap: core/fingerprint.py's probe_hsms_identity (added 2026-10-07) existed but no
+# check consumed it. Net-new (no prior HSMS/SECS candidate or check).
+#
+# FINDING (CWE-306 missing authentication): SECS/GEM over HSMS (SEMI E37) is the TCP transport for
+# semiconductor / SMT / ATE equipment control (TCP 5000). HSMS has NO authentication layer -- a peer
+# that completes the Select handshake is in a SECS-II session with no credential ever offered or
+# checked. This is architectural, documented SEMI-standard behavior, not a patchable defect
+# (directly analogous to the Cisco Smart Install and Omron FINS unauthenticated-exposure checks in
+# this repo) -> disclosure_status: public, a detection of an already-public by-design exposure.
+#
+# This check reuses core/fingerprint.py probe_hsms_identity, which sends ONE standard HSMS Select.req
+# control message (4-byte length + 10-byte header; sessionID 0xFFFF, sType 0x01, system "SEC1") and
+# confirms a Select.rsp echoing our system bytes (or a Reject.req -- either proves an HSMS peer). It
+# carries NO SECS-II data and issues no equipment command. Non-destructive, safe to fire unsupervised
+# (same discipline as the SLMP / FINS / Cisco-SMI exposure checks).
+#
+# PORT COLLISION: 5000 is also MELSEC SLMP. probe_hsms_identity disambiguates by frame (an HSMS peer
+# returns Select.rsp sType 0x02 echoing our system bytes; an SLMP CPU returns a 0xD000 subheader and
+# never a Select.rsp), so hsms_identity and slmp_identity never cross-match and this check does not
+# fire on a MELSEC CPU.
+#
+# WIRE FORMAT cross-verified (no live tool needed for a handshake): SEMI E37 HSMS message layout +
+# the secsgem OSS library (bparzella/secsgem, hsms/header.py) -- 4-byte big-endian length + 10-byte
+# header (sessionID(2) / stream(1) / function(1) / pType(1) / sType(1) / system(4)); sType 1=Select.req
+# 2=Select.rsp 7=Reject.req. Built against checks/hsms/native/hsms_unauthenticated_access.py.
+#
+# CVSS: scored for the underlying capability a confirmed HSMS session enables (the same convention as
+# the Cisco-SMI and SLMP exposure checks -- score the condition, document the read-only probe). The
+# DEMONSTRATED floor is unauthenticated SECS-II session establishment + data collection; remote
+# command / recipe download is reachable where the equipment's GEM remote-control state is enabled,
+# so C:H/I:H/A:H represents the full enabled capability, not a guarantee every target accepts remote
+# commands.
+check_id: secs-gem-hsms-unauthenticated-access
+protocol: hsms
+kind: native
+module: checks.hsms.native.hsms_unauthenticated_access
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H (9.8 CRITICAL) -- HSMS/SECS-II has no authentication; a confirmed session enables equipment data collection always, and remote command / equipment-constant write / recipe download where GEM remote control is enabled. This check confirms the exposure via the benign Select handshake only."
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  # Gated by the HSMS protocol-identity probe (core/fingerprint.py probe_hsms_identity): the scanner
+  # confirms an HSMS peer (Select.rsp / Reject.req) on the port before this check runs. Target: SECS/GEM
+  # equipment (semiconductor / SMT / ATE) exposing the HSMS transport (TCP, default 5000).
+  protocol_probe: hsms_identity
+params:
+  default_port: 5000
+  timeout: 5.0
+references:
+  - "SEMI E37 (HSMS -- High-Speed SECS Message Services): TCP transport for SECS-II/GEM; Select handshake establishes a session with no authentication layer. SECS-II/GEM (SEMI E5 / E30) carries equipment data collection and remote command / equipment-constant / process-program services."
+  - "bparzella/secsgem (hsms/header.py) -- OSS cross-verification of the HSMS message framing (4-byte length + 10-byte header; sType 1=Select.req / 2=Select.rsp / 7=Reject.req) that core/fingerprint.py probe_hsms_identity sends and parses."
+detection_hints:
+  transport: tcp
+  app_protocol: hsms
+  mitre_attack_id: T0855
+  analytic_story: "ICS Unauthorized Command"
+  narrow:
+    description: "This scanner's own HSMS Select.req: 4-byte length 0x0000000A + header sessionID 0xFFFF, stream 0, function 0, pType 0, sType 0x01 (Select.req), system bytes 'SEC1' (0x53454331)."
+    patterns:
+      - context: request
+        bytes: "\\x00\\x00\\x00\\x0a\\xff\\xff\\x00\\x00\\x00\\x01\\x53\\x45\\x43\\x31"
+  broad:
+    description: "Any HSMS Select.req reaching TCP/5000 -- the fixed HSMS control-message prefix (length 0x0000000A, sessionID 0xFFFF, stream/function 0, sType 0x01). Distinct from MELSEC SLMP, whose 3E request begins with subheader 0x5000."
+    patterns:
+      - context: request
+        bytes: "\\x00\\x00\\x00\\x0a\\xff\\xff\\x00\\x00\\x00\\x01"
+description: >
+  SECS/GEM over HSMS (SEMI E37, TCP 5000) on semiconductor / SMT / ATE equipment has NO authentication
+  layer -- a peer that completes the HSMS Select handshake is in a SECS-II session with no credential
+  ever offered or checked (CWE-306), architectural SEMI-standard behavior, not a patchable defect. This
+  check sends one standard HSMS Select.req (no SECS-II data, no equipment command) and confirms a
+  Select.rsp (or Reject.req), proving the equipment accepts an unauthenticated session. SECS-II data
+  collection is reachable this way; remote commands, equipment-constant writes, and recipe / process-
+  program download are reachable where the equipment's GEM remote-control state permits. Port 5000 is
+  shared with MELSEC SLMP, disambiguated by frame so this never fires on a Mitsubishi CPU. CVSS 3.1 9.8
+  CRITICAL for the enabled capability; the probe performs only the benign handshake. disclosure_status:
+  public -- a documented by-design exposure (like Cisco Smart Install / Omron FINS), not a new finding.

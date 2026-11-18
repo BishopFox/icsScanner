@@ -1,0 +1,40 @@
+# Built check 2026-10-06 (Phase 1a), promoted from candidates/moxa-industrial-linux-4x-moxa-moxa-first-login-default.yaml.
+# Moxa Industrial Linux 4.x (Debian) default login moxa/moxa per Moxa's own official manual. It is a
+# FORCED first-login must-change account; paramiko's connect() reports auth SUCCESS on moxa/moxa
+# (the password-change is a post-auth step), which is the finding (default cred accepted). Documented
+# default -> public. ssh_default_creds executor.
+check_id: moxa-industrial-linux-4x-moxa-moxa-first-login-default
+protocol: ssh
+kind: native
+module: checks.ssh.native.ssh_default_creds
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H (9.8 CRITICAL)"
+destructive: true
+risk_reason: ["login"]
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Moxa Technologies"
+  product: "Moxa Industrial Linux 4.x (Debian) platform (SSH, port 22)"
+params:
+  credentials:
+    - ["moxa", "moxa"]
+  default_port: 22
+references:
+  - "Moxa Industrial Linux 4.x (Debian 13) Manual (user-supplied, pdftotext): default account moxa / password moxa, forced change on first login."
+detection_hints:
+  transport: tcp
+  app_protocol: ssh
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "No narrow wire-level signature is possible — SSH encrypts the session immediately after key exchange, so the moxa/moxa username/password sent is never visible as a plaintext byte pattern on the wire."
+    patterns: []
+  broad:
+    description: "Repeated SSH authentication attempts against this device family from a single source in a short window — the vulnerability class (a default-login/credential-guessing pass), not the specific credential, which SSH's encryption hides."
+    patterns:
+      - context: request
+        regex: "SSH-2\\.0-"
+description: >
+  Moxa Industrial Linux 4.x ships a documented default SSH login moxa/moxa (forced-change on first
+  login; auth still succeeds, which is the finding). CVSS 3.1 9.8 CRITICAL. Built against
+  ssh_default_creds.py.

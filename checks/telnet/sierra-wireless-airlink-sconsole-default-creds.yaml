@@ -1,0 +1,49 @@
+# Default-credentials sweep, Phase 15 (Sierra Wireless, Heatmiser, DEIF — continuing the
+# SCADAPASS pass). Uses the generic checks/telnet/native/telnet_default_creds.py executor.
+#
+# Source: SCADAPASS cites "official documentation" (not a specific URL) for AirLink's
+# sconsole:12345 account over Telnet/SSH (ports 12345/2332); corroborated by an independent
+# WebSearch converging on sconsole:12345, including a match against Sierra Wireless's own
+# current knowledgebase article on AirLink OS login.
+#
+# IMPORTANT CAVEAT, stated honestly: Sierra Wireless's own support site publishes a page titled
+# "Unique Default Passwords (AirLink Devices)" — like Digi (Phase 12), SOME AirLink units ship
+# with a per-device unique password rather than this universal default. 12345 is confirmed as a
+# real, still-relevant default for a meaningful subset of the AirLink line, not fabricated, but
+# expected hit rate is narrower than most checks in this sweep — same honesty pattern already
+# applied to Digi's root:dbps.
+#
+# No CVE — documented factory-default/fallback behavior.
+
+check_id: telnet-sierra-wireless-airlink-sconsole-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Sierra Wireless, ULC"
+params:
+  credentials:
+    - ["sconsole", "12345"]
+  default_port: 12345
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet username+password login attempt(s) using the documented factory credential(s) (sconsole:12345)"
+    patterns:
+      - context: request
+        bytes: "sconsole\r\n12345\r\n"
+  broad:
+    description: "Any Telnet login attempt (a username followed by a password, both CRLF-terminated) on this device — the vulnerability class (default/weak credentials on this product's Telnet server), not the specific guessed credential"
+    patterns: []  # generic "any-line" pattern removed 2026-11-11 (real-traffic validation); no device-specific signature beyond the narrow probe/credential bytes. See lab-notes/zeek-detection-validation-pnnl-2026-11.md
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://knowledgebase.sierrawireless.com/en/articles/6134064-how-to-log-in-to-an-airlink-os-router"
+  - "https://source.sierrawireless.com/resources/airlink/hardware_reference_docs/unique-default-passwords/"
+description: "Sierra Wireless AirLink 3G/4G gateways fall back to a factory-default sconsole/12345 console login on port 12345 when no unique per-device password applies — no CVE, documented factory-default/fallback behavior."

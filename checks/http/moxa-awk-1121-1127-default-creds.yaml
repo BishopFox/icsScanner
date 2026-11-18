@@ -1,0 +1,52 @@
+# Ingest triage, 2026-09-16. User supplied a new batch of ingest files including
+# `moxa-awk-1121-series-firmware-v1.7.rom` and related utility/library packages. Confirmed no
+# prior AWK-1121/1127 candidate/check existed (a DIFFERENT model from the already-built
+# `checks/http/moxa-awk-3131-rcc-default-creds.yaml`).
+#
+# Fetched the vendor's own official "AirWorks AWK-1121/1127 User's Manual" (Edition 3.0, August
+# 2016, moxa.com/Moxa/media/PDIM/S100000546/moxa-awk-1127-series-manual-v3.0.pdf) directly via
+# curl+pdftotext, not a search summary. States plainly, in the device's own first-configuration
+# walkthrough: "The default user name and password is: User Name: admin / Password: root" --
+# unlike the sibling AWK-3131-RCC check, this manual documents NO firmware-version-gated password
+# change (no "admin:moxa from firmware X+" language found anywhere in this 259-page document,
+# checked directly) -- admin/root is stated as the single, unqualified default. The ingest firmware
+# sample (v1.7) is close in era to this manual's own coverage (up to at least firmware 1.5,
+# per an in-manual screenshot reference) with no evidence of a changed default in between.
+#
+# Same product family/generation as the already-built AWK-3131-RCC check (Moxa AirWorks industrial
+# wireless AP/bridge, HTTP Basic Auth web console) -- reuses the same proven executor with zero
+# code changes.
+
+check_id: http-moxa-awk-1121-1127-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no documented lockout mechanism
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Moxa Technologies"
+  product: "AWK-1121"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "root"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory credential (admin:root)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46cm9vdA=="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://www.moxa.com/Moxa/media/PDIM/S100000546/moxa-awk-1127-series-manual-v3.0.pdf"
+description: "Moxa AirWorks AWK-1121/1127 industrial wireless AP/bridge ships with a factory-default admin/root web-console login — confirmed directly from the vendor's own official manual, no CVE (documented factory-default behavior), no firmware-version-gated change found unlike the sibling AWK-3131-RCC product."

@@ -1,0 +1,66 @@
+# Default-credentials sweep, 2026-09-02 — resolves checks/candidates/proscend-industrial-switch-
+# default-creds.yaml (Phase 20, "credential found, product line unconfirmed"). User supplied
+# Proscend's own official Quick Installation Guide for the "850X-28" (24-Port GbE + 4-Port 10G
+# SFP+ Managed Switch) and User Manual for the "850X-28P" (Managed PoE Switch) directly — these
+# ARE the industrial Ethernet switch products that earned Proscend its Metoree category ranking,
+# resolving the original candidate's product-line blocker.
+#
+# REAL, DOCUMENT-INTERNAL CREDENTIAL CONFLICT — recorded honestly, not silently resolved:
+#   - 850X-28 QIG, "Web Interface: Connect & Login": Username: admin / Password: admin
+#     (IP 192.168.169.1, same pair repeated for the Telnet CLI section).
+#   - 850X-28P User Manual section 2.6 ("Web Interface: Connect & Login", the quick-start
+#     summary): Username: root / Password: 2wsx#EDC (IP 192.168.1.1) — matching the Proscend
+#     M-series cellular router family's password (see the sibling
+#     checks/http/proscend-m-series-cellular-router-default-creds.yaml).
+#   - THE SAME 850X-28P User Manual, section 3.2 ("Login", the detailed web-GUI field reference —
+#     lists max field length per input): Username default: admin / Password default: admin.
+# Two of the three occurrences (the non-PoE 850X-28's own QIG, independently, plus the PoE
+# 850X-28P's own more detailed field-reference section) agree on admin:admin; only the PoE
+# model's brief "quick connect" summary states root:2wsx#EDC, which reads like boilerplate
+# reused from the M-series router manual template rather than a switch-specific value. Not
+# resolved by picking one — both documented pairs are shipped here, tried in the order the
+# stronger corroboration favors. A login attempt against either is safe regardless: a CONFIRMED
+# result is fully real either way, a wrong guess only risks a NOT_APPLICABLE on that one pair.
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention — neither
+# document shows a screenshot or field-name markup proving a custom HTML form.
+#
+# Scope: 850X-28 (non-PoE) and 850X-28P (PoE) specifically: the two Proscend managed-switch
+# models directly evidenced. Not assumed to extend to any other Proscend switch model without
+# its own source.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-proscend-850x-28-managed-switch-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Proscend"
+params:
+  credentials:
+    - ["admin", "admin"]
+    - ["root", "2wsx#EDC"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the two factory-default credential pairs documented across Proscend's own 850X-28/850X-28P manuals (admin:admin, root:2wsx#EDC) against a Proscend managed switch"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic (YWRtaW46YWRtaW4=|cm9vdDoyd3N4I0VEQw==)"
+  broad:
+    description: "Any HTTP Basic Auth attempt against a Proscend 850X-28-family switch — the vulnerability class (factory-default web credentials), not the specific guessed pair"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic .*"
+references:
+  - "Proscend '850X-28' Quick Installation Guide, v1.00 (user-supplied) — admin:admin, Web + Telnet"
+  - "Proscend '850X-28P' User Manual, v1.00, 2024-12-02 (user-supplied) — section 2.6 states root:2wsx#EDC, section 3.2's detailed field reference states admin:admin (internal document conflict, both shipped)"
+description: "Proscend 850X-28 (24-Port GbE + 4-Port 10G SFP+ Managed Switch) and 850X-28P (Managed PoE Switch) ship with a factory-default web-UI login. Proscend's own documentation is internally inconsistent between admin:admin and root:2wsx#EDC (the latter shared with Proscend's M-series cellular router line) — both pairs are tried. No CVE, documented factory-default behavior."

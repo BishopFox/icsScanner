@@ -1,0 +1,62 @@
+# PROMOTED 2026-09-14 from checks/candidates/schneider-modicon-tm172si-snmpv3-default-creds.yaml
+# — the executor blocker is RESOLVED: checks/snmp/native/snmpv3_default_creds.py now implements
+# SNMPv3 USM authNoPriv (engine discovery, RFC 3414 password-to-key + key localization,
+# HMAC-MD5/SHA96), built specifically to unblock this candidate. See that module's own docstring
+# for the full protocol design, including why authNoPriv-only (no DES/AES privacy) is still a
+# valid, unambiguous test of this credential.
+#
+# Credential itself: found directly, verbatim, in the extracted TM172SI firmware's own
+# `/etc/snmp/snmpd.conf` — `createUser admin MD5 SE_SecureInterface1 DES SE_SecureInterface1`
+# (see checks/candidates/schneider-modicon-tm172si-snmpv3-default-creds.yaml for the full
+# acquisition chain, same firmware image as the promoted HTTP check on this device). This check
+# only tests the MD5 auth passphrase — the DES priv passphrase (same literal value) is
+# deliberately untested, per the executor's own authNoPriv-only scope.
+#
+# CONFIDENCE KEPT AT LOW, NOT UPGRADED, despite the executor now existing: it remains genuinely
+# unconfirmed whether this exact passphrase is a shared factory default across all TM172SI units,
+# or regenerated per-device at first boot — a single firmware image's baked-in snmpd.conf is
+# strong direct evidence, but not the same as an official manual stating "the default is X" (the
+# bar the HTTP credential cleared via two independent mentions in Schneider's own User Guide).
+# Not resolved by this promotion — needs a live device or a second independent source.
+#
+# No CVE — undocumented (not mentioned in any official manual found) factory-shipped credential.
+
+check_id: snmp-schneider-modicon-tm172si-snmpv3-default-creds
+protocol: snmp
+kind: native
+module: checks.snmp.native.snmpv3_default_creds
+destructive: true
+risk_reason: ["login"]  # plain authentication attempt; no lockout mechanism found (SNMPv3 USM has no account-lockout concept)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+  product: "TM172SI"
+params:
+  credentials:
+    - {username: "admin", auth_protocol: "MD5", auth_key: "SE_SecureInterface1"}
+detection_hints:
+  transport: udp
+  app_protocol: snmp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own SNMPv3 USM authentication attempt's msgUserName field (username 'admin') — verified by executing the module's own _tlv() BER encoder directly, not hand-derived"
+    patterns:
+      - context: request
+        regex: "\\x04\\x05\\x61\\x64\\x6d\\x69\\x6e"
+  broad:
+    description: "Any SNMPv3 USM authenticated request (msgFlags OCTET STRING carrying authFlag set, reportableFlag set, privFlag clear — the authNoPriv pattern this executor always sends) against this device — the vulnerability class (factory-default SNMPv3 credentials on this product), not the specific guessed value — verified by executing the module's own _tlv() BER encoder directly"
+    patterns:
+      - context: request
+        regex: "\\x04\\x01\\x05"
+references:
+  - "m172si-v0.5.0_signed.raucb — official TM172SI firmware update package, se.com/uk/en/download/document/Secure_Interface_TM172SIx/, user-supplied, /etc/snmp/snmpd.conf read directly from the extracted rootfs"
+description: >
+  Schneider Electric Modicon TM172SI ships with a baked-in SNMPv3 USM account (admin, auth MD5,
+  passphrase SE_SecureInterface1) found directly in the extracted firmware's own
+  /etc/snmp/snmpd.conf — a separate credential/service from the already-built HTTP REST API
+  default-creds check on this same device. Only the MD5 auth passphrase is tested (authNoPriv);
+  the DES priv passphrase is not exercised. Confidence kept low: this credential is not
+  independently confirmed as a shared factory default vs. a per-device value, unlike the HTTP
+  credential (confirmed twice in Schneider's own official manual).

@@ -1,0 +1,51 @@
+# Default-credentials sweep, Phase 16. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Sources (2 independent): SCADAPASS, citing the official Sinapsi eSolar handbook PDF directly;
+# corroborated by a dedicated Darius Freamon post, "Sinapsi eSolar Default Credentials."
+#
+# NOTE: modern eSolar deployments reportedly proxy through a cloud relay
+# (sn<serial>.net.sghiot.com) rather than exposing this login on a directly-scannable IP:port —
+# this check tests the documented factory-default credential/mechanism itself (the classic
+# direct-HTTP case the original manual and disclosure describe), consistent with how every other
+# "documented factory default" check in this sweep is scoped; whether a given real deployment is
+# reachable this way is a target-selection question, not something this check itself resolves.
+#
+# KNOWN FINGERPRINT-GATE GAP (same pattern as Falcon/eWON/Digi/Heatmiser): no Sinapsi-specific
+# OUI entry was found in the official IEEE registry. No OUI was guessed.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-sinapsi-esolar-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Sinapsi"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "admin"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (admin:admin)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46YWRtaW4="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://dariusfreamon.wordpress.com/2013/09/26/sinapsi-esolar-default-credentials/"
+description: "Sinapsi eSolar photovoltaic monitoring web server ships with a factory-default admin/admin web-UI login — no CVE, documented factory-default behavior."

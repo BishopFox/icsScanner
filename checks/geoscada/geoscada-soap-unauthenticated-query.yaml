@@ -1,0 +1,61 @@
+# Armed 2026-11-12 (WWS Tier-1, Geo SCADA water-SCADA host). Geo SCADA Expert / ClearSCADA exposes a SOAP
+# web service at /webservices/scx (SCXService) on the WebX port. Per Schneider's own Knowledge Base
+# ("Using SOAP interface to connect to Geo SCADA", KB 279083), the service is usable as the built-in Guest
+# user WITHOUT logging in, and ExecuteQuery runs SQL SELECTs against the LIVE SCADA database. Where a
+# server permits non-secure / Guest SOAP access, an unauthenticated network client can READ the SCADA
+# database over HTTP (CWE-306). This is a materially worse exposure than the WebX landing page, and the
+# same service exposes ExecuteMethod (the write/control path). disclosure_status: public -- Schneider's own
+# KB documents the Guest-SOAP mechanism; this is detection coverage of a documented exposure class.
+#
+# VERIFY-WIRE-FORMAT: the SOAP request is authoritative (the shipped WWW/Schemas/SCX.wsdl -- namespace
+# http://serck-controls.com/webservices/SCX6/, SOAPAction .../ExecuteQuery, response
+# <ExecuteQueryResponse><ResultSet>). The request was verified ACCEPTED (HTTP 200) against a live Geo SCADA
+# Expert 2025 R2 server; that test server's default config (self-signed cert warning) GATES the endpoint,
+# so the probe correctly returns NOT_APPLICABLE there -- CONFIRMED fires only where unauth access is
+# actually permitted, i.e. exactly when it is a real finding.
+#
+# SAFETY: the executor sends ONE read-only Guest ExecuteQuery SELECT; it NEVER calls ExecuteMethod (the
+# write/control path) and issues no write. An actuation proof-of-impact is a scripts/safety_critical/ tool.
+
+check_id: geoscada-soap-unauthenticated-query
+protocol: geoscada
+kind: native
+module: checks.geoscada.native.geoscada_soap_unauth_query
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N (7.5 HIGH) -- an unauthenticated Guest SOAP ExecuteQuery reads the live Geo SCADA / ClearSCADA database (points, values, configuration) over HTTP with no login. The same /webservices/scx SOAP service also exposes ExecuteMethod (write/control, e.g. setting a point's CurrentValue), so the integrity/availability impact is higher via that path -- NOT claimed here; this check demonstrates the unauthenticated READ only (read-only SELECT, no write)."
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  protocol_probe: geoscada_soap_unauth_query
+params:
+  default_port: 8080
+  timeout: 6.0
+references:
+  - "Schneider Electric Geo SCADA Knowledge Base 279083, 'Using SOAP interface to connect to Geo SCADA': the SCXService at /webservices/scx is usable as the built-in Guest user with no login; ExecuteQuery runs SQL SELECTs against the database; ExecuteMethod sets values."
+  - "Geo SCADA Expert shipped WSDL (WWW/Schemas/SCX.wsdl): namespace http://serck-controls.com/webservices/SCX6/, operations ExecuteQuery / ExecuteMethod. Request verified accepted (HTTP 200) against a live Geo SCADA Expert 2025 R2 server."
+  - "Geo SCADA Expert Security Guide: the built-in Guest user is the unsecured-client access path; CISA/NSA WWS guidance warns against exposed SCADA interfaces on untrusted networks."
+  - "core/fingerprint.py probe_geoscada_soap_unauth_query -- the read-only Guest ExecuteQuery SELECT this check reuses (never ExecuteMethod)."
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0801
+  analytic_story: "ICS Unauthenticated Data Access"
+  narrow:
+    description: >-
+      An unauthenticated SOAP request to the Geo SCADA / ClearSCADA SCXService: an HTTP POST to
+      /webservices/scx carrying the serck-controls.com/webservices/SCX6 ExecuteQuery action -- a SQL read
+      of the SCADA database over the web service.
+    patterns:
+      - context: request
+        regex: "POST /webservices/scx|serck-controls\\.com/webservices/SCX6"
+description: >
+  Schneider Geo SCADA Expert / ClearSCADA exposes a SOAP web service (SCXService) at /webservices/scx on
+  its WebX port. Per Schneider's own Knowledge Base, it is usable as the built-in Guest user with no login,
+  and ExecuteQuery runs SQL SELECTs against the live SCADA database. This check POSTs one benign, read-only
+  Guest ExecuteQuery ("SELECT FullName FROM CDBPoint") and confirms the server returned query results
+  (ExecuteQueryResponse / ResultSet) -- i.e. the SCADA database (points, values, configuration) is readable
+  over HTTP with no authentication (CWE-306). The SOAP request is authoritative (the shipped SCX.wsdl) and
+  was verified accepted against a live Geo SCADA 2025 R2 server; a gated server (self-signed-cert warning /
+  logon required) correctly returns NOT_APPLICABLE, so the check fires only where unauth access is truly
+  permitted. The same SOAP service exposes ExecuteMethod (write/control) -- the check NEVER calls it and
+  claims no write. disclosure_status public: a documented exposure class, not a novel vulnerability.

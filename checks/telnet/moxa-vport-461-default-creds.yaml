@@ -1,0 +1,42 @@
+# Default-credentials sweep, Phase 10. Uses the generic
+# checks/telnet/native/telnet_default_creds.py executor.
+#
+# Sources (2 independent): SCADAPASS gives admin:admin AND <none>:<none> for the VPort 461
+# Industrial Video Encoder, citing the official Moxa manual; corroborated by an independent
+# WebSearch confirming admin:admin specifically and that Telnet access is supported (the
+# <none>:<none> variant was not independently corroborated and is dropped rather than shipped
+# unverified — same policy applied throughout this sweep).
+#
+# No CVE — documented factory-default behavior.
+
+check_id: telnet-moxa-vport-461-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Moxa Technologies"
+params:
+  credentials:
+    - ["admin", "admin"]
+  default_port: 23
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet username+password login attempt(s) using the documented factory credential(s) (admin:admin)"
+    patterns:
+      - context: request
+        bytes: "admin\r\nadmin\r\n"
+  broad:
+    description: "Any Telnet login attempt (a username followed by a password, both CRLF-terminated) on this device — the vulnerability class (default/weak credentials on this product's Telnet server), not the specific guessed credential"
+    patterns: []  # generic "any-line" pattern removed 2026-11-11 (real-traffic validation); no device-specific signature beyond the narrow probe/credential bytes. See lab-notes/zeek-detection-validation-pnnl-2026-11.md
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.moxa.com/Moxa/media/PDIM/S100000536/moxa-vport-461-series-manual-v3.0.pdf"
+description: "Moxa VPort 461 Industrial Video Encoder ships with a factory-default admin/admin Telnet login — no CVE, documented factory-default behavior."

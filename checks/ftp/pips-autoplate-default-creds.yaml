@@ -1,0 +1,44 @@
+# Default-credentials sweep, Phase 17 — final SCADAPASS closeout pass. FTP sibling of
+# checks/telnet/pips-autoplate-default-creds.yaml — see that file for the scope-note reasoning.
+# Uses the generic checks/ftp/native/ftp_default_creds.py executor.
+#
+# Source: SCADAPASS's own row gives three complete FTP credential pairs directly (not a vague
+# summary), citing a dedicated Darius Freamon disclosure post, "PIPS Technology AUTOPLATE
+# Automatic License Plate Recognition (ALPR) Multiple Vulnerabilities" — same single-dedicated-
+# source-post tier already treated as sufficient elsewhere in this sweep (e.g. Falcon USHA,
+# Phase 16).
+
+check_id: ftp-pips-autoplate-default-creds
+protocol: ftp
+kind: native
+module: checks.ftp.native.ftp_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "PIPS Technology"
+params:
+  credentials:
+    - ["wl_test", "wl_test"]
+    - ["vesstore", "vesstore"]
+    - ["ftp_boot", "ftp_boot"]
+detection_hints:
+  transport: tcp
+  app_protocol: ftp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own FTP USER/PASS login attempt(s) using the documented factory credential(s) (wl_test:wl_test, vesstore:vesstore, ftp_boot:ftp_boot)"
+    patterns:
+      - context: request
+        regex: "USER wl_test\\r\\nPASS wl_test\\r\\n|USER vesstore\\r\\nPASS vesstore\\r\\n|USER ftp_boot\\r\\nPASS ftp_boot\\r\\n"
+  broad:
+    description: "Any FTP USER/PASS login attempt on this device — the vulnerability class (default/weak credentials on this product's FTP server), not the specific guessed credential"
+    patterns:
+      - context: request
+        regex: "^USER \\S*\\r\\nPASS \\S*\\r\\n"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://dariusfreamon.wordpress.com/2014/02/19/pips-technology-autoplate-automatic-license-plate-recognition-alpr-multiple-vulnerabilities/"
+description: "PIPS Technology AUTOPLATE (automatic license-plate-recognition system) ships with three factory-default FTP accounts (wl_test, vesstore, ftp_boot) — no CVE, documented factory-default behavior."

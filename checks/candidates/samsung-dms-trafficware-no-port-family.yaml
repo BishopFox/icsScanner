@@ -1,0 +1,28 @@
+# Candidate stub — default-credentials sweep, Phase 17 — final SCADAPASS closeout pass. NOT
+# executable (no `kind`). Real, well-corroborated credentials, no confirmed port anywhere
+# checked.
+#
+# - Samsung Integrated Management System DMS (Data Management Server, root:rkwjsdusrnth) — an
+#   embedded HVAC/VRF central-control web server, genuinely industrial-building-automation
+#   equipment (not consumer Samsung electronics). Credential confirmed via a DEDICATED Tenable
+#   Nessus plugin (53878, "Samsung Data Management Server Default Password") — a strong
+#   corroboration tier, same as the earlier MicroLogix/pCOWeb Tenable-plugin cases — but no port
+#   number is given by SCADAPASS, Tenable, or Samsung's own current DMS 2.5 documentation
+#   checked in this pass.
+# - Samsung S-NET mini (DMS Connection: 0000 or 1234) — same product family, no port given.
+# - Trafficware ATMS.now (naztec:naztec, "Advanced Traffic Management System") — real
+#   credential, dedicated Freamon disclosure post, but no port given either.
+
+check_id: candidate-samsung-dms-trafficware-no-port-family
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_only: true
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.tenable.com/plugins/nessus/53878"
+description: >
+  Samsung DMS/S-NET mini (HVAC/VRF central control) and Trafficware ATMS.now (traffic
+  management) — real, well-sourced credentials (Samsung DMS backed by a dedicated Tenable
+  plugin), but no port confirmed anywhere checked for any of the three rows.

@@ -1,0 +1,34 @@
+# Candidate stub — default-credentials sweep, Phase 13. NOT executable (no `kind`). Consolidates
+# the remaining ENTES SCADAPASS rows not covered by
+# entes-password-only-http-gateway-family.yaml, split across two out-of-scope reasons.
+#
+# ARCHITECTURALLY OUT OF SCOPE (local front-panel passcodes, no network surface, same category
+# as the CAREL local-panel-passcode stub): DTR-10/MCB-125/126 time relay (passcode 0000),
+# MPR-53CS network analyzer (passcode 0000), EPM-04/04C/04CS multimeter (passcode 0000) — all
+# give a bare 4-digit passcode with no port/protocol, consistent with local keypad entry.
+#
+# NETWORK-SURFACE QUESTION (same shape as the DeltaV/TwinCAT/LumInsight candidates): ENTBUS PLUS
+# (admin:1234, "Energy Management Software") and MPR-SW (admin:blank, "Monitoring & Reporting
+# Software") — both described as software rather than embedded devices, no port/protocol given,
+# unclear whether either presents a network-reachable login.
+
+check_id: candidate-entes-local-passcode-and-software-family
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_only: true
+  vendor: "ENTES"
+physical_access_reference:
+  summary: "ENTES local front-panel passcodes (embedded meters/time relays) — 4-digit codes entered via the physical keypad. (This candidate also tracks 2 separate software products, ENTBUS PLUS/MPR-SW, with an unconfirmed network surface — those are NOT physical-access findings and are excluded from this reference entry; see the file's own description.)"
+  steps:
+    - "DTR-10 / MCB-125 / MCB-126 time relay: 0000"
+    - "MPR-53CS network analyzer: 0000"
+    - "EPM-04 / EPM-04C / EPM-04CS multimeter: 0000"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+description: >
+  ENTES DTR-10/MCB-125/126, MPR-53CS, EPM-04 series — local front-panel passcodes, no network
+  surface, architecturally out of scope. ENTBUS PLUS and MPR-SW — software products with
+  unconfirmed network surface. Neither category buildable without either a different tool
+  architecture (local/physical access) or a network-surface answer.

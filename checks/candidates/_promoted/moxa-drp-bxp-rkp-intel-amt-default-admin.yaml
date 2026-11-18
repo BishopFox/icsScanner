@@ -1,0 +1,62 @@
+# PROMOTED 2026-10-06 (Phase 3) -> checks/http/moxa-drp-bxp-rkp-intel-amt-default-admin-{http,https}.yaml
+# (ports 16992/16993). Built a reusable HTTP Digest executor (checks/http/native/http_digest_default_creds.py
+# + smoke test) -- the blocker (no Digest module) is now resolved. admin/admin, realm filter 'Digest:'.
+# Candidate stub — 2026-09-16. Ingest triage of a new mixed-vendor batch. Confirmed no prior
+# BLOCKER TAG (2026-09-22 triage pass): code-gap -- This project has no existing HTTP Digest Auth native module, which Intel AMT's web interface requires by default.
+# Intel AMT/MEBx candidate/check existed anywhere in this project before writing this file.
+#
+# THE FINDING, confirmed directly from "moxa-drp-bxp-rkp-series-win-11-pro-2022-2024-2025-
+# manual-v1.1.pdf" (read via pdftotext): Moxa's DRP/BXP/RKP series industrial embedded
+# computers/panel PCs (vPro-capable models, e.g. BXP-C101, RKP-C220) ship with Intel AMT
+# (Active Management Technology) enabled, gated by MEBx (Management Engine BIOS Extension):
+#     "Type the Intel(R) ME default password: 'admin'." (initial MEBx/BIOS-level setup)
+#     "Open a web browser and type the Intel(R) AMT IP Address... The default username is admin."
+#     (the AMT web interface, https://IP:16993 on BXP-C101/RKP-C220, http://IP:16992 on others)
+#
+# THIS IS NOT A MOXA-SPECIFIC DESIGN CHOICE, honestly noted: "admin" is Intel's own well-known,
+# widely-documented factory default for AMT/MEBx across the ENTIRE Intel vPro product line,
+# independent of which OEM ships the hardware. It is filed here as a Moxa-scoped candidate
+# because this is the specific product family this project's ingest batch documents, not because
+# Moxa introduced the behavior -- the same finding would apply to any other vPro-enabled
+# industrial PC vendor this project might ingest in the future. Worth generalizing into a
+# vendor-agnostic candidate/check (the same way this project's existing
+# `checks/snmp/snmp-community-default-creds.yaml` narrows via a protocol probe rather than a
+# vendor/product fingerprint) if/when a second vPro-based product turns up in a future batch.
+#
+# HONEST CAVEAT on real-world exploitability: the MEBx password MUST be changed to a strong value
+# during the very first BIOS-level setup step before AMT provisioning can proceed (the manual's
+# own strong-password requirements are enforced at that point) -- so "admin" is a one-time
+# bootstrap credential for local BIOS access, not necessarily a value that survives normal
+# commissioning on a properly-set-up unit. However, the finding is significant because: (a) it
+# describes the ACTUAL default state of unprovisioned hardware (a real exposure window during
+# receipt/commissioning, before an operator has completed setup), and (b) if an operator
+# provisions AMT web access with a weak/reused password, or a unit is factory-reset without
+# reprovisioning, the well-known "admin" default becomes directly relevant again.
+#
+# NOT YET BUILDABLE AS A LIVE CHECK: Intel AMT's own web interface (ports 16992/16993) uses HTTP
+# Digest authentication by default (a well-documented AMT behavior, not independently re-verified
+# from a live device this pass) -- this project has no existing HTTP Digest Auth native module
+# (only Basic Auth, form-POST, and JSON-POST variants exist in checks/http/native/). Building this
+# would need either confirming Digest auth is genuinely what's used (vs. e.g. Basic Auth on some
+# AMT firmware versions) and a new native module, or reusing an existing generic HTTP library's
+# digest-auth support if this project adopts one -- not attempted this pass.
+
+check_id: candidate-moxa-drp-bxp-rkp-intel-amt-default-admin
+protocol: http
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Moxa (Intel AMT/vPro platform)"
+  product: "DRP/BXP/RKP series industrial embedded computers (vPro-capable models, e.g. BXP-C101, RKP-C220)"
+references:
+  - "moxa-drp-bxp-rkp-series-win-11-pro-2022-2024-2025-manual-v1.1.pdf, user-supplied ingest, read directly via pdftotext"
+description: >
+  Moxa DRP/BXP/RKP series industrial embedded computers with Intel vPro/AMT support ship Intel
+  Management Engine (ME/MEBx) and the AMT web management interface (HTTP on port 16992, or HTTPS
+  on 16993 for BXP-C101/RKP-C220) with a default username/password of admin/admin — confirmed
+  directly in Moxa's own product manual. This is Intel's own well-known, platform-wide AMT/MEBx
+  default, not a Moxa-specific design choice — the same finding would apply to any vPro-enabled
+  industrial PC from any vendor, and is worth generalizing into a vendor-agnostic candidate if a
+  second vPro-based product turns up in a future ingest batch. Not yet buildable: AMT's web
+  interface is documented to use HTTP Digest authentication by default, which this project has no
+  existing native check module for.

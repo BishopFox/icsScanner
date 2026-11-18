@@ -1,0 +1,70 @@
+# Hesai LiDAR web-control default-login check — built 2026-10-13 from the Hesai doc+software ingest
+# (vendor firmware ingest). Hesai LiDARs (Pandar/AT/XT/QT/JT/OT families; automotive + robotics/
+# port/autonomous-vessel) expose a web control at /pandar.cgi. This is the Moxa/WAGO/SICK DOCUMENTED-
+# DEFAULT class (vendor-published default credential), a legitimate detection check for operators,
+# NOT a novel vulnerability — so disclosure_status: public and there is nothing to disclose.
+#
+# CONFIRMED (vendor documentation): the web "Login Control" default password is `123456`, stated
+# verbatim in multiple Hesai user manuals (Pandar128E3X_v4p5, QT128C2X, et al. — read directly from
+# the ingest: "Default password: 123456 ... please change the default password"; "before returning a
+# trial/loaner/RMA lidar to Hesai, change the password back to default" confirms 123456 is factory
+# default). The login is PASSWORD-ONLY in the UI, and web authentication is OFF BY DEFAULT — it only
+# activates when the device's "Cyber Security Master Switch" is enabled, so a factory-default unit's
+# web control needs no login at all (missing-auth-by-default, CWE-306, a separate observation).
+#
+# CONFIRMED (vendor sample code — github.com/HesaiTechnology/Cyber_Security, ptc_cgi_sample/cgi/py/
+# http.py, Hesai's own HttpsApi.login()): the login wire format is
+#   POST /pandar.cgi?action=get&object=login  with JSON body {"key": <user>, "value": base64(<pass>)}
+#   success -> response JSON carries a session cookie at Body.cookie.value
+# This is the same vendor-code primary-source tier as the Eaton Webcard / Bosch ctrlX / SICK checks.
+#
+# CONFIRMED (vendor manual §4.9 Login): the username is `admin`. The QT128C2X_User_Manual (§4.9)
+# tabulates "Username | admin" alongside "Default password: 123456" — so the full documented default
+# web login is admin / 123456. (The sample code masked the username as `*****`; the manual resolves it.)
+# confidence: low is kept ONLY because this was not tested against live hardware and the fingerprint
+# probe's exact reply shape under enabled login-control is inferred — NOT because of any credential
+# uncertainty (both username and password are vendor-documented). CWE-1392 (default credentials). No CVE.
+#
+# PRIOR-ART: vendor-documented default, multi-model. Not claimed as a CVE/novel finding.
+
+check_id: hesai-lidar-web-default-login
+protocol: http
+kind: native
+module: checks.http.native.hesai_pandar_cgi_login_default_creds
+destructive: true
+risk_reason: ["login"]  # real POST login attempt to the web control; documented-default sweep gating
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_probe: hesai_pandar_web_identity
+params:
+  path: "/pandar.cgi?action=get&object=login"
+  credentials:
+    - ["admin", "123456"]   # BOTH CONFIRMED from vendor manual §4.9 ("Username admin" + "Default password: 123456")
+  value_b64: true            # password is base64-encoded into `value` (confirmed from vendor code)
+  key_field: "key"
+  value_field: "value"
+  cookie_key_path: "Body.cookie.value"   # success = a session cookie at this JSON path
+  https: false               # device default is plain HTTP; set true for units with HTTPS forced
+  default_port: 80
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's HTTP POST to /pandar.cgi?action=get&object=login carrying the JSON body {\"key\":\"admin\",\"value\":\"MTIzNDU2\"} — MTIzNDU2 is base64('123456'), the Hesai documented default web password. The distinctive signal is the pandar.cgi login path plus the base64 default-password value."
+    patterns:
+      - context: request
+        regex: "POST /pandar\\.cgi\\?action=get&object=login"
+      - context: request
+        regex: "MTIzNDU2"
+  broad:
+    description: "Repeated POSTs to /pandar.cgi?action=get&object=login from one source in a short window against a Hesai LiDAR — a credential-guessing pass; the specific credential can't be distinguished from a legitimate client login on the wire."
+    patterns:
+      - context: request
+        regex: "POST /pandar\\.cgi\\?action=get&object=login"
+references:
+  - "User-supplied ingest: vendor firmware ingest — Pandar128E3X_v4p5_User_Manual_128-en-251110.pdf and QT128C2X_User_Manual_Q03-en-260710.pdf (read directly): 'Default password: 123456' for web Login Control; auth gated behind the Cyber Security Master Switch (OFF by default)."
+  - "QT128C2X_User_Manual §4.9 Login (also at hesaitech.com/wp-content/uploads/2025/02/QT128C2X_User_manual_Q03-en-250210.pdf): tabulates 'Username  admin' — confirms the default username is admin."
+  - "github.com/HesaiTechnology/Cyber_Security — Point_Cloud_Signature/ptc_cgi_sample/cgi/py/http.py (Hesai's own HttpsApi.login()): POST /pandar.cgi?action=get&object=login, JSON {key, value=base64(password)}, success at Body.cookie.value. Username (key) masked as '*****' in the sample; resolved to 'admin' by manual §4.9."

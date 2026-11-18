@@ -1,0 +1,60 @@
+# Default-credentials sweep, 2026-08-24 — same source as the sibling "legacy" checks (Schneider's
+# own official user-manual page, productinfo.se.com, doc HRB1684301-18, read directly). Covers
+# the NEWER-firmware "Guest" account (Webpages only, not FTP per the source table) that coexists
+# alongside the per-device MAC-derived Administrator account on the same firmware versions —
+# see lab-notes/side-quests.md for why Administrator isn't buildable yet (needs a live-MAC-to-
+# password computation capability this project doesn't have; MAC-derived is more tractable than
+# the OMICRON CMC 356 serial-derived case since MAC is directly ARP-observable on a LAN, but
+# still a real architecture gap, not built here).
+#
+# Applies to firmware versions: PM5560/PM5562/PM5562MC/PM5563/PM5580 (>=4.0.0),
+# PM5570/PM5660/PM5760 (>=6.0.0), PM5650 (>=4.10.0), PM5561 (>=12.0.0), PM5661/PM5761 (>=14.0.0).
+#
+# INDEPENDENTLY RE-CONFIRMED 2026-08-25: user supplied a second Schneider FAQ, FA243273 ("PM5000
+# Series Default IP Address, User Account Login Credentials, and Administrative Login for
+# Webpages and Password Reset"), directly. Its own credential table states Guest:Powerlogic@1
+# verbatim for the same "new firmware" (>=v4.0.0/v6.0.0) era — an independent match, not a
+# re-derivation of the same source. Also confirms FTP is DISABLED by default on this firmware era
+# (can be enabled via display or webpages) — consistent with there being no FTP sibling check for
+# this credential era, only for the legacy one.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-powerlogic-pm5500-series-guest-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["Guest", "Powerlogic@1"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory Guest credential (Guest:Powerlogic@1)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic R3Vlc3Q6UG93ZXJsb2dpY0Ax"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product family), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://productinfo.se.com/pm5500/595e2aa946e0fb0001f715da/PM5500%20user%20manual/English/PM5500SeriesUserManualv02_0000044889.ditamap/$/C_DefaultPasswordsAndUserAccounts_0000387599"
+  - "Schneider Electric FAQ FA243273, \"PM5000 Series Default IP Address, User Account Login Credentials, and Administrative Login for Webpages and Password Reset\" (user-supplied, independent re-confirmation)"
+description: >
+  Schneider Electric PowerLogic PM5500/PM5600/PM5700 series power meters (current firmware) ship
+  with a factory-default Guest web-UI login (Guest:Powerlogic@1) alongside a per-device
+  MAC-derived Administrator account — no CVE, documented factory-default behavior per Schneider's
+  own official user manual page. Recommended but not forced to be changed on first login, per the
+  same source.

@@ -1,0 +1,61 @@
+# Candidate stub — 2026-09-16. User-supplied ingest: Eaton knowledgehub PDF cache (see sibling
+# PXGX/PXGMS candidate for context). Confirmed no prior candidate/check for any of these three
+# products existed before this file. Grouped together: all three are LOCAL front-panel/keypad
+# access-code findings on Eaton hardware, not network logins — the same shape and disposition as
+# each other, distinct from every other candidate filed in this Eaton batch.
+#
+# FINDING 1 — "Password to change settings on a PXR20D.pdf" (read via pdftotext): "The default
+# password is 0000." PXR20D is an Eaton electronic trip unit (used on Eaton Magnum/Power Defense-
+# family low-voltage circuit breakers, inferred from Eaton's "PXR" trip-unit product naming — not
+# independently confirmed via a datasheet this pass). A local front-panel numeric PIN, the same
+# 4-digit-PIN shape already established elsewhere in this project (Trane UC800 "2718", SICAM FCM
+# "1111"/"2222"). Some Eaton trip units of this family support Modbus communication modules as an
+# option — whether "0000" also gates any network-reachable function, or is purely local-keypad, is
+# NOT resolved this pass (same open question already recorded for the E-Series Relay sibling
+# candidate) — recorded honestly rather than assumed.
+#
+# FINDING 2 — "DA1 Master Password.pdf" and "DC1 Master Password.pdf" (read via pdftotext): DA1
+# and DC1 are Eaton AC variable-frequency drives (VFDs). Both use a NUMERIC "password LEVEL"
+# scheme gating access to increasingly sensitive parameter groups, not a username/password login:
+#     DA1: Password Level 2 default value 101 (parameter P2-40), Level 3 default value 201
+#          (parameter P6-30) — each level unlocking progressively more parameter groups (P1-P5
+#          at Level 2, all groups P1-P9 at Level 3).
+#     DC1: Password Level 2 default value 101 (parameter P-37), Level 3 = (P-37's value) + 100,
+#          i.e. also 201 by default — an IDENTICAL default-value scheme to DA1, just addressed via
+#          a different parameter number.
+# This is architecturally the same class of finding as this project's existing Danfoss/similar VFD
+# parameter-access-code candidates elsewhere in this research thread (if any exist — not cross-
+# checked this pass) — a local drive-keypad numeric unlock code, not a network credential.
+#
+# NOT YET BUILDABLE, uniformly: all three are LOCAL keypad/front-panel mechanisms with no
+# confirmed network-reachable wire protocol in any source checked this pass — filed as
+# `protocol: local-only` physical_access_reference entries, matching this project's existing
+# local-panel-passcode candidate pattern (Trane UC800, SICAM FCM/AK3, the Eaton E-Series Relay
+# sibling candidate) rather than as network checks.
+
+check_id: candidate-eaton-pxr20d-da1-dc1-local-panel-access-codes
+protocol: local-only
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Eaton"
+  product: "PXR20D trip unit / DA1 and DC1 AC variable-frequency drives"
+references:
+  - "Password to change settings on a PXR20D.pdf, user-supplied Eaton knowledgehub export, read directly via pdftotext"
+  - "DA1 Master Password.pdf, user-supplied Eaton knowledgehub export, read directly via pdftotext"
+  - "DC1 Master Password.pdf, user-supplied Eaton knowledgehub export, read directly via pdftotext"
+physical_access_reference:
+  summary: "Three Eaton products ship default local front-panel access codes, confirmed directly in Eaton's own support documentation: the PXR20D electronic trip unit's keypad password defaults to 0000; the DA1 and DC1 AC drives' parameter-access password levels default to 101 (Level 2) and 201 (Level 3)."
+  steps:
+    - "PXR20D: at the trip unit's front-panel keypad password prompt, enter 0000."
+    - "DA1/DC1: at the drive's keypad, navigate to the relevant password parameter (DA1: P2-40 for Level 2, P6-30 for Level 3; DC1: P-37 for Level 2, P-37+100 for Level 3) and enter the default value (101 / 201) to unlock the corresponding parameter group."
+description: >
+  Three Eaton products ship default local front-panel/keypad access codes, confirmed directly in
+  Eaton's own support documentation: the PXR20D electronic trip unit's password defaults to
+  "0000" (a local circuit-breaker trip-unit keypad); the DA1 and DC1 AC variable-frequency drives'
+  numeric parameter-access "password levels" default to 101 (Level 2) and 201 (Level 3),
+  identically across both drive families despite using different parameter numbers. All three are
+  local keypad/front-panel mechanisms, filed as protocol: local-only physical_access_reference
+  entries matching this project's existing Trane UC800/SICAM FCM/AK3 local-panel-passcode pattern
+  — no confirmed network-reachable wire protocol for any of the three in any source checked this
+  pass.

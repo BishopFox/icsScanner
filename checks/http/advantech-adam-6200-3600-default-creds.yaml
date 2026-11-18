@@ -1,0 +1,49 @@
+# Default-credentials sweep, Phase 11. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor. Covers two related ADAM Ethernet I/O
+# module families (ADAM-6200 series and ADAM-3600-A1F) that SCADAPASS documents with the same
+# 8-zero password pattern across three account names.
+#
+# Sources (2 independent): SCADAPASS, citing the official Advantech ADAM-6200/ADAM-3600 manuals
+# directly (advantech.com-hosted PDFs); corroborated by an independent WebSearch confirming
+# "00000000" (8 zeros) as the default password across the ADAM-6200/6217 family, including
+# Advantech's own current support FAQ describing the password-reset procedure — the exact same
+# value, from Advantech's own site.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-advantech-adam-6200-3600-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Advantech Co. Ltd."
+params:
+  path: "/"
+  credentials:
+    - ["root", "00000000"]
+    - ["admin", "00000000"]
+    - ["user", "00000000"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (root:00000000, admin:00000000, user:00000000)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic (cm9vdDowMDAwMDAwMA==|YWRtaW46MDAwMDAwMDA=|dXNlcjowMDAwMDAwMA==)"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://advdownload.advantech.com/productfile/Downloadfile4/1-24AIR13/ADAM-6200_User_Manual_Ed.5_FINAL.pdf"
+  - "https://www.advantech.com/en-us/support/details/faq?id=1-QIV42Z"
+description: "Advantech ADAM-6200/ADAM-3600 series Ethernet I/O modules ship with factory-default root/admin/user accounts, all with password 00000000 — no CVE, documented factory-default behavior, confirmed directly on Advantech's own site."

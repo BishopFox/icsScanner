@@ -1,0 +1,43 @@
+# Default-credentials sweep, Phase 9. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Sources (2 independent): SCADAPASS, citing the official Omron NS-Series programmable-terminal
+# web-interface manual PDF; corroborated by a dedicated Darius Freamon blog post specifically
+# about this device's default credentials, independently confirming default:default.
+#
+# Covers NS12-TS01-V2, NS10-TV01-V2, NS8-TV01-V2, NS5-SQ11-V2, NS5-TQ11-V2, NS5-MQ11-V2 (the
+# full model list SCADAPASS's row names). No CVE — documented factory-default behavior.
+
+check_id: http-omron-ns-series-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Omron Corporation"
+params:
+  path: "/"
+  credentials:
+    - ["default", "default"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (default:default)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic ZGVmYXVsdDpkZWZhdWx0"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://dariusfreamon.wordpress.com/2015/04/21/omron-ns-series-programmable-terminals-web-interface-default-credentials/"
+description: "Omron NS-Series programmable terminal web interfaces ship with a factory-default default/default login — no CVE, documented factory-default behavior."

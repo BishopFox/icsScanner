@@ -1,0 +1,52 @@
+# Candidate stub — default-credentials sweep, Phase 17 — FINAL SCADAPASS closeout pass. NOT
+# executable (no `kind`). Consolidates every remaining SCADAPASS row not otherwise built or
+# candidate-stubbed elsewhere this phase. With this file, every one of the ~90 vendor rows in
+# the full SCADAPASS CSV has now been researched: built, individually candidate-stubbed, or
+# consolidated here — none left silently untouched.
+#
+# MEDICAL DEVICES (explicitly out of this sweep's declared ICS/OT scope — see the new side-quest
+# `lab-notes/side-quests.md` entry proposing a SEPARATE standalone medical-device scanner
+# project for this whole category, rather than folding it into icsScanner):
+# - Astute Medical ASTUTE140 Meter (1234:1234)
+# - BK Ultrasound bk3000 (administrator:superuser)
+# - ClinicPro EMR (admin:abc123)
+# - Compumedics EEG/PSG/Siesta/Safiro systems (0000, security-dialogue passcode)
+# - Datex-Ohmeda S/5 Light Monitor (16-4-34, install/service menu passcode)
+# - Nuance Dragon Medical 360 Network Edition (admin:password, HTTP 80 — has a real port, but
+#   explicitly medical speech-recognition software, excluded on category grounds regardless)
+# - Zoe Medical Nightingale PPM3 (physical dial-switch passcode, not even a software credential)
+#
+# GENERIC CONSUMER/ENTERPRISE IT NETWORKING (not industrial-branded, weaker/generic sourcing —
+# distinguished from the industrial-branded switches/routers this sweep DID build, e.g.
+# Hirschmann, Westermo, B&B Electronics/Conel):
+# - Alcatel-Lucent OmniSwitch 6250 (admin:switch, HTTP+Telnet — real ports, but a generic
+#   enterprise switch, single weak-tier source: a Freamon "tag/defaults" listing page, not a
+#   dedicated post)
+# - IBM 2210 Multiprotocol Router (def:trade — 1990s enterprise router, sourced from a generic,
+#   unattributed old password-list site, the weakest source tier encountered in this whole sweep)
+# - Netcomm Wireless (admin:admin / admin:password — consumer/ISP-branded home routers,
+#   BigPond/Netcomm firmware, no industrial application)
+# - Ubiquiti AirControl/AirOS (ubnt:ubnt — consumer/prosumer wireless networking, not
+#   industrial-specific despite having real confirmed ports 9005/443)
+#
+# ARCHITECTURALLY OUT OF SCOPE (local-access-only, no network surface):
+# - Allied Telesis IE200 Series (manager:friend) — genuinely industrial-branded ("Industrial
+#   Ethernet Switches"), but SCADAPASS's own row states access is via "terminal or terminal
+#   emulator program" (local serial console), not network Telnet/HTTP.
+# - WashTec SoftCare Evo SE10 (00001/00000) — numeric codes read as a local keypad passcode
+#   (same pattern as CAREL/ENTES/ClimateWorx local-passcode families), no port/protocol given.
+
+check_id: candidate-phase17-final-scadapass-out-of-scope
+protocol: local-only
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_only: true
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+description: >
+  Final SCADAPASS closeout: 7 medical-device rows (out of this sweep's ICS/OT scope — see the
+  side-quest proposing a separate medical-device scanner project), 4 generic consumer/enterprise
+  IT networking rows (not industrial-branded), and 2 architecturally-local-only rows (serial
+  console or keypad passcode, no network surface). With this stub, every row in the full
+  SCADAPASS CSV has now been researched — none left untouched.

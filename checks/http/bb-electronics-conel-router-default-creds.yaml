@@ -1,0 +1,50 @@
+# Default-credentials sweep, Phase 12 (B&B Electronics, Digi, Echelon — continuing the SCADAPASS
+# pass beyond the original 11-vendor backlog). Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Covers the Conel-brand industrial cellular router family (Conel s.r.o., a Czech manufacturer
+# acquired by B&B Electronics in 2013, itself later acquired by Advantech in 2016 — product line
+# still shipped under both the Conel and B&B Electronics names): CR10 v2, Conel 4.0.1, SPECTRE
+# Router, ER75i/ER75i DUO/ER75i SL/ER75i v2, LR77 v2 Libratum, UR5i v2, UCR11-v2/UCR11 v2 SL,
+# XR5i v2E/v2/SL — 8 SCADAPASS rows, all root:root over HTTP port 80.
+#
+# Sources (2 independent): SCADAPASS, citing the official Conel manuals for each model
+# individually; corroborated by an independent WebSearch converging on root:root across the same
+# model list, citing ManualsLib-hosted excerpts of the same manuals' password-change pages.
+#
+# No CVE — documented factory-default behavior, consistent across the whole product family (same
+# reasoning already applied to Hirschmann and WAGO in earlier phases).
+
+check_id: http-bb-electronics-conel-router-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "B&B Electronics"
+params:
+  path: "/"
+  credentials:
+    - ["root", "root"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (root:root)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic cm9vdDpyb290"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.manualslib.com/manual/757956/Conel-Er75i-V2.html?page=78"
+description: "B&B Electronics/Conel industrial cellular routers (CR10, SPECTRE, ER75i, LR77, UR5i, UCR11, XR5i families) ship with a factory-default root/root web-UI login — no CVE, documented factory-default behavior across the whole product line."

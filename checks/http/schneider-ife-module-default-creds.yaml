@@ -1,0 +1,49 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ FA367350 ("What is the
+# default User Name and Password for the IFE Module?") directly. Brand-new product for this
+# project: the IFE Module (LV434001) and IFE switchboard server (LV434002) — an Interface
+# Ethernet module for low-voltage switchboards.
+#
+# Two credential pairs by firmware version, both tried here since this scanner cannot remotely
+# fingerprint IFE firmware version:
+#   Firmware Version 3:   Administrator:Gateway   (same scheme as the EGX100/EGX300/Link150 family)
+#   Firmware Version 4/5: SecurityAdmin:AAAAAAAA  (same scheme independently seen on the
+#                          NTSNEC1200 Edge I/O module — checks/http/schneider-ntsnec1200-default-creds.yaml
+#                          — real cross-product corroboration of this specific credential pair)
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention.
+#
+# No CVE — documented factory-default behavior. Username/password stated as case-sensitive.
+
+check_id: http-schneider-ife-module-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["Administrator", "Gateway"]
+    - ["SecurityAdmin", "AAAAAAAA"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credentials for both firmware eras (Administrator:Gateway on v3, SecurityAdmin:AAAAAAAA on v4/5)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic (QWRtaW5pc3RyYXRvcjpHYXRld2F5|U2VjdXJpdHlBZG1pbjpBQUFBQUFBQQ==)"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ FA367350, \"What is the default User Name and Password for the IFE Module?\" (user-supplied)"
+description: "Schneider Electric IFE Module (LV434001) and IFE switchboard server (LV434002) ship with factory-default webpage logins — Administrator:Gateway on firmware v3, SecurityAdmin:AAAAAAAA on firmware v4/5. No CVE, documented factory-default behavior per Schneider's own FAQ."

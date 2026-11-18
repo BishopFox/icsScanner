@@ -1,0 +1,45 @@
+# Candidate stub — 2026-08-25. User supplied 2 Schneider FAQs directly: FAQ000159269 ("What to
+# BLOCKER TAG (2026-09-22 triage pass): live-hardware-gap -- Needs the exact input field names from a real device or its DOM/Inspect Element output -- not available this pass.
+# do when the QEM does not accept the default admin username and password?") and FAQ000192688
+# ("How to configure Quad-Ethernet Module (QEM) for the first time?"). NOT executable (no
+# `kind`). Brand-new product family for this project: ASCO Power Technologies (a Schneider
+# Electric subsidiary) QEM — Quad-Ethernet Module, models 5140 (72EE) and 5170 (72EE2), used with
+# ASCO Automatic Transfer Switches (critical power infrastructure — data centers, hospitals).
+#
+# What's confirmed, from a real browser screenshot of the actual login page at the device's own
+# default IP (not just a manual excerpt):
+#   Default IP address: 169.254.1.1
+#   Username: admin
+#   Password: ASCO
+#   (case-sensitive; forced password change is prompted after the very first successful login)
+# The login page ("USER LOGIN" box, ASCO/Schneider Electric co-branded, firmware shown as
+# "SW: 987204-042") is UNAMBIGUOUSLY a custom HTML form — Username and Password text inputs and a
+# "Login" button, not an HTTP Basic Auth challenge. Same architecture requirement as MHI/Yaskawa/
+# Omron CJ1M elsewhere in this queue: needs `checks/http/native/form_post_default_creds.py`, not
+# `basic_auth_default_creds.py`.
+#
+# What's blocking it: only a RENDERED screenshot of the login page was captured in both FAQs, not
+# the page's actual HTML source — the exact `name=` attributes of the username/password input
+# fields (needed by form_post_default_creds.py's config) are not known. A "hard reset" procedure
+# is also documented (physical RESET button, described in FAQ000159269) confirming this really is
+# the factory-shipped default, not just a suggested value in documentation.
+#
+# Action needed: browser dev-tools-level HTML source of the login form (View Source or Inspect
+# Element on a real device or its screenshot's underlying page), or a live device, to get the
+# exact input field names before this can be built.
+
+check_id: candidate-schneider-asco-qem-webpage-form-login
+protocol: http
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+references:
+  - "Schneider Electric FAQ FAQ000159269, \"What to do when the QEM does not accept the default admin username and password?\" (user-supplied)"
+  - "Schneider Electric FAQ FAQ000192688, \"How to configure Quad-Ethernet Module (QEM) for the first time?\" (user-supplied)"
+description: >
+  ASCO Power Technologies (Schneider Electric subsidiary) Quad-Ethernet Module (QEM, models 5140/
+  5170), used with ASCO Automatic Transfer Switches, ships with a factory-default webpage login
+  of admin:ASCO at default IP 169.254.1.1 — confirmed via a real login-page screenshot showing a
+  custom HTML form. Not built — the exact form field names are unconfirmed. See this file's own
+  header comment.

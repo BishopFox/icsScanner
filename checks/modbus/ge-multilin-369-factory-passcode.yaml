@@ -1,0 +1,66 @@
+# Native check — pure-read confirmation of the GE Multilin 369's factory-default Communications
+# Access Level ("Read & Write," unrestricted, no credential enforced) over Modbus. See
+# checks/modbus/native/ge_multilin_369_factory_passcode.py for the implementation and
+# checks/candidates/ge-multilin-369-factory-passcode.yaml (deleted on promotion) /
+# lab-notes/human-review-queue.md (Priority 1) for the full research trail. Built 2026-08-30 —
+# mechanism and value were already fully confirmed from GE Power Management's own "369 Motor
+# Management Relay Instruction Manual" (GEK-106288); the only open question was an explicit
+# reachability decision (serial-only relay, RTU-over-TCP-gateway assumption vs. a confirmed
+# native Ethernet port), which the user made directly.
+#
+# EXTRA CAUTION: real motor protection relay, same review bar every other GE Multilin check in
+# this project gets. This is the SIMPLEST and SAFEST design of the family — a single Modbus read
+# (FC03) of an ordinary holding register, no write of any kind, ever. Still destructive:true /
+# risk_reason: ["login"] per this project's standing convention that any live probe confirming a
+# missing-authentication or default-credential condition on a real device is gated the same way
+# as an actual login attempt (see checks/crimson/redlion-crimson-cve-2020-27285-unauth-read.yaml
+# for the same reasoning applied to a pure identity read).
+#
+# WIRE FRAMING NOTE, explicitly flagged: GEK-106288 documents ONLY RS232 (front panel)/RS485
+# (rear) serial ports — a full-manual search found exactly one isolated "Ethernet Connection OK"
+# status bit, likely describing an accessory module rather than a base-unit port, meaningfully
+# weaker evidence than even the 469's own manual. This check assumes network reachability via a
+# transparent serial-to-Ethernet gateway (raw Modbus RTU framing, CRC-16 included), the same
+# reasoning and "fails safe (ERROR, not a dangerous mis-write) if wrong" posture 469/489/750/760
+# already use — an explicit, user-confirmed decision, not a silent assumption.
+
+check_id: ge-multilin-369-factory-passcode
+protocol: modbus
+kind: native
+module: checks.modbus.native.ge_multilin_369_factory_passcode
+destructive: true
+risk_reason: ["login"]  # pure read, no write, no lockout documented — same tier as the Crimson unauth-read precedent
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "GE Automation"
+  product: "369"
+params:
+  slave_address: 1
+detection_hints:
+  transport: tcp
+  app_protocol: modbus
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own read of the Comm Access Level register (0051h, FC03, 1 register) — a raw Modbus RTU-over-TCP frame (slave address 1, the default params.slave_address; CRC-16 included per the module's own _crc16())"
+    patterns:
+      - context: request
+        bytes: "\\x01\\x03\\x00\\x51\\x00\\x01"
+  broad:
+    description: "Any Modbus RTU read of holding register 0051h (Comm Access Level) — the underlying GE Multilin access-control state on this relay, any slave address"
+    patterns:
+      - context: request
+        regex: "\\x03\\x00\\x51\\x00\\x01"
+references:
+  - "GE Publication Code GEK-106288, Manual P/N 1601-0077-BC — '369 Motor Management Relay Instruction Manual', supplied directly by the user"
+description: >
+  GE Multilin 369 Motor Management Relay ships with its Communications Access Level (holding
+  register 0051h, format F162) factory-defaulted to 0 ("Read & Write," unrestricted) — per the
+  manual's own words, "write access to setpoints is automatic and a 0 password need not be
+  entered," the same vendor-wide "0 disables the passcode feature" convention already confirmed
+  and built for the 469/489/850/869/750/760 siblings. Unlike those checks, this one never writes
+  or interprets a password field at all — the access-level register itself is the complete,
+  device-reported answer, confirmed with a single read. No CVE — documented factory-default
+  behavior. No Access Lockout is documented for this register, so this check performs exactly one
+  read, never retries.

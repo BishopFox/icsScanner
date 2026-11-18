@@ -1,0 +1,31 @@
+# Candidate stub — default-credentials sweep, Phase 15. NOT executable (no `kind`).
+# ARCHITECTURALLY OUT OF SCOPE, not under-researched — consolidates 3 SCADAPASS rows/families.
+#
+# - Beck IPC IPC@CHIP (PPPSERVER:blank, ppps:ppps) — PPP/dial-up (pap/chap) authentication, not
+#   an IP-network service this tool's model tests; same category as the Rockwell 9300-RADES/
+#   8EDM CHAP/PAP variant noted-but-not-built in Phase 8.
+# - ClimateWorx In-Row/M52 Microprocessor controllers (passcodes 1024/4321/1234) — local
+#   front-panel numeric passcodes, same category as the CAREL/ENTES/NOVUS local-passcode
+#   families already flagged in Phases 13/15.
+# - NOVUS Automation N-series temperature controllers (N1040/N480D/N960/etc., passcodes
+#   1111/9321) — same local front-panel passcode pattern.
+# - Lantronix EDS-MD 4/8/16 "Medical Device Server" (admin:PASS, HTTP 80) — real port/protocol
+#   and a real credential, but explicitly medical-market-branded hardware, consistent with this
+#   sweep's established exclusion of medical-device-specific findings (see
+#   `default-credentials-sweep.md`'s vendor-discovery section). Note: Lantronix as a company also
+#   makes plenty of non-medical industrial device servers — a future phase could revisit
+#   Lantronix's broader EDS line under a non-medical SKU if one turns up.
+
+check_id: candidate-phase15-out-of-scope-family
+protocol: local-only
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_only: true
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+description: >
+  Beck IPC IPC@CHIP (PPP/CHAP, not IP-network), ClimateWorx + NOVUS temperature controllers
+  (local front-panel passcodes), Lantronix EDS-MD (medical-device-branded, out of this sweep's
+  scope per its established exclusion policy). None buildable without a fundamentally different
+  tool architecture or a scope change.

@@ -1,0 +1,43 @@
+# Default-credentials sweep, Phase 2 (Rockwell), KEV-sourced. See
+# checks/enip/native/rockwell_logix_key_bypass_family.py for the full scope decision — this is
+# deliberately a safe product-family fingerprint check, NOT an exploit for the underlying
+# cryptographic key-discovery vulnerability. Uses the standard (not reverse-engineered)
+# EtherNet/IP List Identity service.
+#
+# detection_hints: DELIBERATELY OMITTED (2026-08-22, detection-gen rollout pass) — this check's
+# only wire activity is core/fingerprint.py:probe_enip_identity's request, a fixed 24-byte
+# EtherNet/IP List Identity request (command 0x0063, zero-length body, hex
+# 630000000000000000000000000000000000000000000000) — the exact same standard ODVA discovery
+# packet every EtherNet/IP tool sends (RSLinx, engineering workstations doing routine asset
+# discovery, other legitimate scanners). There is no narrow OR broad byte signature here that
+# distinguishes "probing for CVE-2021-22681" from completely routine EtherNet/IP device
+# discovery — a network IDS rule for this request would fire on ordinary engineering traffic
+# constantly. This check's actual signal lives in the APPLICATION-LAYER RESPONSE content (does
+# the reported product name match Rockwell's affected-family list), which is an asset-inventory/
+# log-correlation problem, not a network-byte-pattern one — outside what detection_hints:'s
+# request/response byte-pattern schema is meant to express. See 01-METHODOLOGY-AND-
+# CHECKLISTS.md's per-check checklist for the "omit and say why" escape hatch this follows.
+
+check_id: enip-rockwell-logix-key-bypass-family
+protocol: enip
+kind: native
+module: checks.enip.native.rockwell_logix_key_bypass_family
+cve_id: CVE-2021-22681
+severity: "10.0 CRITICAL (score only — see CISA ICSA-21-056-03 for full CVSS vector; note this check does NOT confirm exploitability, only product-family membership)"
+destructive: false
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_probe: enip_identity
+references:
+  - "https://www.cisa.gov/news-events/ics-advisories/icsa-21-056-03"
+  - "https://github.com/advisories/GHSA-pvh9-p4pw-h78q"
+  - "https://www.securityweek.com/unprotected-private-key-allows-remote-hacking-rockwell-controllers/"
+  - "https://www.securityweek.com/rockwell-vulnerability-allowing-remote-ics-hacking-exploited-in-attacks/"
+description: >
+  Studio 5000 Logix Designer (v21+) and RSLogix 5000 (v16-20) use an insufficiently-protected
+  private key to verify Logix controller communications (CWE-522) — an unauthenticated attacker
+  who discovers the key can bypass the verification mechanism entirely. CVSS 10.0, KEV-listed,
+  actively exploited. This check flags CONFIRMED only as "product family matches the documented
+  affected list, worth investigating" — it does not attempt the actual key-based bypass and does
+  not assert the target is unpatched (no fixed-version cutoff is published for this CVE).

@@ -1,0 +1,51 @@
+# Candidate stub — 2026-09-16. User-supplied ingest: Eaton knowledgehub PDF cache (see sibling
+# BLOCKER TAG (2026-09-22 triage pass): live-hardware-gap -- No source checked shows the raw HTTP/protocol request shape for either product's login -- needs a live device or a source with the actual wire format.
+# PXGX/PXGMS candidate for context). Confirmed no prior candidate/check for either product existed
+# before this file. Two smaller, distinct findings recorded together since both are web-login
+# credentials on Eaton monitoring/metering hardware, differing mainly in static-vs-derived shape.
+#
+# FINDING 1 — "DAE Default user name_password_.pdf" (read via pdftotext): a literal, static
+# credential pair:
+#     Username: Administrator
+#     Password: bFojj79g#
+# PRODUCT NOT FULLY IDENTIFIED this pass: "DAE" was not otherwise defined in this ingest batch —
+# possibly a Data Acquisition Enclosure or similar Eaton monitoring/metering appliance, based on
+# context (grouped alongside other network-card/metering knowledgehub articles in the same batch),
+# but this is inference, not confirmed. Worth a dedicated WebSearch/product-lookup pass before
+# building, to confirm both the product identity and its network reachability.
+#
+# FINDING 2 — "Default login for PX-EMD-G.pdf" (read via pdftotext): a DERIVED credential:
+#     Username: admin
+#     Password: Admin@XXXXXX, where XXXXXX is the last 6 digits of the PX-EMD-G's own serial
+#     number.
+# "PX-EMD-G" is a Power Xpert Energy Metering Device Gateway (inferred from Eaton's "PX-" product-
+# line naming convention used elsewhere in this same batch, e.g. PX-EMD-G alongside PXGX/PXGMS/
+# PXG900/PXM2000/PXM3000/PXR20D — all part of Eaton's Power Xpert metering/monitoring family).
+# This is a THIRD distinct derived-credential scheme in this Eaton research thread (partial-
+# serial-number-based, distinct from PXGX/PXGMS's full-MAC-address scheme and the ePDU G3's
+# full-serial-number scheme in the sibling Network-MS/NMC/ePDU candidate) — a genuinely
+# proliferated pattern across this one vendor's product line, worth noting as a cross-product
+# observation, not three unrelated coincidences.
+#
+# NOT YET BUILDABLE for either: no source checked this pass shows the raw HTTP/protocol request
+# shape for either product's login — only the browser-facing credential values themselves are
+# documented, the same single missing piece blocking every other candidate in this Eaton batch.
+
+check_id: candidate-eaton-dae-and-px-emd-g-default-creds
+protocol: unknown
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Eaton"
+  product: "DAE (product identity not fully confirmed) / PX-EMD-G Power Xpert energy metering gateway"
+references:
+  - "DAE Default user name_password_.pdf, user-supplied Eaton knowledgehub export, read directly via pdftotext"
+  - "Default login for PX-EMD-G.pdf, user-supplied Eaton knowledgehub export, read directly via pdftotext"
+description: >
+  Two smaller Eaton default-credential findings from the same knowledgehub PDF batch: "DAE"
+  (product identity not fully confirmed this pass) ships a static Administrator/bFojj79g#
+  credential; PX-EMD-G (a Power Xpert energy metering gateway) ships a derived credential,
+  admin/Admin@<last 6 digits of serial number> — a third distinct derived-credential scheme found
+  in this Eaton research thread, alongside PXGX/PXGMS's MAC-derivation and ePDU G3's full-serial-
+  number derivation. Both confirmed directly from Eaton's own support documentation. Neither is
+  yet buildable: no source checked shows the raw login request shape for either product.

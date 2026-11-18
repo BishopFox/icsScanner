@@ -1,0 +1,123 @@
+# Candidate stub — 2026-09-15. `1516_FIW_XX_V1-4_20-01-30.hex` (an ingest/ file never previously
+# BLOCKER TAG (2026-09-22 triage pass): firmware-gap -- No fingerprint precondition, network protocol/port, or default password value has been identified for Telenot comXline devices at all -- needs firmware/protocol documentation or a live device to characterize the compasX protocol basics from scratch.
+# RETAGGED (2026-09-22, same-day sourcing pass): live-hardware-gap, not firmware-gap -- found a real vendor-documented default password (999999) and the separate AES-key remote-access mechanism directly from the official manual; what remains needs a live device, not more documentation. See follow-up note below.
+# opened in this sweep, per the fresh 7z-inventory pass) is a plain Intel HEX firmware image for
+# an ABB-branded "Alarmübertragungsgerät comXline" type 1516/LP, 1516/LP-GSM (an alarm-transmission
+# device that relays intrusion/fire/hold-up alarms from an alarm panel to a monitoring station,
+# "Notruf- und Serviceleitstelle" — a physically-sensitive security product, not a generic ICS/OT
+# device, but network-facing via Ethernet-IP and GPRS-IP per its own official docs). The actual
+# manufacturer is **Telenot** (German security-systems maker) — confirmed directly from embedded
+# strings (`Telenot`, `Telenot.de`, `management@telenot.de`, `Management@telenot.de`,
+# `@objekt@telenot.de`) — ABB sells this as an OEM-rebranded product, matching a pattern already
+# seen elsewhere in this batch (Bosch/Dahua rebrand, etc.). Decoded the Intel HEX to a raw binary
+# directly (a small from-scratch parser — `:`-prefixed records, type-00 data records concatenated)
+# to string-scan it; the file is ARM/Thumb bare-metal firmware (vector-table opcodes at offset 0,
+# moderate entropy 6.79 — not encrypted). Confirmed no prior Telenot/comXline candidate or check
+# existed before writing this file.
+#
+# THE FINDING, confirmed directly from the firmware binary, not inferred:
+#   A literal null-terminated string sequence sits immediately after the vendor's own
+#   "Telenot.de" domain string in the binary: `Telenot.de\x00\x00DefaultUser\x00default\x001.0\x00`
+#   — i.e. a compiled constant pairing the FIELD NAME "DefaultUser" with the VALUE "default",
+#   immediately followed by what reads as a version string ("1.0") for whatever config table this
+#   belongs to. This is the same class of evidence as this project's own SecureNMCSystemTool
+#   "apc"/"apc" const-string extraction (a real compiled default baked into the firmware, not a
+#   documentation guess) — but here found by direct binary string-adjacency, not a structured
+#   metadata table, so the specific SERVICE this default applies to is less certain (see below).
+#   No paired "DefaultPassword"/"DefaultPasswd" string was found anywhere in the same binary —
+#   only the username half is confirmed as a literal compiled default; if a companion password
+#   default exists, this pass did not locate it.
+#
+# CROSS-REFERENCED against ABB's own official firmware-information document for this exact
+# product (fetched directly: `library.e.abb.com/public/.../1516_FI_de_V1-4_20-04-03.pdf` — the
+# very first search result for this device, ABB's own public support library, version 1.4
+# matching this file's own "V1-4" filename), which independently corroborates TWO relevant, real
+# details from actual product screenshots in the document (not this project's own guesses):
+#   1. The device's "Zugangsdaten für GPRS-Verbindung" (GPRS connection access data) configuration
+#      screen has explicit "Benutzername" (Username) / "Passwort" (Password) fields, both shown
+#      populated with the literal value **admin / admin** in the documentation's own example
+#      screenshot (for a "Siemens Global SIM priv." SIM card, APN "bt-sipa.ic.m2mportal.de"). This
+#      is a real product screen with real-shaped username/password fields, but it's a
+#      DOCUMENTATION EXAMPLE (illustrating the compasX configuration tool), not explicitly labeled
+#      by ABB as "the factory default" — recorded honestly as supporting context, not proof this
+#      exact value is universal.
+#   2. The device's general parameters screen has a "Geräteschutz" (Device protection) field shown
+#      set to **"Nein"** (No) in that same documentation's example — i.e. ABB's own documentation
+#      illustrates a real, deployed-shaped configuration with device password-protection DISABLED.
+#      Same caveat: an illustrative screenshot, not a stated factory default.
+#
+# NET EFFECT / WHAT IS AND ISN'T CONFIRMED: a real compiled "DefaultUser"="default" constant
+# exists in this device's own firmware, corroborated by (not proven by) the vendor's own
+# documentation showing both a real username/password-shaped configuration screen AND an example
+# of device protection being off. What this pass could NOT confirm: (a) which exact network
+# service/protocol the "DefaultUser" firmware constant actually gates (the GPRS APN login, a local
+# compasX/service-technician login, or something else — the binary string alone doesn't say); (b)
+# whether "default" is genuinely what ships from the factory or just this specific constant's
+# fallback/placeholder value; (c) any companion default password value. Given this is a physical
+# security/alarm-transmission product (elevated stakes — a bypass could mask a real intrusion/fire
+# alarm from reaching the monitoring station), this project's own discipline calls for NOT
+# building anything here until the exact service and a real password value are independently
+# confirmed, e.g. against a live device or a fuller reading of the compasX protocol documentation.
+#
+# NOT YET BUILDABLE: no fingerprint precondition exists for Telenot/comXline devices in this
+# project, the exact network protocol/port for whatever "DefaultUser" gates was not identified,
+# and no default password value was found to pair with it.
+#
+# FOLLOW-UP 2026-09-22 (firmware-gap sourcing pass): found and read directly (pdftotext, not a
+# search summary) Telenot's own official "Übertragungseinrichtung comXline 1516/2516" technical
+# manual (igs-hagen.de mirror of the vendor document, downloaded and verified as a genuine PDF —
+# same product line/model as this candidate). Real, new, vendor-documented evidence, but it does
+# NOT simply confirm the earlier "DefaultUser"/"default" firmware-string finding — it reveals a
+# MORE COMPLEX picture that must not be conflated into one simple default-credential story:
+#
+#   1. A genuinely different, well-documented default: "Kennwort: Zugang zur Parametrierung kann
+#      über ein 6-stelliges Kennwort geschützt werden, Wertebereich 0-999999, Werkeinstellung
+#      999999" — a 6-digit numeric password gating "Parametrierung" (device configuration) access
+#      via the compasX software, FACTORY DEFAULT literally 999999 (all nines). This is a real,
+#      vendor-documented default — but the manual's structure suggests this gates general/direct
+#      compasX parametrization access (e.g. a locally/directly connected PC), not confirmed as the
+#      SAME gate that applies to the separate IP-remote-access path below.
+#   2. IP-based remote access ("Fernzugang" -> "IP", Menu 1.12.3) is a SEPARATE mechanism with its
+#      own access control: an allow-listed caller IP address PLUS "Schlüssel für sicheren
+#      Fernzugang: Schlüssel-Nr. und AES-Schlüssel entsprechend Menü 1.8 'Schlüssel' eintragen" —
+#      i.e. remote-IP access requires an AES KEY configured in a separate menu, not just the
+#      6-digit Kennwort above. No factory-default AES key value was found in this document — the
+#      manual's phrasing ("entsprechend... eintragen", "enter according to...") reads as an
+#      operator-configured value, not a shipped default, though this was not exhaustively
+#      confirmed. This is a materially STRONGER access-control model than a simple weak password.
+#   3. The incoming IP port for remote access is NOT a single fixed factory default — the manual
+#      states "IP-Port (eingehende Verb.): Port-Nr. von 49152-65535... lassen sich variabel
+#      einsetzen" (operator-configurable within the dynamic/private port range) — meaning even if
+#      a default credential were confirmed, a generic network check has no single default port to
+#      target without additional discovery logic.
+#
+# NET EFFECT: real forward progress (a genuine, sourced, factory-default numeric password now
+# exists: 999999), but this does NOT resolve the candidate into something buildable — if anything
+# it clarifies that the network-facing IP remote-access path specifically appears to rely on a
+# separate, stronger AES-key mechanism rather than the weak default password, and no single
+# default port exists to target. Given this is still an elevated-stakes physical-security/alarm-
+# transmission product, this project's own discipline continues to call for NOT building anything
+# here without further confirmation (a live device, or a fuller reading of the AES-key
+# provisioning process to confirm whether it ever ships with a default/known value) — recording
+# this honestly as progress, not resolution.
+
+check_id: candidate-telenot-comxline-1516-default-user-string
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Telenot (OEM: ABB)"
+  product: "comXline 1516/1516-GSM/2516"
+references:
+  - "Ingest firmware (never-before-reviewed, user-supplied): 1516_FIW_XX_V1-4_20-01-30.hex, decoded from Intel HEX directly, string-scanned — found the literal 'DefaultUser'/'default' constant pair adjacent to the vendor's own 'Telenot.de' string"
+  - "ABB's own official firmware-information PDF for this exact product/version: library.e.abb.com/public/68686b5346dc480ab9de98b527bfbbd7/1516_FI_de_V1-4_20-04-03.pdf — shows a GPRS-connection screen with Benutzername/Passwort populated 'admin'/'admin' in an example, and a general-parameters screen with 'Geraeteschutz: Nein' in an example"
+description: >
+  An ABB-rebranded Telenot comXline 1516/2516 alarm-transmission device's firmware contains a
+  compiled "DefaultUser"="default" string constant. ABB's own official documentation for this
+  exact firmware version independently shows a real username/password-shaped GPRS configuration
+  screen (example populated "admin"/"admin") and an example configuration with device password
+  protection disabled ("Geraeteschutz: Nein") — supporting context, not proof of a universal
+  factory default. Not yet buildable: the exact network service the firmware constant applies to,
+  and any companion default password value, were not identified this pass. Elevated-stakes device
+  class (physical security/alarm transmission) — deliberately not pursued further without a
+  clearer protocol/service identification.

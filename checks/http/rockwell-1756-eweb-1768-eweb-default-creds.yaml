@@ -1,0 +1,46 @@
+# Default-credentials sweep, Phase 8 — surfaced by the SCADAPASS cross-reference against
+# Rockwell (already "closed out" in Phase 2). Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Sources (2 independent): SCADAPASS, citing the official 1756-EWEB/1768-EWEB user manual;
+# corroborated by a manualsdir.com-hosted excerpt directly quoting "Password: (leave blank, no
+# password)" for the default Administrator account — a direct manual quote, not a generic
+# aggregator restating an unverified claim.
+#
+# No CVE — documented factory-default behavior. Empty-string password, not "no credentials
+# configured" — Basic Auth with a blank password field is a valid, distinct case from no auth
+# attempt at all.
+
+check_id: http-rockwell-1756-eweb-1768-eweb-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Rockwell Automation"
+params:
+  path: "/"
+  credentials:
+    - ["Administrator", ""]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (Administrator:)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic QWRtaW5pc3RyYXRvcjo="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.manualsdir.com/manuals/581540/rockwell-automation-1768-eweb-ethernet_ip-web-server-module-user-manual-1756-eweb-ethernet_ip-web-server-module-user-manual.html?page=20"
+description: "1756-EWEB/1768-EWEB EtherNet/IP Web Server modules ship with a factory-default Administrator account and a BLANK password — no CVE, documented factory-default behavior."

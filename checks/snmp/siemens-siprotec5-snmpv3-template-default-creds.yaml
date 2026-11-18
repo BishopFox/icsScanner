@@ -1,0 +1,115 @@
+# Candidate promoted directly to a real check — 2026-09-15/16. User supplied a large SICAM/
+# SIPROTEC-family ingest batch; while reviewing SIP5_ComProt_V11.00_Manual_C055-N_de.pdf
+# (Siemens's own official "SIPROTEC 5, Communication Protocols" handbook, C53000-L1800-C055-N,
+# Edition 04.2026, German — read directly via pdftotext, not a search summary), found an official,
+# vendor-documented SNMPv3 default-credential table. Confirmed no prior SIPROTEC 5 SNMP candidate/
+# check existed before writing this file.
+#
+# THE FINDING, verbatim from the manual's own Table 11-7/11-8 ("11.12.4 SNMPv3-Merkmale"), covering
+# the ETH-BA-2EL, ETH-BB-2FO, ETH-BD-2FO, ETH-YA-2EL, and ETH-YC-2FO Ethernet communication modules:
+#   - User "initial": NO authentication, NO privacy — but explicitly documented (line "Als
+#     Voreinstellung werden 2 Benutzer in einer Gruppe unter dem Namen initial angelegt, mit Lese-
+#     und Schreibzugriff" = "By default, 2 users are created in a group named 'initial', with READ
+#     AND WRITE access") as carrying READ+WRITE access by default. This executor cannot test this
+#     specific user (see NOT COVERED below).
+#   - User "templateMD5": auth=MD5 passphrase "12345678", priv=DES passphrase "12345678" (same
+#     literal value for both).
+#   - User "templateSHA": auth=SHA passphrase "12345678", priv=DES passphrase "12345678" (also
+#     seen with AES priv in a second table for the newer module revisions — same auth passphrase).
+# Siemens's OWN manual explicitly flags this as a security concern, not a "working as intended"
+# design: "Siemens empfiehlt aus Sicherheitsgründen, diese initialen Standardbenutzer zu entfernen,
+# eigene Benutzer anzulegen und Passwörter zu vergeben" ("Siemens recommends, for security reasons,
+# removing these initial default users, creating your own users and assigning passwords") -- and
+# further confirms these are not just a one-time initial-boot state: "Wenn die Parametrierung für
+# SNMP entfernt wird und in das Gerät geladen wird... Bei einer erneuten Konfiguration von SNMP gilt
+# wieder der Initialzustand" ("If the SNMP configuration is removed and reloaded... upon
+# reconfiguring SNMP, the initial state applies again") -- these exact defaults recur every time
+# SNMP is (re-)configured on the device, not just at first factory boot.
+#
+# REAL, DOCUMENTED MITIGATION, stated plainly, not omitted: "Standardmäßig ist SNMP deaktiviert."
+# ("By default, SNMP is disabled.") -- an operator must explicitly enable SNMP in the Ethernet
+# module's network settings before any of this is reachable. Same "disabled until explicitly
+# enabled" caveat this project already documents for comparable candidates (e.g. SICAM AK3's
+# "Remote operation: disabled" state) -- a realistic, common configuration for substation equipment
+# under active network management, not assumed to be universally exposed.
+#
+# EXECUTOR: `checks/snmp/native/snmpv3_default_creds.py` already existed, built and proven for the
+# Schneider TM172SI candidate (`checks/snmp/schneider-modicon-tm172si-snmpv3-default-creds.yaml`),
+# and was exactly the right shape to test `templateMD5`/`templateSHA` (both have a real auth
+# passphrase) with zero code changes.
+#
+# UPDATE 2026-09-16 (user: "item 2" -- build executor support for the unauthenticated `initial`
+# user): the executor's original authNoPriv-only scope has been EXTENDED with a new, separate
+# `noauth_usernames` capability (see the module's own updated docstring, "SECOND, SEPARATE
+# CAPABILITY") -- it reuses the exact noAuthNoPriv message shape the executor already builds for
+# its own engine-discovery step, just with a real (non-empty) username instead of the empty one
+# discovery sends. A genuine GetResponse-PDU proves the device's USM layer accepts this username
+# with ZERO authentication presented at all -- a real, more severe finding than a weak-but-real
+# passphrase, since there's no credential to guess in the first place. Added below as
+# `noauth_usernames: ["initial"]`, tried before `credentials` (the more severe finding first).
+# DELIBERATELY READ-ONLY: even though the manual documents `initial` as READ+WRITE, this check
+# only ever sends a GetRequest -- proving unauthenticated READ access is sufficient evidence, and
+# a real SetRequest against a live protection relay would be a materially more destructive test
+# than any other check in this project performs, for no additional evidentiary value. Covered by
+# 4 new smoke-test cases in tests/smoke_test_snmpv3_default_creds.py (accept, VACM-denies-but-
+# still-no-credential, wrong username, and a username that turns out to actually require auth on
+# a given device) plus a 5th proving `noauth_usernames` and `credentials` compose correctly in one
+# check (tried in the documented order, first match wins).
+#
+# CONFIDENCE: high, not low like the TM172SI sibling -- this credential is confirmed via an
+# OFFICIAL, CURRENT (edition 04.2026) vendor manual explicitly describing it as the factory/
+# recurring-initial-state default, with Siemens's own words recommending its removal. This clears
+# the higher evidentiary bar this project reserves for "confirmed by an official manual," not just
+# a single firmware image's baked-in config file.
+
+check_id: snmp-siemens-siprotec5-snmpv3-template-default-creds
+protocol: snmp
+kind: native
+module: checks.snmp.native.snmpv3_default_creds
+destructive: true
+risk_reason: ["login"]  # plain authentication attempt; SNMPv3 USM has no account-lockout concept
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Siemens AG"
+  product: "SIPROTEC 5"
+params:
+  noauth_usernames:
+    - "initial"
+  credentials:
+    - {username: "templateMD5", auth_protocol: "MD5", auth_key: "12345678"}
+    - {username: "templateSHA", auth_protocol: "SHA", auth_key: "12345678"}
+detection_hints:
+  transport: udp
+  app_protocol: snmp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own SNMPv3 USM request's msgUserName field (username 'initial', 'templateMD5', or 'templateSHA') — verified by executing the module's own _tlv() BER encoder directly, not hand-derived"
+    patterns:
+      - context: request
+        regex: "\\x04\\x07initial"
+      - context: request
+        regex: "\\x04\\x0btemplateMD5"
+      - context: request
+        regex: "\\x04\\x0btemplateSHA"
+  broad:
+    description: "Any SNMPv3 USM request against a SIPROTEC 5 device carrying either the noAuthNoPriv msgFlags pattern (0x04, this executor's noauth_usernames probe) or the authNoPriv pattern (0x05, authFlag set, privFlag clear — the templateMD5/templateSHA probe) — the vulnerability class (factory-default SNMPv3 credentials), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "\\x04\\x01\\x04"
+      - context: request
+        regex: "\\x04\\x01\\x05"
+references:
+  - "SIP5_ComProt_V11.00_Manual_C055-N_de.pdf — Siemens's own official 'SIPROTEC 5, Communication Protocols' handbook, C53000-L1800-C055-N, Edition 04.2026, user-supplied, read directly via pdftotext, section 11.12.4 'SNMPv3-Merkmale', Tables 11-7/11-8"
+description: >
+  Siemens SIPROTEC 5 protection relays with an SNMP-capable Ethernet communication module
+  (ETH-BA-2EL, ETH-BB-2FO, ETH-BD-2FO, ETH-YA-2EL, ETH-YC-2FO) ship with factory-default SNMPv3 USM
+  users documented in the vendor's own official Communication Protocols manual: an unauthenticated
+  "initial" user (no auth, no privacy, but READ+WRITE access — this check tests only the read
+  path), and "templateMD5"/"templateSHA", both with the literal passphrase "12345678" for
+  authentication (and privacy). Siemens's own manual recommends removing these defaults and
+  confirms they recur every time SNMP is reconfigured on the device, not just at first boot. SNMP
+  is disabled by default and must be explicitly enabled by an operator before this is reachable.
+  High confidence: confirmed via a current (04.2026) official vendor manual, not inferred from a
+  single firmware image.

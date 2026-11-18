@@ -1,0 +1,24 @@
+# Candidate stub — default-credentials sweep, Phase 8 (SCADAPASS cross-reference). NOT
+# executable (no `kind`). RESEARCH GAP.
+#
+# SCADAPASS lists a password "pass" for Alerton BCM-WEB (BACtalk control module web
+# server/configurator), citing a Darius Freamon blog post — but gives no username and no port.
+# "pass" alone, with no username to pair it with, isn't a usable credential in this project's
+# [username, password] model. Not searched further to fill the gap this pass given the low
+# information density of what's already known — worth a dedicated search pass reading the
+# Freamon post directly (dariusfreamon.wordpress.com/2015/05/01/honeywell-alerton-bcm-web-
+# default-admin-credentials/) before building.
+
+check_id: candidate-honeywell-alerton-bcm-web-default-creds
+protocol: http
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Honeywell International"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://dariusfreamon.wordpress.com/2015/05/01/honeywell-alerton-bcm-web-default-admin-credentials/"
+description: >
+  Alerton BCM-WEB (BACtalk control module) has a documented default password "pass" per
+  SCADAPASS, but no username or port given — incomplete credential pair, not built. Needs the
+  cited Darius Freamon blog post read directly to fill in the missing username/port detail.

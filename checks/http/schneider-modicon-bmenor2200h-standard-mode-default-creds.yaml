@@ -1,0 +1,50 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ "How to access the webpage
+# of the BMENOR2200H module when the module is in standard mode?" directly. New Modicon M580
+# Ethernet module for this project: BMENOR2200H.
+#
+# The FAQ's own Resolution: "When the module is in STANDARD MODE the default user role is
+# INSTALLER... In the Standard cyber security mode used the following credential to login: user
+# name: installer / password: Inst@ller1." The FAQ also notes the browser will warn the page is
+# "not secured" (a self-signed/unverified TLS cert) — expected and not itself part of this
+# finding, just documented so it isn't mistaken for a check bug later.
+#
+# Login mechanism (HTTP Basic Auth over HTTPS) assumed per this project's established
+# convention — the FAQ describes navigating straight to the module's Home page and logging in, no
+# custom form fields mentioned.
+#
+# No CVE — documented factory-default behavior, scoped to the module's "Standard" cyber security
+# mode specifically (the FAQ's own scope; other modes not addressed by this source).
+
+check_id: http-schneider-modicon-bmenor2200h-standard-mode-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  https: true
+  credentials:
+    - ["installer", "Inst@ller1"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTPS Basic Auth attempt using the documented factory credential (installer:Inst@ller1) for the Modicon BMENOR2200H module's webpage in Standard cyber security mode"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic aW5zdGFsbGVyOkluc3RAbGxlcjE="
+  broad:
+    description: "Any HTTP(S) Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ, \"How to access the webpage of the BMENOR2200H module when the module is in standard mode?\" (user-supplied)"
+description: "Schneider Electric Modicon M580 BMENOR2200H module, while in its Standard cyber security mode, ships with a factory-default HTTPS webpage login of installer:Inst@ller1 (INSTALLER role). No CVE, documented factory-default behavior per Schneider's own FAQ."

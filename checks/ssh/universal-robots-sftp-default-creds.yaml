@@ -1,0 +1,64 @@
+# New vendor CATEGORY for this project, 2026-08-26 — industrial robot controllers. User pointed
+# at RoboDK's own official documentation (robodk.com/doc/en), a widely-used offline-programming/
+# simulation platform that documents real network access methods for a couple dozen robot
+# manufacturers. Full cross-reference and the several high-stakes items intentionally NOT built
+# are logged in `lab-notes/human-review-queue.md`, new Priority 12 section — this file covers the
+# one item confirmed safe and buildable per this project's usual discipline.
+#
+# Source: RoboDK's own "Universal Robots" documentation page (robodk.com/doc/en/Robots-Universal-
+# Robots.html), "Transfer a Program (FTP)" section, verified against the raw page HTML directly
+# (not just an AI-summarized fetch): "Enter the user name (default for UR is: root)" / "Enter the
+# password (default for UR is: easybot)". The same section states plainly "UR controllers only
+# support SFTP" (port 22) even though the FTP port (21) is also mentioned as a general default —
+# i.e. the real, connectable service is SSH-transport SFTP, not plaintext FTP.
+#
+# Protocol choice: `ssh`, not `ftp`. UR's SFTP service is an SSH daemon restricted to the SFTP
+# subsystem (common on embedded Linux controllers) — authentication happens at the SSH transport
+# layer exactly like any other SSH login, before any SFTP-specific negotiation. This project's
+# existing `checks.ssh.native.ssh_default_creds` module only ever performs a plain SSH
+# password-authentication attempt (paramiko `client.connect()`, never opens a shell or SFTP
+# session) — so it validates this credential correctly without needing a new SFTP-specific
+# executor.
+#
+# Safety note (why this one is fine to build, unlike several sibling findings logged as
+# candidates in the same lab-notes section): SFTP is a file-transfer credential only — it can
+# read/overwrite program files on the controller's filesystem, the same risk class as every other
+# FTP/SFTP/SSH default-creds check already in this project, and carries NO robot-motion-control
+# capability of its own. This is distinct from the several unauthenticated raw robot-control
+# sockets (ABB/Fanuc/Denso/Mecademic) also surfaced by the same documentation source, which are
+# deliberately NOT built here — see the lab-notes entry for why.
+#
+# No CVE — documented factory-default behavior. (Note: this exact credential pair has also long
+# been publicly known in independent industrial-robot security research, not just this source —
+# corroborating, not the sole basis for this check.)
+
+check_id: ssh-universal-robots-sftp-default-creds
+protocol: ssh
+kind: native
+module: checks.ssh.native.ssh_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Universal Robots"
+params:
+  credentials:
+    - ["root", "easybot"]
+  default_port: 22
+detection_hints:
+  transport: tcp
+  app_protocol: ssh
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "No narrow wire-level signature is possible for this check — SSH encrypts the session immediately after key exchange, so the specific username/password pair this scanner sends is never visible as a plaintext byte pattern on the wire."
+    patterns: []
+  broad:
+    description: "Any SSH authentication attempt against a Universal Robots controller — the vulnerability class (a credential-guessing pass), not a specific guessed value, since SSH's encryption prevents matching the actual username/password on the wire"
+    patterns:
+      - context: request
+        regex: "SSH-2\\.0-"
+references:
+  - "RoboDK documentation, \"Universal Robots\" (robodk.com/doc/en/Robots-Universal-Robots.html), \"Transfer a Program (FTP)\" section (user-supplied URL)"
+description: "Universal Robots (UR3/UR5/UR10 and e-Series) controllers ship with a factory-default SFTP (SSH-transport) login of root:easybot for program-file transfer. No CVE, documented factory-default behavior per RoboDK's own official integration documentation, also independently corroborated in public industrial-robot security research."

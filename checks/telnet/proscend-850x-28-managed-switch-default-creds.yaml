@@ -1,0 +1,51 @@
+# Default-credentials sweep, 2026-09-02 — Telnet sibling of
+# checks/http/proscend-850x-28-managed-switch-default-creds.yaml. Both Proscend's "850X-28" QIG
+# and "850X-28P" User Manual give a "CLI Initialization and Configuration" section stating
+# "Key-in the command under Telnet: telnet <ip>" followed by the SAME login prompt and credential
+# pair already documented for the web interface (see the sibling HTTP check's header comment for
+# the full admin:admin vs. root:2wsx#EDC document-conflict writeup — not repeated here). Both
+# pairs shipped for the same reason: safe to try either, a wrong guess only risks NOT_APPLICABLE.
+#
+# No worked Telnet login-prompt transcript is given in either document (just "Login with default
+# account and password"), so this uses this project's generic telnet_default_creds executor
+# defaults (login:/password: prompts) rather than a device-confirmed exact sequence — same
+# posture as several other telnet checks in this sweep (moxa-ia240-241, hirschmann-switch-router,
+# apc-ups-nmc2).
+#
+# No CVE — documented factory-default behavior.
+
+check_id: telnet-proscend-850x-28-managed-switch-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Proscend"
+params:
+  credentials:
+    - ["admin", "admin"]
+    - ["root", "2wsx#EDC"]
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet login attempts using the two factory-default credential pairs documented across Proscend's own 850X-28/850X-28P manuals (admin:admin, root:2wsx#EDC)"
+    patterns:
+      - context: request
+        bytes: "admin\\r\\nadmin\\r\\n"
+      - context: request
+        bytes: "root\\r\\n2wsx#EDC\\r\\n"
+  broad:
+    description: "Any Telnet session on a Proscend 850X-28-family switch authenticating with username 'admin' or 'root' — the vulnerability class (factory-default credentials shared across HTTP/Telnet), not the specific guessed password alone"
+    patterns:
+      - context: request
+        regex: "(admin\\r\\nadmin|root\\r\\n2wsx#EDC)\\r\\n"
+references:
+  - "Proscend '850X-28' Quick Installation Guide, v1.00 (user-supplied) — admin:admin, CLI Initialization and Configuration"
+  - "Proscend '850X-28P' User Manual, v1.00, 2024-12-02 (user-supplied) — section 2.7, same document-conflict as the sibling HTTP check"
+description: "Proscend 850X-28 and 850X-28P managed switches expose a Telnet CLI sharing the same factory-default credential(s) as the web UI. No CVE, documented factory-default behavior."

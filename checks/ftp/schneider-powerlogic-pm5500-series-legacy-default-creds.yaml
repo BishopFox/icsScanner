@@ -1,0 +1,47 @@
+# Default-credentials sweep, 2026-08-24 — FTP sibling of
+# checks/http/schneider-powerlogic-pm5500-series-legacy-default-creds.yaml. See that check's own
+# header comment for the full research trail (Schneider's own official user-manual page,
+# productinfo.se.com, doc HRB1684301-18, read directly) — the source document explicitly lists
+# "Webpages and FTP" as one combined configuration area for this credential era, not
+# independently re-derived for FTP alone.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: ftp-schneider-powerlogic-pm5500-series-legacy-default-creds
+protocol: ftp
+kind: native
+module: checks.ftp.native.ftp_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  credentials:
+    - ["user1", "pass1"]
+    - ["user2", "pass2"]
+detection_hints:
+  transport: tcp
+  app_protocol: ftp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own FTP USER/PASS attempts using the documented factory credentials (user1:pass1, user2:pass2)"
+    patterns:
+      - context: request
+        bytes: "USER user1\\r\\nPASS pass1\\r\\n"
+      - context: request
+        bytes: "USER user2\\r\\nPASS pass2\\r\\n"
+  broad:
+    description: "Any FTP USER/PASS pair using the 'user1' or 'user2' username on this device family — the vulnerability class (factory-default credentials), not the specific guessed password"
+    patterns:
+      - context: request
+        regex: "USER user[12]\\r\\nPASS .*\\r\\n"
+references:
+  - "https://productinfo.se.com/pm5500/595e2aa946e0fb0001f715da/PM5500%20user%20manual/English/PM5500SeriesUserManualv02_0000044889.ditamap/$/C_DefaultPasswordsAndUserAccounts_0000387599"
+description: >
+  Schneider Electric PowerLogic PM5500/PM5600/PM5700 series power meters ship with factory-default
+  FTP logins user1:pass1 ("Web master") and user2:pass2 ("Product master"), shared with the same
+  device family's web UI — no CVE, documented factory-default behavior per Schneider's own
+  official user manual page. See the sibling HTTP check for full model/firmware scope.

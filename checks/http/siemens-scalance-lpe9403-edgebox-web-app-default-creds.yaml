@@ -1,0 +1,70 @@
+# PROMOTED 2026-09-14 from checks/candidates/siemens-scalance-lpe9403-edgebox-web-app-default-
+# creds.yaml, using the new checks/http/native/json_post_default_creds.py executor built
+# specifically to unblock this candidate — see that module's own docstring for the full design
+# reasoning (in particular why a STATIC "null" CSRF-header value is correct here, verified
+# directly against the real client source, not a workaround).
+#
+# Credential (admin/admin) confirmed twice in Siemens's own official Configuration Manual
+# (§9.3.1 Web UI + §8.6.1 Linux Shell/SSH, a separate service not covered by this check) — see
+# the candidate stub's full FOLLOW-UP note for the exact quoted passages and citation. Mechanism
+# (JSON POST to /auth/login, username/password fields, X-CSRF-TOKEN header, success = HTTP 200
+# with a `sessionToken` field in the response body) confirmed directly from the firmware's own
+# Angular frontend bundle (main-*.js) and its runtime nginx.conf.template (confirms
+# `location / { proxy_pass https://edgebox_web_app/; }` on port 443 — HTTPS only, port 80 just
+# redirects — and that /auth/login is served at the site root, no /api/ prefix).
+#
+# DESTRUCTIVE, not adverse: a real, enabled-by-default fail2ban brute-force lockout was confirmed
+# directly in the firmware (/etc/fail2ban/jail.d/edgebox_web_app.conf, journal-backed, bans by
+# source IP on repeated failed logins) — same reasoning already applied to the SCALANCE S615
+# candidate.
+#
+# NOT covered by this check: the identical admin/admin default on the Linux Shell/SSH service
+# (§8.6.1 of the same manual) — a separate protocol/port, out of scope for this HTTP check.
+
+check_id: http-siemens-scalance-lpe9403-edgebox-web-app-default-creds
+protocol: http
+kind: native
+module: checks.http.native.json_post_default_creds
+destructive: true
+risk_reason: ["lockout"]  # confirmed fail2ban brute-force lockout in the firmware, 2026-09-14
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Siemens AG"
+  product: "SCALANCE LPE9403"
+params:
+  path: "/auth/login"
+  https: true
+  username_field: "username"
+  password_field: "password"
+  extra_header_name: "X-CSRF-TOKEN"
+  extra_header_value: "null"
+  success_status: 200
+  success_body_field: "sessionToken"
+  credentials:
+    - ["admin", "admin"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own JSON POST login attempt using the documented factory Web UI credential (admin/admin) against /auth/login — verified by executing the module's own json.dumps() call directly, not hand-derived"
+    patterns:
+      - context: request
+        regex: "POST /auth/login HTTP/1\\.[01]\\r\\n[^\\r\\n]*\\r\\n[^\\r\\n]*X-CSRF-TOKEN: null[\\s\\S]*\\{\"username\": \"admin\", \"password\": \"admin\"\\}"
+  broad:
+    description: "Any JSON POST login attempt against this device's /auth/login endpoint — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "POST /auth/login HTTP/1\\.[01]\\r\\n"
+references:
+  - "scalance-lpe9403-V05.00.00.swu — official SCALANCE LPE9403 firmware update package, user-supplied, extracted and inspected directly"
+  - "PH_SCALANCE-LPE-9000_76.pdf — official \"SCALANCE LPE9403 / SCALANCE LPE9423 V5.0 Configuration Manual\", 05/2026, A5E55928793-AA, English edition, extracted from the same firmware zip's lpe.iso and read directly via pdftotext"
+description: >
+  Siemens SCALANCE LPE9403 ("Local Processing Engine" edge-computing appliance) ships with a
+  factory Web UI login of admin/admin, confirmed directly in Siemens's own official Configuration
+  Manual (reapplied after any configuration reset, not just fresh-out-of-box) — forces changing
+  both the username and password on first successful login. A confirmed, enabled-by-default
+  fail2ban brute-force lockout makes this DESTRUCTIVE tier. The identical default on the device's
+  separate Linux Shell/SSH service is not covered by this check.

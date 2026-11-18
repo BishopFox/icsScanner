@@ -1,0 +1,56 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ FAQ000258616 ("What is the
+# default user name and password for the OMT page of Tesys Island?") directly. Brand-new product
+# for this project: Tesys Island (TPRBCEIP), a motor management system for IEC contactors and
+# starters — its embedded webpage (OMT — On Motor Terminal) ships with a factory-default login of
+# admin:schneider18.
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention.
+#
+# No CVE — documented factory-default behavior.
+#
+# CORRECTIVE NOTE 2026-08-25 (5th/final Schneider FAQ batch): a second, more detailed FAQ ("How
+# to connect to a NEW Tesys Island TPRBCEIP Web browser?") corroborates the same credential pair
+# (admin, schneider18) but describes the actual login flow in far more detail: "The OMT login
+# screen is displayed... Log in with the default username and password (admin, schneider18) and
+# click Login. Result: The Change Password window opens." This reads like a genuine HTML login
+# FORM (a rendered screen, a Login button, a distinct post-login "Change Password window"), not a
+# browser-native HTTP Basic Auth challenge dialog — the Basic Auth assumption above may be WRONG,
+# which would make this check silently fail (no 401 challenge to answer, so the credential is
+# never actually submitted). NOT fixed in this pass: the actual login form's field names/POST
+# target still aren't known from either source, so switching to
+# checks.http.native.form_post_default_creds isn't buildable yet — flagging this explicitly rather
+# than leaving the (now doubtful) Basic Auth assumption uncommented.
+
+check_id: http-schneider-tesys-island-omt-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "schneider18"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory credential (admin:schneider18) for the Tesys Island OMT webpage"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46c2NobmVpZGVyMTg="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ FAQ000258616, \"What is the default user name and password for the OMT page of Tesys Island?\" (user-supplied)"
+  - "Schneider Electric FAQ, \"How to connect to a NEW Tesys Island TPRBCEIP Web browser?\" (user-supplied)"
+description: "Schneider Electric Tesys Island (TPRBCEIP) motor management system ships with a factory-default OMT (On Motor Terminal) webpage login of admin:schneider18. No CVE, documented factory-default behavior per Schneider's own FAQ."

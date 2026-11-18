@@ -1,0 +1,70 @@
+# Default-credentials sweep, Phase 1 (Siemens). Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Sources (verified 2026-08-14, not recalled): defaultcredentials.org's SCALANCE X-200 entry,
+# corroborated by a ManualsLib-hosted copy of the actual SCALANCE X-200 Configuration Manual's
+# "Passwords" section and a Siemens community forum thread asking the same question — three
+# independent sources agreeing. No CVE — this is documented factory-default behavior in the
+# product manual, not a separate vulnerability advisory (the user's own instruction: "include
+# known CVEs where available" — none is available here, noted honestly rather than omitted or
+# invented).
+#
+# ASSUMPTION FLAGGED: sources describe the credential pair, not the exact HTTP auth mechanism
+# (Basic Auth vs. form login) for this specific product generation — assumed Basic Auth as the
+# common case for an embedded switch web UI of this vintage, not independently confirmed against
+# a real device. Revisit if this doesn't match real hardware.
+#
+# FIRMWARE-INSPECTION ATTEMPT, 2026-09-14 — INCONCLUSIVE, assumption still not resolved. User
+# supplied the official SCALANCE X-200IRT firmware update package (X200IRT_V5.6.1.010.zip,
+# containing X200IRT_V5.6.1.010.fwl — a related but distinct product variant, X-200 with
+# Isochronous Real-Time/PROFINET support). The .fwl format is genuinely unencrypted: a small
+# plaintext "SIMATIC-NET FW-Loader" header (confirms real order numbers 6GK5206-1BB00-2AA3 /
+# 6GK5204-2BB00-2AA3, target platforms G14/G16/G20, OS vxWorks) directly followed by a plain
+# 32-bit little-endian vxWorks ELF binary (standard \x7fELF magic, no wrapper encryption) — a
+# genuinely easier artifact than the SCALANCE S615's encrypted `.sfw` container. However: a full
+# strings pass (34,709 strings, n>=4) found ZERO occurrences of "http" anywhere in the binary, and
+# the accompanying OSS/third-party-disclosure document (READMEOSS HTML, also user-supplied) lists
+# no open-source HTTP server component (no boa/goahead/thttpd/lighttpd/mongoose — the common
+# embedded choices) — only Wind River's own vxWorks toolchain is credited. This strongly suggests
+# this specific firmware module is the IRT/PROFINET switching engine, not the web-management
+# component, and doesn't contain the login page's code at all. A genuine negative, not escalated
+# to disassembly (radare2) since there's no positive signal a web server exists in this binary to
+# search for. The Basic-Auth-vs-form assumption above remains UNRESOLVED — would need either a
+# live device, a firmware image confirmed to include the web-management module specifically, or a
+# different SCALANCE X-200 sub-variant's firmware package.
+
+check_id: http-siemens-scalance-x200-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Siemens AG"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "admin"]
+    - ["user", "user"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (admin:admin, user:user)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic (YWRtaW46YWRtaW4=|dXNlcjp1c2Vy)"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://www.defaultcredentials.org/en/credentials/siemens-scalance-x-200-industrial-ethernet-switch"
+  - "https://www.manualslib.com/manual/1236745/Siemens-Scalance-X-200.html?page=59"
+  - "https://sieportal.siemens.com/en-ww/support/forum/posts/what-is-the-default-username-and-password-of-scalance-x208-on-web-browser/302187"
+description: "SCALANCE X-200 industrial Ethernet switches ship with factory-default web management credentials (admin/admin full access, user/user read-only) — no CVE, documented factory-default behavior. Confidence=low: HTTP auth mechanism (Basic vs. form) not independently confirmed against real hardware."

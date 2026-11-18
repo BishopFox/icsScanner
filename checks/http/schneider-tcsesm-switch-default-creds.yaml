@@ -1,0 +1,48 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ "Using Copper Ports for
+# HIPER-Ring Redundancy in TCSESM Switches" directly. New product family for this project: TCSESM
+# (ConneXium managed switches; TCSESM083F23F0 explicitly named as the FAQ's own environment, part
+# of the broader TCSESM family).
+#
+# The FAQ's own Resolution step 2, inside an unrelated ring-redundancy configuration procedure:
+# "Login as admin and use the default password is 'private'." Same offhand-mention pattern this
+# project has seen before (a default credential surfacing inside a how-to for something else
+# entirely) — not the FAQ's subject, but stated as plain fact along the way.
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention — the FAQ
+# describes entering the switch's IP in a browser URL field and logging in, no custom form fields
+# mentioned.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-tcsesm-switch-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "private"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory credential (admin:private) for the TCSESM managed switch's web UI"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46cHJpdmF0ZQ=="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ, \"Using Copper Ports for HIPER-Ring Redundancy in TCSESM Switches\" (user-supplied)"
+description: "Schneider Electric ConneXium TCSESM managed switches ship with a factory-default web UI login of admin:private. No CVE, documented factory-default behavior surfaced inside an unrelated ring-redundancy configuration FAQ."

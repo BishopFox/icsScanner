@@ -1,0 +1,63 @@
+# Field Reference entry — 2026-10-05. From the Honeywell ingest firmware-sidecar sweep
+# (project_open_tasks -151/-152). Filed as a `physical_access_reference` / `protocol: local-only`
+# candidate so it surfaces in the web UI's Field Reference tab, matching the existing local-panel-
+# passcode pattern (Avocent AlterPath PM loopback-reset, Trane UC800, SICAM FCM/AK3, Eaton
+# PXR20D/DA1/DC1). No runtime probing code reads this field -- it is read-only reference data.
+#
+# THE FINDING: RAE Systems (now Honeywell) portable gas monitors ship with a factory-default
+# programming / technician-mode password of "0000". This PIN gates the device's TECHNICIAN
+# (programming / calibration / configuration) menu on the unit's own LCD+keypad -- the level used
+# to change sensor spans, alarm set-points, datalog and config -- distinct from normal user
+# (monitoring) operation, which needs no password.
+#
+# EVIDENCE: default "0000" read directly from shipped firmware in this ingest --
+#   - QRAE (PGM-2000): qrae-firmware.zip -- "Enter Password=  0000", "Confirm new password= 0000",
+#     "Change Password?", "Wrong Password!"
+#   - QRAE Plus V2.10: qrae-plus-v-2-10-firmware.zip (QRAE+(PGM2000)_V210_Eng&Sp), bilingual --
+#     "Enter Password=  0000" / "Ingresar Clave = 0000".
+#   QRAE3 and the other RAE handhelds in the ingest (MiniRAE/ppbRAE 3000, MultiRAE, ToxiRAE Pro,
+#   UltraRAE 3000, VRAE) use the same documented "0000" default per the product manuals, but their
+#   firmware here is signed/packed and the PIN string was NOT independently read from those images
+#   -- stated honestly rather than claimed as firmware-confirmed.
+#
+# WHY LOCAL-ONLY / NOT A NETWORK CHECK: these are standalone handheld monitors. "0000" is entered on
+# the device's own buttons to unlock the local programming menu -- there is no IP/TCP/UDP service,
+# web UI, or remote protocol that accepts it, so an IP scanner has nothing to probe. Publicly
+# documented in the RAE/Honeywell user guides (a known default, not a discovered secret) -> no CVE,
+# none warranted; disclosure_status:public. Full technician write-up in
+# lab-notes/rae-handheld-technician-default-pin-0000.md.
+#
+# HARDENING (the reference's point): change the programming password from "0000" so only authorized
+# technicians can alter sensor calibration / alarm set-points -- altered set-points on a gas monitor
+# are a real safety concern.
+
+check_id: candidate-rae-handheld-technician-default-programming-pin
+protocol: local-only
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "RAE Systems (Honeywell)"
+  product: "Portable gas monitors: QRAE / QRAE Plus (firmware-confirmed); QRAE3, MiniRAE 3000, ppbRAE 3000, MultiRAE, ToxiRAE Pro, UltraRAE 3000, VRAE (same documented default per manual)"
+references:
+  - "User-supplied Honeywell ingest: qrae-firmware.zip and qrae-plus-v-2-10-firmware.zip (QRAE+(PGM2000)_V210_Eng&Sp) -- default programming PIN \"0000\" read directly from the firmware's programming-mode password-entry UI strings (English and Spanish)."
+  - "RAE Systems / Honeywell QRAE / QRAE Plus user guides document the default programming password \"0000\" (known, published default)."
+  - "lab-notes/rae-handheld-technician-default-pin-0000.md -- full technician reference note incl. per-model field-reference table."
+physical_access_reference:
+  summary: "RAE Systems (Honeywell) portable gas monitors (QRAE / QRAE Plus firmware-confirmed; QRAE3, MiniRAE/ppbRAE 3000, MultiRAE, ToxiRAE Pro, UltraRAE 3000, VRAE per manual) ship a factory-default programming/technician-menu PIN \"0000\", entered on the unit's own keypad to unlock sensor-span/alarm-set-point/datalog configuration -- a documented default, confirmed byte-for-byte in the shipped firmware's password-entry UI."
+  steps:
+    - "On the handheld, enter programming mode per the model's quick-start (typically power on while holding the Mode + a second key); normal monitoring needs no password, only the programming menu does."
+    - "At \"Enter Password = 0000\" (or Spanish \"Ingresar Clave = 0000\"), accept the default 0000 to unlock the technician/programming menu."
+    - "This is a LOCAL keypad PIN only -- there is no network/remote service that accepts it; it cannot be scanned or triggered remotely."
+    - "Hardening: change the programming password from 0000 so only authorized technicians can alter calibration or alarm set-points. Verify the exact default against the specific model's current manual -- a unit may already have been changed, and newer/rebadged variants may differ."
+description: >
+  RAE Systems (now Honeywell) portable gas monitors ship with a factory-default programming /
+  technician-mode password of "0000", entered on the instrument's own LCD+keypad to reach the
+  programming menu (sensor spans, alarm set-points, datalog, config); normal gas-monitoring use
+  needs no password. Confirmed byte-for-byte in this ingest's QRAE and QRAE Plus V2.10 firmware
+  (bilingual "Enter Password= 0000" / "Ingresar Clave = 0000"); the same default is documented for
+  the wider RAE handheld family (QRAE3, MiniRAE/ppbRAE 3000, MultiRAE, ToxiRAE Pro, UltraRAE 3000,
+  VRAE) per the product manuals, though not separately firmware-confirmed here. This is a LOCAL
+  keypad PIN with no network surface -- a documented default, not a discovered secret (no CVE,
+  disclosure_status:public) -- so it is NOT a network-reachable check; it is read-only Field
+  Reference data. Hardening: change the programming password from 0000 so only authorized
+  technicians can alter gas-monitor calibration / alarm set-points.

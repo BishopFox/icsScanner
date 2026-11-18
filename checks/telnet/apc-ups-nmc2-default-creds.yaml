@@ -1,0 +1,69 @@
+# Default-credentials sweep, 2026-08-25 — follow-up to checks/ftp/apc-ups-nmc2-default-creds.yaml.
+# That check's own header flagged Telnet as a known gap: the R0 revision of APC's "UPS Network
+# Management Card 2 User's Guide" (AP9630/AP9631, doc UPS-PMAR-9LLJMN) confirmed telnet as an
+# access interface sharing the same account system as FTP/Web, but gave no worked Telnet
+# transcript. User supplied a newer R4 revision of the SAME manual; its page 12 ("Internal
+# Management Features" -> "Types of user accounts") resolves this directly:
+#
+#   - Administrator (apc:apc) — "can use all of the menus in the UI and all of the commands in
+#     the command line interface."
+#   - Device User (device:apc) — read/write access to device screens; Security/Firewall menus
+#     greyed out. Not stated as UI-only, unlike Read-Only below.
+#   - Read-Only User (readonly:apc) — explicitly restricted: "Access through the UI only."
+#     EXCLUDED from this check for that reason — the manual affirmatively states this role
+#     cannot use the CLI at all (Telnet/SSH/serial), so trying it here would not test the
+#     documented behavior and could misclassify a working control as a finding.
+#   - Network-only User — CLI (Telnet/SSH, not serial) and UI, but "no default name and
+#     password" — nothing to test, not a static credential.
+#
+# No worked Telnet login-prompt transcript is given even in R4, so this uses this project's
+# generic telnet_default_creds executor defaults (login:/password: prompts) rather than a
+# device-confirmed exact sequence — same posture as several other telnet checks in this sweep
+# (e.g. moxa-ia240-241, hirschmann-switch-router) that also rely on the generic prompt defaults
+# without a vendor-supplied transcript. Flagged here explicitly since a sibling check on the
+# same device family (FTP) DID have a full transcript and this one does not.
+#
+# SCOPE: AP9630/AP9631 only, matching the sibling FTP/HTTP checks for this device family.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: telnet-apc-ups-nmc2-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "American Power Conversion"
+params:
+  credentials:
+    - ["apc", "apc"]
+    - ["device", "apc"]
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet login attempts using the documented factory credentials for the 2 CLI-capable default account roles (apc:apc Administrator, device:apc Device User) on an APC UPS Network Management Card 2"
+    patterns:
+      - context: request
+        bytes: "apc\\r\\napc\\r\\n"
+      - context: request
+        bytes: "device\\r\\napc\\r\\n"
+  broad:
+    description: "Any Telnet session on this device family authenticating with username 'apc' or 'device' and password 'apc' — the vulnerability class (factory-default credentials shared across HTTP/FTP/Telnet on this NMC), not the specific guessed password alone"
+    patterns:
+      - context: request
+        regex: "(apc|device)\\r\\napc\\r\\n"
+references:
+  - "https://iportal.se.com/Contents/docs/UPS-PMAR-9LLJMN_R0_EN.PDF"
+  - "UPS-PMAR-9LLJMN_R4_EN.pdf, p.12, \"Types of user accounts\" (user-supplied)"
+description: >
+  APC (American Power Conversion) UPS Network Management Card 2 (AP9630, AP9631) ships with
+  factory-default Telnet CLI logins for its 2 CLI-capable default account roles — Administrator
+  (apc:apc) and Device User (device:apc). The Read-Only role (readonly:apc) is documented as
+  UI-only and is deliberately not tested here. No CVE, documented factory-default behavior per
+  APC's own official User's Guide (R4 revision, page 12).

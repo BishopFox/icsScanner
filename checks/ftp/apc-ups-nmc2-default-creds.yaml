@@ -1,0 +1,110 @@
+# Default-credentials sweep, 2026-08-24 — user-supplied APC Application Note #66
+# (APC-AN-066EN, "InfraStruXure Manager Server Appliance v4.x and Your Network") flagged an
+# apc/apc default credential; that document didn't state which protocol it applied to (it
+# describes InfraStruXure Manager's own discovery-side assumption, not a device login prompt
+# directly, and explicitly treats SNMP community strings as a separate mechanism). Ambiguity
+# resolved via a WebSearch + a direct fetch of APC's own official "UPS Network Management Card 2
+# User's Guide" (AP9630/AP9631, doc UPS-PMAR-9LLJMN_R0_EN, se.com/iportal.se.com — blocked to
+# WebFetch but retrievable via curl with a browser user-agent) — read directly, giving a COMPLETE
+# worked FTP session transcript with the real server banner and response codes:
+#
+#   220 AP9631 Network Management Card AOS vX.Y.Z FTP server ready.
+#   User (<addr>:(none)): apc
+#   331 User name okay, need password.
+#   Password:
+#   230 User logged in, proceed.
+#
+# The manual's own "Types of user accounts" section gives 3 default role/password pairs, all
+# sharing password "apc": Administrator (apc), Device User (device), Read-Only User (readonly).
+# All three are tried here — the NMC's own "Session Management" text describes HTTP/FTP/telnet/
+# serial as equal-access interfaces to the SAME underlying account system, not separate
+# credential sets per protocol.
+#
+# SCOPE: only AP9630/AP9631 are named in this specific manual — not extended to other NMC
+# hardware (e.g. AP9635, a separate manual per the same search) without independent confirmation,
+# same discipline as every other model-specific check in this sweep.
+#
+# UPDATE 2026-09-14 (unrelated to scope, pure additional corroboration): independently confirmed
+# from a THIRD kind of primary source — Schneider Electric's own official "Secure NMC System
+# Tool" v4.1.0.1 (user-supplied, both Linux and macOS builds; a real device-management desktop
+# app for NMC provisioning/firmware updates). Its bundled `SNST.Core.dll` .NET assembly (extracted
+# from the single-file self-contained Linux ELF host via a Python `dnfile` metadata parse — first
+# use of a .NET decompilation toolchain in this project, added specifically for this) declares
+# two literal `const string` fields, `DeviceDefaultUserName` and `DeviceDefaultUserPass`, BOTH
+# compiled to the literal value `"apc"` — read directly out of the assembly's ECMA-335 Constant
+# metadata table (Field RIDs 132/133), not inferred from any string search. Independently confirms
+# the vendor's own current device-management tooling still assumes "apc"/"apc" as the factory
+# default it auto-detects, consistent with (not superseding) the worked FTP transcript above.
+#
+# UPDATE 2026-09-15 (fresh ingest 7z-inventory pass, session resumed after an interruption):
+# `snst_3.0.0.4_nmc3_rpdu2g_3.4.0.9.tar.gz` — a genuinely OLDER (v3.0.0.4, vs. the already-reviewed
+# v4.1.0.1) macOS build of the same tool lineage, packaged as `snst_nmc3_rpdu2g_3.4.0.9.app`
+# (reflecting NMC3/rPDU2G device support specifically). Its main binary is a Mach-O ARM64
+# executable (a different embedding format from the Linux ELF apphost the dnfile technique above
+# was proven against — not attempted this pass). A plain `strings` scan DOES confirm the SAME
+# field names present verbatim: `DeviceDefaultUserName`, `DeviceDefaultUserPass`,
+# `DeviceDefaultFTPPort`, `DeviceDefaultSCPPort`, `DeviceDefaultQuality` — but the literal "apc"
+# value itself was NOT independently re-extracted this pass (per the dnfile finding's own lesson,
+# a compiled C# `const` value lives in the Constant metadata table, not as an adjacent string —
+# a plain `strings` scan on a different binary format wouldn't surface it either way). Field-name
+# corroboration only, on an older version and a third platform (Linux ELF, macOS "both builds"
+# already noted above, and now this older macOS/NMC3-specific build) — not a fresh value
+# confirmation.
+#
+# Telnet and Web UI use the SAME account system per this manual:
+# - Telnet: RESOLVED 2026-08-25 — user supplied the R4 revision of this same manual; its page 12
+#   ("Types of user accounts") confirms Administrator and Device User both get CLI access, while
+#   Read-Only is explicitly UI-only. Built as checks/telnet/apc-ups-nmc2-default-creds.yaml
+#   (2 of the 3 roles — readonly deliberately excluded).
+# - Web UI: the "How to Log On" section mentions choosing a UI language from a dropdown AS you
+#   log on — strong evidence of a custom HTML login form (needing this project's
+#   form_post_default_creds.py executor), not HTTP Basic Auth, but the exact form field names
+#   aren't given in this manual — same "form-login gap" shape already flagged for several other
+#   candidates in this sweep (MHI, Yaskawa, Omron CJ1M).
+#
+# No CVE — documented factory-default behavior.
+
+check_id: ftp-apc-ups-nmc2-default-creds
+protocol: ftp
+kind: native
+module: checks.ftp.native.ftp_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "American Power Conversion"
+params:
+  credentials:
+    - ["apc", "apc"]
+    - ["device", "apc"]
+    - ["readonly", "apc"]
+detection_hints:
+  transport: tcp
+  app_protocol: ftp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own FTP USER/PASS attempts using the documented factory credentials for all 3 default account roles (apc:apc Administrator, device:apc Device User, readonly:apc Read-Only User)"
+    patterns:
+      - context: request
+        bytes: "USER apc\\r\\nPASS apc\\r\\n"
+      - context: request
+        bytes: "USER device\\r\\nPASS apc\\r\\n"
+      - context: request
+        bytes: "USER readonly\\r\\nPASS apc\\r\\n"
+  broad:
+    description: "Any FTP USER/PASS pair using 'apc', 'device', or 'readonly' as the username against this device family — the vulnerability class (factory-default credentials shared across HTTP/FTP/telnet on this NMC), not the specific guessed password"
+    patterns:
+      - context: request
+        regex: "USER (apc|device|readonly)\\r\\nPASS .*\\r\\n"
+references:
+  - "https://iportal.se.com/Contents/docs/UPS-PMAR-9LLJMN_R0_EN.PDF"
+description: >
+  APC (American Power Conversion) UPS Network Management Card 2 (AP9630, AP9631) ships with
+  factory-default FTP logins for all 3 default account roles — Administrator (apc:apc), Device
+  User (device:apc), Read-Only User (readonly:apc) — no CVE, documented factory-default behavior
+  per APC's own official User's Guide, including a complete worked FTP session transcript. The
+  same accounts are documented as shared across HTTP and Telnet access too. Telnet is now also
+  built (checks/telnet/apc-ups-nmc2-default-creds.yaml, 2 of the 3 roles). HTTP is not built yet
+  — see this check's own header comment (form-login gap, exact field names not confirmed).

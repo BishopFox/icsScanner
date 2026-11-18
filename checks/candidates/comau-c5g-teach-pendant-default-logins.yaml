@@ -1,0 +1,54 @@
+# Candidate stub — 2026-08-30, discovered while researching the separate
+# comau-ftp-default-creds-unconfirmed-value.yaml candidate. NOT executable (no `kind`).
+#
+# CONFIRMED, directly, from Comau's own "C5G Control Unit" reference manual (English-language
+# content, filename "C5G控制单元.pdf" despite the Chinese-language filename — likely a translated/
+# re-hosted copy, content itself is in English), Section 4.2.1 "User profile": the C5G Control
+# Unit is delivered with three predefined accounts for its Teach Pendant / TP-INT (a proprietary
+# interface used by both the physical Teach Pendant and the WinC5G Windows PC software when
+# connecting to the controller) login system:
+#   - Administrator: admin / admin
+#   - Programmer:    pu / pu       (this is the DEFAULT login held after a cold restart)
+#   - Maintenance:   mu / mu
+# The manual states this plainly, not as an illustrative example: "The C5G Control Unit is
+# delivered to the customer with the following predefined users" followed by the three pairs
+# above. A fourth/fifth/sixth role (Default, Service, Technology) also exist but are NOT listed
+# with predefined credentials in this section — only assigned via the Administrator account.
+#
+# MECHANISM: login happens either (a) physically at the Teach Pendant, or (b) over TP-INT — a
+# proprietary Comau protocol used when "working on a PC (WinC5G program)... the system asks the
+# user to perform a Login operation at connection time towards the Controller," via a
+# SET LOGIN (SL) command. No documented open, public wire-format specification or open-source
+# client implementation for TP-INT was found in this pass — this is a proprietary Comau protocol,
+# not one of this project's already-supported transports (HTTP/FTP/Telnet/SSH/Modbus/etc.).
+#
+# EXTRA CAUTION, same tier as this project's other robot-controller candidates: this is a real
+# robot controller, and the Administrator/Programmer/Maintenance roles govern configuration and
+# program access (not itself a motion command), but a compromised login on a robot controller is
+# adjacent to the same risk class already flagged for the TM Robot Listen Node and Fanuc/Denso/
+# Mecademic findings. If a TP-INT wire format is ever sourced (a vendor spec or a real, tested
+# open-source client), any resulting tool should be assessed against the same
+# `scripts/safety_critical/` trigger (physical-actuation risk) this project already uses for
+# robot-motion-adjacent findings, not assumed safe by default just because it's "only" a login.
+#
+# NOT BUILT: no TP-INT protocol implementation exists in this project or, as far as this pass
+# found, publicly. Needs a real TP-INT protocol reference (a Comau technical spec, or a genuine
+# open-source WinC5G-compatible client) before this becomes buildable at all, safety tier aside.
+
+check_id: candidate-comau-c5g-teach-pendant-default-logins
+protocol: unknown
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Comau"
+  product: "C5G"
+references:
+  - "Comau C5G Control Unit reference manual (\"C5G控制单元.pdf\"), user-supplied, Section 4.2.1 \"User profile\""
+description: >
+  Comau C5G robot controller — three predefined Teach Pendant/TP-INT login accounts confirmed
+  directly from Comau's own reference manual: Administrator (admin/admin), Programmer (pu/pu,
+  the default active login after a cold restart), and Maintenance (mu/mu). Not built: TP-INT is
+  a proprietary Comau protocol with no documented wire format or known open-source client found
+  in this pass, and any eventual tool should be assessed for physical-actuation risk (same
+  scripts/safety_critical/ trigger as this project's other robot-controller findings) before
+  building, not just treated as an ordinary login check.

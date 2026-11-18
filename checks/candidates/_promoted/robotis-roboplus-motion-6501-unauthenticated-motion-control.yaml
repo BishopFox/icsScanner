@@ -1,0 +1,79 @@
+# PROMOTED 2026-11-12 -> checks/robotis_motion/robotis-roboplus-motion-6501-unauthenticated-motion-control.yaml
+# (armed native check) once both promotion blockers below were cleared against ROBOTIS's own
+# open-source server (darwinop SourceForge, robotisop2/Linux/project/roboplus/protocol.txt + main.cpp):
+# the TCP-6501 protocol has no auth, and the "v" handler returns only "{[DARwIn:VERSION]}" (read-only,
+# non-actuating). Retained here as a RESEARCH RECORD (decompiled-client wire format + server-source
+# cross-check); the armed twin is the live check. The registry still lists this as a candidate (path
+# contains candidates/) but nothing executes it (no `kind`).
+#
+# Candidate stub — 2026-11-12, robotis-firmware-sweep-2026-11.md. NOT executable (no `kind`).
+# Deconfliction: no prior ROBOTIS candidate or check existed in this project before this file.
+#
+# THE FINDING (prior-art, documented): the ROBOTIS RoboPlus Motion control server listens on TCP 6501
+# on networked ROBOTIS controllers (the DARwIn-OP / ROBOTIS-OP2 humanoid is the documented host,
+# factory IP 192.168.123.1) and lets a client identify the controller and command motion with NO
+# authentication (CWE-306). IOActive's 2017 "Hacking Robots Before Skynet" publicly reported this
+# server ("RoboPlus Motion's server binary starts listening on TCP port 6501 and allows clients to
+# control and edit motion components on the robot ... distributed on the ROBOTIS OP2 firmware image").
+# Because it is already public, disclosure_status is `public` — this is DETECTION COVERAGE for a
+# documented exposure, not a new/novel disclosure.
+#
+# WIRE FORMAT (recovered verbatim from the official client, not guessed): RoboPlus Motion 1.0.29.1,
+# Common.dll, ROBOTIS.MotionEditor.Common.CMComm.ConnectBoard + NetworkClient (decompiled 2026-11-12):
+#   TcpClient.Connect(ip, 6501) -> NetworkClient.Write("v") -> ReturnParser() reads ReadTo("{") then
+#   ReadTo("}"); its first token Split(':') yields [model, version]. No login or handshake precedes
+#   the "v" byte. The NetworkClient default endpoint is 192.168.123.1:6501.
+#
+# SAFE DETECTION (what the gate probe does): probe_robotis_motion_identity (core/fingerprint.py, added
+# 2026-11-12) performs ONLY that benign, NON-ACTUATING "v" version query and parses the braced
+# model:version reply. Getting model:version back with no credential exchange both identifies the
+# controller AND demonstrates the missing-auth exposure. The probe NEVER sends PlayMotion or any
+# actuation command — an actuation proof-of-impact is a scripts/safety_critical/ plan-confirm tool
+# (isolated from the scanner runtime), NEVER an armed check.
+#
+# VENDOR CORROBORATION (2026-11-12, ROBOTIS-GIT review): ROBOTIS's own e-Manual
+# (ROBOTIS-GIT/emanual docs/en/platform/op/development.md) documents the connection: in RoboPlus
+# Motion, Tool -> Option, set the robot IP and port 6501, select TCP/IP, click connect, "proceed with
+# editing." There is NO authentication step in that connect procedure (the manual's 111111 passwords
+# are for SSH/VNC/sudo, a separate channel), and "connect" is distinct from the later explicit "proceed
+# with editing" step. This is a third independent confirmation of the no-auth 6501 connection, after
+# IOActive (2017) and the decompiled client. The legacy C++ framework server that answers 6501 is NOT
+# in the public ROBOTIS-GIT repos (ROS2 rewrites + docs only; it ships as a binary on the OP image),
+# so the exact server-side "v" reply framing and blocker #2 cannot be confirmed from source.
+#
+# NOT YET PROMOTED — blockers (must clear before arming):
+#  1. LIVE-DEVICE CONFIRMATION of the REPLY FRAMING: the 6501 no-auth connection is now vendor-
+#     documented AND IOActive-reported, but the exact "{...model:version...}" reply is recovered only
+#     from the PC client. Reproduce it against a live OP2 / current firmware before arming (the server
+#     source is not public to cross-check). verify-wire-format-per-product gate.
+#  2. HANDSHAKE NON-ACTUATION: confirm the connect + "v" query cannot itself resume/trigger a queued
+#     motion on any firmware (the client treats "v" as a pure read and requires an explicit PlayMotion
+#     to move; the e-Manual shows connect as distinct from "proceed with editing" — corroborating but
+#     not source-proven). If any firmware moves on connect, even detection must move to the
+#     safety-critical plan/confirm path or passive-only.
+#
+# When both clear, promote to an armed native check whose executor performs ONLY the "v" version read
+# and reports CONFIRMED (CWE-306) on a model:version reply — never a motion command.
+
+check_id: candidate-robotis-roboplus-motion-6501-unauthenticated-motion-control
+protocol: tcp
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_probe: "robotis_motion_identity"
+references:
+  - "IOActive, 'Hacking Robots Before Skynet' (2017) — technical appendix: https://ioactive.com/pdfs/Hacking-Robots-Before-Skynet-Technical-Appendix.pdf (RoboPlus Motion unauthenticated TCP 6501 control server on the ROBOTIS OP2 image)."
+  - "ROBOTIS e-Manual — DARwIn-OP/OP development, RoboPlus Motion connection (ROBOTIS-GIT/emanual docs/en/platform/op/development.md): sets IP + port 6501, TCP/IP, connect — no authentication step in the procedure. Vendor-authoritative corroboration of the no-auth 6501 connection."
+  - "core/fingerprint.py probe_robotis_motion_identity — the TCP-6501 'v' version-query identity gate (added 2026-11-12); wire format recovered from RoboPlus Motion 1.0.29.1 Common.dll CMComm.ConnectBoard."
+description: >
+  The ROBOTIS RoboPlus Motion control server on TCP 6501 (documented host: the DARwIn-OP / ROBOTIS-OP2
+  humanoid, factory IP 192.168.123.1) identifies the controller and accepts motion commands with no
+  authentication (CWE-306), as publicly reported by IOActive in 2017. Detection is gated on the
+  non-actuating robotis_motion_identity probe, which sends only the official client's benign "v"
+  version query and parses the braced model:version reply — a model:version frame returned without any
+  credential exchange both fingerprints the controller and demonstrates the missing-auth exposure. The
+  wire format was recovered verbatim from RoboPlus Motion 1.0.29.1 (Common.dll CMComm.ConnectBoard),
+  not guessed. Stays a non-executable candidate until (1) the handshake is confirmed against current
+  ROBOTIS-OP2 firmware / a live unit and (2) the connect+"v" query is confirmed not to trigger motion
+  on any firmware; an armed check must perform ONLY the version read, and any actuation proof-of-impact
+  belongs in scripts/safety_critical/, never an armed check.

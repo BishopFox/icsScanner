@@ -1,0 +1,49 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ FA360417 ("ION9000 Meter
+# Default IP Address, username, and password") directly.
+#
+# Same 2-mode security architecture already seen on PM8000 (checks/http/schneider-powerlogic-
+# pm8000-default-creds.yaml): Standard security mode uses a fixed username "9000" with password
+# "0" (same as the meter's front-display password) — confirmed cleanly from the FAQ's own
+# factory-default-settings table.
+#
+# Advanced security mode's username is also named (User1, User2, User3, etc. — same naming
+# convention as PM8000's User1/User2), but this FAQ does NOT state the corresponding advanced-
+# mode PASSWORD anywhere — unlike PM8000 (where it's a fixed "0") or PM5500 (where it's
+# MAC-address-derived), ION9000's advanced-mode default password is genuinely unconfirmed by
+# this source. NOT guessed or shipped — only the standard-security-mode credential (9000:0) is
+# built here.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-ion9000-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["9000", "0"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory credential (9000:0) for ION9000's standard security mode"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic OTAwMDow"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ FA360417, \"ION9000 Meter Default IP Address, username, and password\" (user-supplied)"
+description: "Schneider Electric ION9000 series power meters, under standard security mode, ship with a factory-default webpage login of 9000:0 (the same value as the meter's front-display password). Advanced security mode's password is not confirmed by this source and is not built here. No CVE, documented factory-default behavior."

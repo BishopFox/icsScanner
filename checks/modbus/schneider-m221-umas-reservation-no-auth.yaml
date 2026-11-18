@@ -1,0 +1,70 @@
+# PROMOTED 2026-09-14 from checks/candidates/candidate-cve-2018-7791.yaml, using a new executor
+# (checks/modbus/native/schneider_m221_umas_reservation_no_auth.py) built specifically for this
+# CVE — see that module's own docstring for the full sourcing trail (Kaspersky ICS CERT's UMAS
+# protocol paper + Talos TALOS-2018-0741 + Schneider's own EcoStruxure Machine Expert - Basic
+# engineering-tool DLL, cross-verified across three independent sources before writing any wire
+# logic) and the deliberate design choice to send NO password field at all rather than guess
+# M221-specific password-encoding bytes that were only confirmed for a different product's later
+# security mechanism (Modicon M340's "Application Password", never present on M221).
+#
+# This check demonstrates the ROOT CAUSE both CVE-2018-7790 (replay) and CVE-2018-7791 (password
+# overwrite) stem from: the UMAS device-reservation operation grants exclusive PLC access with NO
+# authentication data supplied at all. See checks/candidates/candidate-cve-2018-7790.yaml for why
+# that CVE's own more specific "replay a captured session" primitive is not independently built —
+# it needs a previously-observed legitimate session to replay, which this stateless scanner
+# architecturally doesn't have.
+#
+# DESTRUCTIVE, device_write tier: taking a reservation is a real state change (exclusive lock,
+# blocks any other client including a legitimate engineer for as long as it's held). This check
+# ALWAYS releases the reservation immediately after confirming, restoring prior state — see the
+# executor's own "verify then immediately restore" design note.
+
+check_id: modbus-schneider-m221-umas-reservation-no-auth
+protocol: modbus
+kind: native
+module: checks.modbus.native.schneider_m221_umas_reservation_no_auth
+cve_id: CVE-2018-7791
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H (9.8 CRITICAL)"
+destructive: true
+risk_reason: ["device_write"]  # takes an exclusive PLC reservation, released immediately after confirming
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Schneider Electric SE"
+  product: "Modicon M221"
+  version:        # affected: all firmware prior to V1.6.2.0 (CVE-2018-7791). Suppresses only when the
+    fixed: "1.6.2.0"   # device's extracted firmware is KNOWN >= 1.6.2.0; unknown firmware stays a match.
+advisory_url: "https://ics-media.kasperskycontenthub.com/uploads/2023/03/kaspersky-ics-cert-the-secrets-of-schneider-electrics-umas-protocol-en.pdf"  # promoted from references (canonical advisory)
+references:
+  - "http://www.securityfocus.com/bid/105182"
+  - "https://www.schneider-electric.com/en/download/document/SEVD-2018-235-01/"
+  - "https://euvd.enisa.europa.eu/vulnerability/EUVD-2018-19503"
+  - "https://ics-media.kasperskycontenthub.com/uploads/2023/03/kaspersky-ics-cert-the-secrets-of-schneider-electrics-umas-protocol-en.pdf — Kaspersky ICS CERT's own byte-exact UMAS protocol paper, fetched and read directly"
+  - "https://www.talosintelligence.com/vulnerability_reports/TALOS-2018-0741 — Cisco Talos's independent corroboration of the UMAS 0x5A wrapper and 0xFE/0xFD status convention (a different CVE/product, same protocol family)"
+  - "MachineExpertBasicV1_3.zip (EcoStruxure Machine Expert - Basic V1.3, build 215) — official Schneider Electric installer, user-supplied, app/MbComms.dll extracted via innoextract and disassembled directly via radare2"
+detection_hints:
+  transport: tcp
+  app_protocol: modbus
+  mitre_attack_id: T0855
+  analytic_story: "ICS Unauthorized Command"
+  narrow:
+    description: "This scanner's own UMAS TakePLCReservation: the Modbus/TCP PDU 5A 00 10 0A 'ICSSCANNER' (function 0x5A UMAS wrapper, pre-pairing session 0x00, UMAS function 0x10 = QueryTakePLCReservation, length-prefixed reservation name 'ICSSCANNER'). The literal name makes this unambiguous to this check."
+    patterns:
+      - context: request
+        bytes: "\\x5a\\x00\\x10\\x0a\\x49\\x43\\x53\\x53\\x43\\x41\\x4e\\x4e\\x45\\x52"
+  broad:
+    description: "Any pre-pairing UMAS TakePLCReservation (Modbus function 0x5A, session 0x00, UMAS function 0x10) — the vulnerability class: an unauthenticated client taking an exclusive PLC reservation. Match on the Modbus payload (anchor to the Modbus PDU offset in the IDS to avoid 0x5A false hits)."
+    patterns:
+      - context: request
+        bytes: "\\x5a\\x00\\x10"
+description: >
+  Schneider Electric Modicon M221 (all references, all firmware prior to V1.6.2.0) grants a UMAS
+  device reservation — the operation gating PLC program upload/download and configuration changes
+  — to a request carrying NO password or authentication data at all (CVE-2018-7791, CVSS 9.8
+  CRITICAL). Confirmed by sending a byte-exact UMAS TakePLCReservation request (function 0x10,
+  cross-verified against Kaspersky ICS CERT's and Cisco Talos's own independent protocol research
+  plus Schneider's own engineering-tool binary) with a reservation name and nothing else; a
+  status-0xFE response means the device granted exclusive access with zero authentication
+  supplied. The reservation is released immediately (function 0x11) regardless of outcome. Also
+  demonstrates the root cause behind the related CVE-2018-7790 (replay), which is not
+  independently built — see that candidate's own notes.

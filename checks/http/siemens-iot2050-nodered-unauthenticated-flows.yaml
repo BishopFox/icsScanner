@@ -1,0 +1,70 @@
+# PROMOTED from checks/candidates/candidate-cve-2026-58115.yaml, 2026-09-12 (Siemens deep-dive
+# CVE sweep, item 2). See checks/http/native/nodered_unauthenticated_flows.py's own docstring
+# for the full technical detail — summary here per this project's YAML-header convention.
+#
+# CVE-2026-58115, Siemens SSA-834709 (fetched and read directly, not summarized): SIMATIC
+# IoT2050 Advanced gateways (6ES7647-0BA00-1YA2, all versions < V4.3.4.1) running Industrial OS
+# with Node-RED installed do not enforce authentication on Node-RED's admin HTTP interface,
+# allowing an unauthenticated remote attacker to create malicious flows and execute arbitrary
+# code with maximum privileges. CWE-306 (Missing Authentication for Critical Function). CVSS
+# 10.0 CRITICAL (both v3.1 and v4.0) — the single highest-severity finding across this entire
+# sweep.
+#
+# Non-destructive by design: confirms the underlying condition (Node-RED's admin API answers
+# unauthenticated) via a single read-only GET /flows, a real documented Node-RED admin endpoint
+# (nodered.org/docs/api/admin/methods/get/flows/) — never creates/deploys a flow, never
+# exercises the actual RCE capability. Response-body shape validation (not just HTTP 200) is the
+# real confirmation gate — see the native module's own docstring for why a bare 200 isn't
+# trusted alone.
+#
+# fingerprint_precondition is OUI-level (vendor+product), not a dedicated Node-RED protocol_probe
+# — flagged as a real, not-yet-resolved simplification in the original candidate file. Mitigated
+# by the check's own strict response-shape validation (requires the exact Node-RED /flows JSON
+# structure, not just "some JSON came back"), so a false CONFIRMED against an unrelated Siemens
+# device on port 1880 is guarded against even without a dedicated protocol-level probe.
+
+check_id: siemens-iot2050-nodered-unauthenticated-flows
+protocol: http
+kind: native
+module: checks.http.native.nodered_unauthenticated_flows
+cve_id: CVE-2026-58115
+severity: "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:H/SI:H/SA:H (10.0 CRITICAL); also CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H (10.0 CRITICAL)"
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: Siemens
+  product: SIMATIC IoT2050 Advanced
+  version:        # affected: all versions < V4.3.4.1 (CVE-2026-58115). Suppresses only when the device's
+    fixed: "4.3.4.1"   # extracted firmware is KNOWN >= 4.3.4.1; unknown firmware stays a match.
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0886
+  analytic_story: "ICS Unauthorized Command Execution"
+  # T0886 (Remote Services) per the same reasoning as the OPC-UA anon-write-dryrun check this
+  # project already ships: no credential is guessed or supplied at all (CWE-306, not CWE-798),
+  # so T0812 (Default Credentials) doesn't fit — the ICS ATT&CK matrix has no technique
+  # specifically for "admin API left unauthenticated by configuration," T0886 is the closest
+  # documented match, not a confident one.
+  narrow:
+    description: "This scanner's own unauthenticated GET /flows request against a Node-RED admin API, on Node-RED's own default port 1880"
+    patterns:
+      - context: request
+        regex: "GET /flows HTTP/1\\.[01]"
+  broad:
+    description: "Any unauthenticated GET to Node-RED's own admin API paths (/flows, /settings, /nodes) on port 1880 — the underlying vulnerability class (Node-RED admin API reachable with no authentication), not just this scanner's own specific probe path"
+    patterns:
+      - context: request
+        regex: "GET /(flows|settings|nodes) HTTP/1\\.[01]"
+references:
+  - "https://cert-portal.siemens.com/productcert/html/ssa-834709.html"
+  - "https://euvd.enisa.europa.eu/vulnerability/EUVD-2026-56119"
+  - "https://nodered.org/docs/api/admin/methods/get/flows/"
+  - "https://nodered.org/docs/user-guide/runtime/configuration"
+description: >
+  Siemens SIMATIC IoT2050 Advanced devices running Industrial OS with Node-RED installed
+  (all versions < V4.3.4.1) do not enforce authentication on Node-RED's admin HTTP interface,
+  allowing unauthenticated remote code execution via crafted flows (CVE-2026-58115, CWE-306,
+  CVSS 10.0 CRITICAL). This check confirms the underlying condition via a single read-only
+  GET /flows — it never creates a flow or executes code.

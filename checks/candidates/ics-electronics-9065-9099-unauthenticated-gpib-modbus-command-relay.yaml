@@ -1,0 +1,122 @@
+# PARTIALLY PROMOTED 2026-09-14 to checks/http/ics-electronics-9065-9099-gpib-modbus-control-
+# BLOCKER TAG (2026-09-22 triage pass): firmware-gap -- The command syntax would need either a live device or tracing the firmware binary (M9065Rel08.bin/M9099Rel14.bin) -- raw, likely non-ELF microcontroller images not yet format-identified or inspected.
+# unauthenticated.yaml, per explicit user go-ahead ("build ... with an explicit go-ahead as
+# described"). That check confirms ONLY the reachability precondition (the control page answers
+# with no auth challenge) via a read-only "Read" action that never sends a "cmd" parameter — see
+# its own module docstring. The actual command-relay primitive described below (an arbitrary
+# "cmd" via submitsend, reaching a live GPIB instrument or Modbus RTU field device) remains NOT
+# built — this stub stays open for that specific, riskier remainder.
+#
+# Candidate stub — 2026-09-14, same scheduled review pass as the companion
+# ics-electronics-90xx-unauthenticated-cgi-config-write.yaml (see that file for the full
+# acquisition/extraction chain — same 5 official firmware packages, icselect.com/pc_files/, plain
+# HTTP, no gating, no encryption). NOT executable (no `kind`). A DISTINCT, more severe finding from
+# the shared config-write one: this is unauthenticated COMMAND RELAY to whatever instrument or
+# field device is physically attached to the gateway, not just gateway self-reconfiguration.
+#
+# Only 2 of the 5 models ship a `control.html` page (grepped every extracted package's file list
+# to confirm this is NOT present on 9006/9009/9055 — only on 9065 and the 9099/TE9099 variant):
+#
+#   - 9065 (Ethernet-to-GPIB Gateway): `Model 9065/control.html`, confirmed via direct grep of its
+#     `<form>`/`<input>` elements: a `cmd` text field (`<input name="cmd" type="text" size="65"
+#     value="%cmd%" />`) submitted via plain `GET /cgi` (`submitsend` button) sends an ARBITRARY,
+#     free-text command to the GPIB instrument at the configured device address (`dev` field, also
+#     unauthenticated). The same page also exposes unauthenticated `submitread` (read the
+#     instrument's response), `submitRen`/`submitGTL` (GPIB Remote Enable / Go To Local),
+#     `submitSDC` (Selected Device Clear), and `submitGET` (Group Execute Trigger) — the FULL set
+#     of standard GPIB bus-control primitives, all gated by nothing but network reachability.
+#   - 9099 (Ethernet-to-Modbus RTU Interface, TE9099/TestEquity-branded variant in this package):
+#     `Model TE9099/control.html`, same shape confirmed via direct grep: a `cmd` field submitted
+#     via `GET /cgi` (`submitsend`) relays an arbitrary command to whatever device is attached on
+#     the Modbus RTU serial bus, plus an unauthenticated `submitread`.
+#
+# WHY THIS IS A SEPARATE, HIGHER-IMPACT FINDING from the sibling config-write candidate: the
+# config-write finding lets an attacker reconfigure THIS GATEWAY device itself (its own IP,
+# baud rate, etc.) — a real but device-local impact. This finding lets an attacker send ARBITRARY
+# COMMANDS to whatever is physically wired to the gateway's serial/GPIB port downstream — for the
+# 9099 specifically, that is explicitly a Modbus RTU device, i.e. a real industrial field
+# device (an actuator, sensor, or PLC), squarely inside this project's core ICS/OT threat model,
+# not just lab test-equipment control (the 9065's own likely use case, given ICS Electronics'
+# product positioning around GPIB test-instrument racks — still a real OT-adjacent concern for
+# calibration/test-equipment environments, but the 9099/Modbus RTU case is the more directly
+# ICS-relevant one of the two).
+#
+# NOT independently confirmed this pass: the exact Modbus RTU framing the relayed `cmd` text
+# produces on the serial bus (raw pass-through vs. some wrapping), and whether `%dev%`/`cmd`
+# accept genuinely unbounded/arbitrary byte sequences or are constrained to a printable-ASCII
+# command syntax — would need either a live device or tracing the firmware binary
+# (M9065Rel08.bin / M9099Rel14.bin, both shipped as raw, likely non-ELF microcontroller firmware
+# images in these same packages — not inspected this pass; format unidentified, `file` on the
+# `.bin` firmware images was not run this pass either — worth a follow-up firmware-extraction
+# pass per 01-METHODOLOGY-AND-CHECKLISTS.md's own methodology, since these appear to be small,
+# non-Windows firmware blobs distinct from the Windows AUpdate.exe flashing tool included in the
+# same zip).
+#
+# RISK-TIER NOTE: even a "just confirm it responds" check here is meaningfully riskier than the
+# sibling config-write candidate — a confirmable command send could plausibly reach a live,
+# in-service instrument or Modbus field device and cause a real, unpredictable side effect
+# (an SDC/device-clear on a mid-measurement instrument, or a garbage command forwarded to a live
+# Modbus actuator). Would need careful, conservative design (e.g. an entirely read-only
+# `submitread`-only probe, never `submitsend`) and an explicit human decision before any
+# implementation work — same bar this project has applied to every other command-injection-class
+# candidate (Valmet DNA CVE-2021-26726, GE Cimplicity, the M221 UMAS reservation check before it
+# was explicitly authorized). NOT built, not attempted, this pass.
+#
+# FOLLOW-UP 2026-09-22 (firmware-gap sourcing pass, re-downloaded both official packages directly
+# from icselect.com/pc_files/ — same URLs already cited below, still live/no-login): resolved the
+# "format unidentified" open question from the note above. Both `M9065Rel08.bin` and
+# `M9099Rel14.bin` are raw, headerless ARM firmware images (524288 bytes each, no filesystem/
+# container signature — `binwalk` finds nothing, `file` reports plain "data") — confirmed ARM via
+# the classic `LDR PC, [PC, #offset]` reset-vector trampoline pattern at offset 0
+# (`d4fb9fe5 18f09fe5...` / `64fc9fe5 18f09fe5...`, both little-endian ARM opcodes, same
+# vector-table shape independently confirmed elsewhere this session for the Telenot comXline ARM
+# firmware). Both images string-scan-confirm their own product identity directly ("ICS
+# Electronics, 9055" / "ICS Electronics, 9065" literals in the 9065 image).
+#
+# GENUINE NEW PROTOCOL DETAIL, found via string-scanning M9099Rel14.bin: the firmware's own
+# bundled device-panel HTML/JS templates (F4T_Cascade.html, F4T_Temp.html, F4_Hum.html — these
+# are pre-built control panels for WATLOW F4/F4T process controllers, a real Modbus RTU field
+# device this gateway is clearly designed to pair with) contain literal example query strings:
+# `R? <register>,<count>` (e.g. "R? 1012,1", "R? 300,1") and `RF? <register>` (e.g. "RF? 360",
+# "RF? 2160") — i.e. the relayed "cmd" field's syntax is a readable ASCII query format, not raw
+# binary Modbus framing, and "R?"/"RF?" read as Read-register / Read-Float-register query verbs.
+# The firmware also carries the three canonical SCPI/IEEE-488.2 error-class strings verbatim
+# ("Command Error", "Execution Error", "Query Error", alongside "Modbus Error" and "CRC Error"),
+# consistent with a SCPI-style command/response wrapper around both the GPIB and Modbus RTU
+# relay paths. This is real forward progress on the "exact command syntax" open question — but it
+# does NOT change this candidate's status: the actual byte-level framing (register width,
+# endianness, how a write vs. read is distinguished, whether cmd/dev accept unbounded input) is
+# still not characterized, and — more importantly — the RISK-TIER NOTE above is a human-
+# authorization gate, not a knowledge gate: even with the command syntax now better understood,
+# building the actual submitsend-based command-relay probe still requires the same explicit human
+# go-ahead this project applied before touching Valmet DNA / GE Cimplicity / the M221 UMAS
+# reservation check, precisely because a real command could reach a live, in-service instrument or
+# field device. NOT built, not attempted, this pass — same as before, now with a clearer picture
+# of what a future authorized build would actually need to implement.
+
+check_id: candidate-ics-electronics-9065-9099-unauthenticated-gpib-modbus-command-relay
+protocol: http
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "ICS Electronics"
+references:
+  - "https://www.icselect.com/vxi11_install9.html"
+  - "https://www.icselect.com/pc_files/ICS_9065R8_AUpdate.zip — official 9065 (Ethernet-to-GPIB Gateway) firmware update package, extracted and read directly (control.html)"
+  - "https://www.icselect.com/pc_files/ICS_9099R14_AUpdate.zip — official 9099 (Ethernet-to-Modbus RTU Interface) firmware update package, extracted and read directly (control.html)"
+description: >
+  ICS Electronics 9065 (Ethernet-to-GPIB Gateway) and 9099 (Ethernet-to-Modbus RTU Interface,
+  TE9099 variant) ship an embedded control.html page whose "cmd" field relays an arbitrary,
+  free-text command to whatever instrument (GPIB) or field device (Modbus RTU) is physically
+  attached downstream, submitted via a plain unauthenticated GET to /cgi — confirmed directly from
+  the vendor's own shipped HTML source in both official firmware packages. The 9065 also exposes
+  unauthenticated GPIB bus-control primitives (Remote Enable, Go To Local, Selected Device Clear,
+  Group Execute Trigger). PARTIALLY BUILT 2026-09-14, per explicit user go-ahead:
+  checks/http/ics-electronics-9065-9099-gpib-modbus-control-unauthenticated.yaml confirms ONLY
+  unauthenticated reachability of the control page, via the page's separate, argument-less "Read"
+  button (submitread) — it never sends the "cmd" field or presses "Send" (submitsend), so it
+  cannot inject a command into whatever is attached downstream. The full command-relay primitive
+  (an actual arbitrary "cmd" via submitsend) remains deliberately NOT built — a materially
+  riskier, real command-injection-class action against whatever is physically wired to the
+  device, correctly left for its own separate explicit go-ahead. Smoke-tested in
+  tests/smoke_test_ics_electronics_gpib_modbus_control.py.

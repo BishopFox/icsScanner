@@ -1,0 +1,45 @@
+# Candidate — 2026-10-13. GitHub sweep (Siemens, community security repo moki-ics/s7-metasploit-
+# modules). The Siemens SIMATIC S7-300 CPU integrated web server has a long-documented HARDCODED
+# backdoor account `basisk` (publicly reported ~2015, SCADAStrangeLove / Positive Technologies).
+#
+# CONFIRMED (public + the Metasploit module simatic_s7_300_memory_view.rb, read directly):
+#   - Request wire format: GET /login?User=<user>&Password=<pass>  on TCP 8080
+#   - Default/hardcoded username AND password: both `basisk`
+#     (OptString USER default 'basisk', PASS default 'basisk')
+# disclosure_status: public (documented, old, universally covered by Metasploit/nuclei). No CVE
+# claimed here. LEGACY/EOL: the S7-300 line is discontinued; marginal detection value, recorded for
+# completeness of the sweep.
+#
+# WHY NOT ARMED (the one blocker): the LOGIN SUCCESS signal is unconfirmed and NOT live-verifiable
+# from the sources available. The Metasploit module itself does NOT verify authentication -- it only
+# checks that any response came back, then reports success based on a LATER /tools/MemoryDump request
+# returning 200 (a destructive read this project will not perform). There is no confirmed status/
+# body/cookie that distinguishes a successful `basisk` login from a failed one. Per this project's
+# REQUIRED-EXPLICIT-SUCCESS-CRITERIA discipline (cf. the SEL-relay Telnet near-miss; every
+# *_default_creds executor refuses a weak "no failure keyword" fallback), arming this on a guessed
+# 200 would risk false CONFIRMED/NOT_APPLICABLE. ARMABLE the moment the S7-300 webserver's exact
+# successful-login response is confirmed (a live S7-300 on 8080, or a source documenting the response)
+# -- then: a GET /login?User=basisk&Password=basisk check with that explicit success marker, safe
+# (never touch /tools/MemoryDump).
+#
+# PRIOR-ART: public/well-known; already in Metasploit (moki-ics) + other scanners. Not novel.
+
+check_id: candidate-siemens-s7-300-webserver-basisk-backdoor
+protocol: http
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Siemens"
+  product: "SIMATIC S7-300 CPU integrated web server (legacy/EOL)"
+references:
+  - "github.com/moki-ics/s7-metasploit-modules simatic_s7_300_memory_view.rb: GET /login?User=basisk&Password=basisk on RPORT 8080; USER/PASS both default 'basisk'; module does NOT verify login success (checks only a later /tools/MemoryDump 200)."
+  - "Public prior art: S7-300 'basisk' hidden webserver account, reported ~2015 (SCADAStrangeLove / Positive Technologies)."
+description: >
+  Siemens SIMATIC S7-300 CPU integrated web server (TCP 8080) ships a hardcoded backdoor account
+  basisk/basisk, submitted as GET /login?User=basisk&Password=basisk (confirmed from the public
+  Metasploit module). disclosure_status public (documented, legacy/EOL, already covered by existing
+  scanners). Kept as an UNARMED candidate: the login SUCCESS response is not confirmable from
+  available sources (the Metasploit module itself does not verify auth), and this project forbids
+  arming a default-creds check on a guessed success signal. Armable once the exact successful-login
+  response is confirmed against a live S7-300; the check would be a safe GET /login with that marker,
+  never the destructive /tools/MemoryDump.

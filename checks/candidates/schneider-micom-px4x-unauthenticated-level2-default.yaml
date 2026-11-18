@@ -1,0 +1,340 @@
+# Candidate stub — 2026-08-25, HIGH-STAKES, same sensitivity tier as the GE SR/UR (CVE-2017-7905,
+# BLOCKER TAG (2026-09-22 triage pass): live-hardware-gap -- Exact wire-level mechanism for DNP3/Modbus access-level negotiation (per-session vs. global device state) is unconfirmed; no safe non-destructive proxy exists for this protection-relay class of device -- needs a live device or protocol capture.
+# now CLOSED — see that candidate file) and Rockwell (CVE-2021-22681) capability-decision items,
+# and the Schneider P3 debug-password finding. NOT executable (no `kind`). DO NOT build an active
+# check from this without the "further tier" human decision described in
+# feedback_scanner_check_vs_standalone_script — being a plausible fit for checks/ or scripts/
+# does not clear that bar here.
+#
+# User supplied Schneider FAQ FA180139 ("Default password settings and recommendations for the
+# Px4x MiCOM Relays") directly.
+#
+# VENDOR ATTRIBUTION CORRECTION, 2026-08-27 — filename/fingerprint kept as-is to avoid broken
+# cross-references, but read this before citing "Schneider Electric" for this product elsewhere:
+# user supplied the actual official technical manual, `ingest/P54x1Z-TM-EN-2.3-GEV.pdf`
+# ("MiCOM P40 Agile, P543/P545 (with Distance), Technical Manual", the same P543/P545 models
+# named in the original Schneider FAQ), read directly. Its own copyright page states plainly:
+# "GridBeats, Universal Relay, Multilin, MiCOM, S1 Agile, P40 Agile... are trademarks or
+# registered trademarks of GE Vernova" (copyright 2025). MiCOM is currently a GE Vernova
+# trademark, not Schneider Electric — almost certainly a legacy of the 2015 Alstom Grid
+# divestiture (GE acquired the protection-relay/MiCOM-P-series business) and the 2024 GE Vernova
+# spinoff; the original Schneider FAQ is still real and still describes the same hardware, likely
+# reflecting a period where Schneider's support portal carried MiCOM guidance for
+# previously-sold/co-branded inventory. `fingerprint_precondition` stays `protocol_only: true`
+# (no live vendor-matching signal either way), so this doesn't affect runtime behavior — but any
+# future write-up or disclosure correspondence for this finding should name GE Vernova as the
+# current manufacturer, with Schneider noted only as the historical FAQ source.
+#
+# TECHNICAL PICTURE STRENGTHENED, same pass, from the same official manual (Chapter 24,
+# "Cybersecurity") — read directly, not guessed:
+#   - CONFIRMED, strengthening the original finding: even in CURRENT, actively-shipping hardware
+#     with the newer RBAC/NERC-compliance security model available, DNP3 (and Modbus, and IEC
+#     60870-5-103) on the rear port are explicitly documented as using "the original Access
+#     Level" for authentication — "Device auth. only, Old Access level for DNP3" — NOT the newer
+#     RBAC scheme, regardless of whether RBAC/NERC features are otherwise configured on that same
+#     unit. This is not a legacy-only exposure; the manual states rear-port DNP3 routes through
+#     the old scheme by design, on hardware sold as recently as this manual's 2025 copyright.
+#   - CONFIRMED: front-panel/local Level 3 access has a stated factory-default password of
+#     "AAAA" (physical touchscreen/keypad entry, 15-minute inactivity timeout reverts to default
+#     access level) — corroborated in two separate places in the manual (main password-entry
+#     section and a separate redundancy-card password-configuration section).
+#   - NOT CONFIRMED OR CONTRADICTED: the original FAQ's specific claim that Level 2 itself
+#     requires NO PASSWORD AT ALL by factory default. This manual describes the access-level
+#     mechanism generally and gives the Level 3 default, but does not restate or dispute the
+#     Level 2 claim specifically — a genuine gap in this source, not evidence either way.
+#   - STILL NOT CONFIRMED, the actual blocker: the exact wire-level mechanism by which a REMOTE
+#     DNP3 (or Modbus/103) session's "Old Access Level" is established — is access level
+#     negotiated per-session over the protocol itself (an actual DNP3 object/function code
+#     carrying a password), or is it a single GLOBAL device state (whatever level was most
+#     recently unlocked via ANY interface, including the front panel) that a DNP3 write command
+#     simply checks against? This manual's own DNP3 chapter (point mapping, object model) does
+#     not describe the access-level negotiation mechanism at all. This distinction matters for
+#     buildability: if it's a global state, a cold remote scanner would typically find the device
+#     already reverted to a low access level (per the 15-minute inactivity behavior described for
+#     the front port — unclear if rear-port DNP3 sessions share that same timeout state) rather
+#     than something a single unauthenticated DNP3 message could reliably demonstrate.
+#
+# What's blocking any active probe, still true after this pass:
+# 1. VERIFYING "no password required at level 2" from a scanner's perspective would require
+#    actually attempting a settings write (or a breaker-control command) and observing whether a
+#    password prompt appears — there is no passive/read-only way to confirm this remotely. That
+#    is squarely the "destructive-uncertain" AND "privileged-tier-unlocking" triggers from
+#    feedback_scanner_check_vs_standalone_script, stacked on top of each other, on a device where
+#    the privileged tier is BREAKER CONTROL on what may be a live, in-service power-grid asset.
+# 2. The exact wire-level mechanism for DNP3's "Old Access Level" authentication is still not
+#    sourced — this manual describes THAT it applies, not HOW it's negotiated on the wire. Would
+#    need GE Vernova's own Courier protocol reference and/or a DNP3-specific security profile
+#    document, not guessed.
+# 3. Even a successful confirmation doesn't have an obviously safe "prove it without changing
+#    anything" probe — unlike the robot-motion-control-socket findings (which each had a genuine
+#    safe read-only proxy sourced from a vendor client library), there may be no equally benign
+#    write-class command on a protection relay to use as a proxy, and the "global device state"
+#    possibility above means even confirming current access level might require sending a real
+#    write. This needs its own sourcing pass before that question can even be answered.
+#
+# ALSO REVIEWED THIS PASS, CLEAR NEGATIVE: `ingest/ip2x-tm-4l-3.pdf` — a GE Vernova mechanical
+# assembly/safety-shield instruction sheet (IP2X finger-guard terminal covers) for the same Pxxx
+# relay family. Purely mechanical/electrical-safety content (torque settings, ingress protection
+# ratings, multi-language boilerplate) — no security/password/protocol content of any kind. Does
+# corroborate the "GE Vernova" vendor attribution above (references "Pxxx-SG-4LM-2" generic GE
+# safety guide, same product family umbrella) but adds nothing to the technical blocker above.
+#
+# TIER DECIDED, 2026-08-31: if/when this becomes technically buildable, it ships as a
+# scripts/ tool, NOT a checks/ entry — user's explicit direction. Rationale matches the triggers
+# already named below: "destructive-uncertain" (no passive way to confirm access level without
+# attempting a real write) stacked with "privileged-tier-unlocking" (the privileged tier here is
+# BREAKER CONTROL on live power-grid equipment) is squarely feedback_scanner_check_vs_standalone_
+# script's scripts/ territory, same class as the Schneider P3 debug-password tool and the
+# GarrettCom GoodKey verifier. This does NOT resolve whether it needs the further
+# scripts/safety_critical/ tier on top (breaker control is physical actuation, same trigger class
+# as robot motion) — that assessment still needs the actual wire mechanism in hand before it can
+# be made concretely, not guessed at now.
+#
+# STILL NOT BUILDABLE, tier decision aside: the wire-level mechanism itself remains unsourced (see
+# "STILL NOT CONFIRMED" above) and no safe non-destructive proxy is known to exist. This project's
+# standing discipline against guessing a protocol mechanism for real protection-relay equipment
+# applies in full here — deciding the TIER a future tool would live in does not create the
+# technical basis to write one yet. The next concrete step remains the live-capture research path
+# below, not code.
+#
+# NEXT PATH, identified 2026-08-27 (not yet started): obtain a copy of Easergy Studio V9.3.11
+# (Schneider's own configuration tool for this relay family, matching the FAQ's own naming) or
+# MiCOM S1 Agile (GE Vernova's current-generation equivalent, named in the P54x1Z manual read
+# this pass) and set it up locally for testing. Either tool speaks Courier natively and is
+# expected to support DNP3 configuration for this relay family — running one against a real or
+# simulated device while capturing the wire traffic (Wireshark) would directly answer the two
+# open technical questions this document review couldn't resolve: (1) the exact wire-level
+# mechanism DNP3 uses to negotiate/check "Old Access Level" (a native DNP3 object/function code
+# vs. a shared global device state also touched by Courier/the front panel), and (2) whether any
+# operation in that exchange is safe enough to serve as a non-destructive proxy. This would be
+# live-capture research, same method already used successfully elsewhere in this program (e.g.
+# the VAMP/Vampset FTP finding's live-capture rig) — not a further document-review pass.
+#
+# UPDATE 2026-08-28: user has downloaded the Easergy Studio V9.3.11 installer — this next path is
+# now ACTIVE, not just planned. Suggested first move once installed, before any live capture:
+# check the install directory itself for bundled local documentation (a "Communications Guide" or
+# "Courier Protocol Reference" PDF/CHM/help file) — configuration tools like this often ship
+# protocol references locally that were never published online, which could resolve the open wire-
+# mechanism question directly without needing a live/simulated device at all. If the tool has an
+# offline/simulator mode, that's the safer next step before connecting to any real hardware.
+#
+# UPDATE 2026-08-31: Easergy Studio is running, a capture attempt was made
+# (`dnp3-192.168.4.20-test-1.pcapng`) but checked and found to contain ZERO relay traffic —
+# 192.168.4.20 is an Eero WiFi mesh router in this environment (self-announces via mDNS as
+# "eero-0l18.local", cleanly rejects both of this project's known MiCOM discovery signatures:
+# TCP:4422 RST, RPC portmapper GETPORT program 20002001 -> ICMP port-unreachable), almost
+# certainly an address carried over from a different network in this project's own earlier
+# history. No Easergy Studio session appears anywhere in the capture. Needs a recapture against
+# whatever IP Easergy Studio is actually configured to connect to.
+#
+# EXPLICIT HOLD CONDITION, user-directed, 2026-08-31: if Easergy Studio itself does not attempt a
+# real, capturable authentication exchange (e.g. if it's pointed at a local project file / offline
+# simulator that doesn't enforce or even implement the access-level/password mechanism the way a
+# real relay would), STOP and hold this candidate for real hardware access rather than continuing
+# to try to force a result out of the software alone. A capture showing no auth traffic because
+# the tool never performed one is a different, less final result than a capture showing the tool
+# DID attempt auth and revealing nothing useful — don't conflate the two if this comes up again.
+# Only escalate past "hold" once a real relay (or a simulator confirmed to faithfully implement
+# the access-level mechanism) is actually in the loop.
+#
+# BUILT 2026-08-31 as scripts/safety_critical/dnp3_crob_select_{plan,confirm}.py (this tier's 7th
+# tool), per explicit user direction: "implement as the highest safety level since safeguards
+# cannot be implemented [in the off-the-shelf DNP3 master tools]." Rather than accept that
+# limitation, this tool builds a genuine, standalone DNP3 Select (function code 0x03) directly at
+# the wire level — verified by reading opendnp3's actual ICommandProcessor source (both the .NET
+# binding and the native C++ core) that NEITHER evaluated off-the-shelf tool (a commercial
+# FreyrSCADA simulator, and the open-source opendnp3-based dnp3/dnp3-simulator) exposes a way to
+# send Select without an automatic, bundled Operate — a real risk of an actual breaker operation
+# if this finding is real. DNP3's own wire protocol has no such bundling requirement; this is a
+# client-library convenience-API limitation, not a protocol one. Frame-building code (CRC-16/DNP,
+# DLL, transport layer) is copied from the companion fuzzer's own already-tested DNP3 fuzzer module, not
+# reimplemented from scratch, and the CRC was independently cross-checked against the standard
+# reveng CRC-16/DNP catalogue value before use. CROB control code hardcoded to 0x00 (the DNP3
+# spec's own "NUL operation," a second independent layer of defense). No code path for Operate,
+# DirectOperate, or any non-NUL control code exists anywhere in this tool. Given this tool's
+# safety rests on target spec-compliance rather than a verified read of the relay's own firmware
+# (a genuinely weaker guarantee than every other tool in this tier — stated plainly in both
+# scripts' own docstrings), it requires an EXTRA explicit risk-acknowledgment phrase beyond the
+# usual one-time confirmation phrase before sending anything.
+# `tests/smoke_test_safety_critical_dnp3_crob_select.py` (22 assertions, including that the mock
+# server never receives anything but a Select function code, and that the wrong risk-ack phrase
+# refuses before any network call).
+#
+# UPDATE 2026-08-28, PART 2 — reviewed the locally-installed Schneider Electric software suite at
+# "C:\Program Files (x86)\Schneider Electric" (MiCOM S1 Studio, Easergy Pro, and bundled help/CHM
+# files), extracted with `7z x` (no chmlib/xchm in this sandbox — 7z reads .chm as a generic
+# archive). Two findings:
+#   1. CONFIRMED, Courier password shape: `MiCOM S1 Studio/Courier/Monitor/Monitor_English.chm`
+#      (extracted, page hs133108.htm) states the Courier connection password "must be four
+#      characters in length and made up of the characters A-Z. The program will automatically
+#      convert any lowercase characters to uppercase." This is consistent with (and now directly
+#      corroborates) the P54x1Z manual's own Level 3 default of "AAAA" found in the earlier pass —
+#      confirms the credential SHAPE (4 chars, A-Z, case-insensitive-on-entry) but still does not
+#      show the DNP3-specific wire mechanism.
+#   2. NEW, more concrete next-step target: the P3U relay's own current manual (a different,
+#      unrelated Schneider product bundled with Easergy Pro, reviewed for its DNP3 documentation
+#      page GID-2165.html as a methodology reference) names its authoritative DNP3 mapping sources
+#      as two specifically-titled documents: "DNP 3.0 Device Profile Document.pdf" and
+#      "Communication parameter protocol mappings.zip". Searched the full local install
+#      (`find "C:\Program Files (x86)\Schneider Electric" -iname "*DNP*"` and
+#      `-iname "*protocol mapping*" -o -iname "*device profile*"`) — NEITHER is bundled locally;
+#      only `CourierDnp.dll` files were found (present but not yet reverse-engineered — flagged,
+#      not started, would need a disassembler/decompiler pass, a bigger step than anything done in
+#      this program so far and not undertaken without an explicit go-ahead). For the MiCOM Px4x
+#      family specifically (a different product line than P3U), the equivalent document is most
+#      likely to exist under a similarly-named "DNP3 Device Profile" document from GE Vernova
+#      rather than Schneider, given the vendor-attribution finding above — worth searching for
+#      by that exact title if/when this path is picked back up.
+#
+# UPDATE 2026-08-28, PART 3 — CourierDnp.dll reverse-engineering effort, user's explicit go-ahead.
+# `objdump -x` shows this is a native 32-bit MFC C++ DLL (not .NET — no ILSpy shortcut), 5
+# sections, 59 exported functions. Installed radare2 (`sudo apt-get install -y radare2`, not
+# preinstalled) for static analysis; no live device or simulator involved, static analysis only.
+#
+# ARCHITECTURE CONFIRMED: this DLL is a generic Courier<->DNP3 tunnel shared across BOTH MiCOM and
+# GE relays (exported symbols include a `CGECRelay` class alongside MiCOM-relevant ones) — it does
+# NOT implement its own DNP3-native authentication object. Confirmed two independent ways:
+#   1. Exported strings show it operates on Courier's own tag-addressed data model — classes named
+#      `CdtPassword`/`CdtEncryptedPassword` ("Cdt" = Courier Data Type), and a debug string
+#      literally reading `COnlineCommand::PrepareTransfer(): 'Password Entry Needed' [BF.15] cell
+#      is available` / `... cell not available`. "BF.15" is Courier's own column:cell address
+#      notation (column 0xBF, cell 0x15 — i.e. combined address 0xBF15, matching a second debug
+#      string's `0x%04X` format specifier used for the same cell).
+#   2. Disassembled the actual check (radare2, `aaa` + `axt` to find xrefs to those two debug
+#      strings, then `pd` at the call site, address 0x1005e8f0): the code literally does
+#      `push 0xbf15` then calls a column/cell-lookup helper before branching on whether that cell
+#      exists — i.e. "is a password needed right now" is answered by querying Courier data-model
+#      cell 0xBF15, THE SAME CELL ADDRESS SPACE SHARED BY MODBUS/SERIAL COURIER ACCESS, not a
+#      distinct DNP3 protocol element. This directly answers this file's own long-standing open
+#      question in favor of "shared global Courier state" over "native DNP3 object/function code."
+#   3. Corroborating negative evidence: exported/string-referenced DNP3 object support is limited
+#      to ordinary point-data objects (Object 01/02 Binary Input(+Event), 20-23 Counters, 30/32/34
+#      Analog Input(+Event/Deadband), 40 Analog Output Status) — no DNP3 Secure Authentication
+#      (Object Group 120) and no custom authentication-shaped object exists anywhere in the
+#      binary's strings. There is no DNP3-native access-control mechanism to find; access control
+#      lives entirely in the shared Courier layer underneath.
+#   4. TWO DISTINCT password schemes confirmed structurally (matching the P54x1Z manual's Chapter
+#      24 split between the legacy scheme and RBAC/"Cyber Security Brick"): plain
+#      `CdtPassword`/`CdtEncryptedPassword` cells with a "Level %d Encrypted Password cell
+#      (0x%04X)" debug format (implying MULTIPLE numbered level cells, consistent with the
+#      Level 2/Level 3 scheme already sourced from the FAQ/manual) versus
+#      `SetPasswordCyberSecurityBrickInt()`/`SetPasswordForCSEd3()` plus a hard `"Password size
+#      must be equal to 8 bytes."` string — the newer RBAC-era credential is a fixed 8-byte value,
+#      structurally different from the legacy 4-char Courier connection password confirmed
+#      earlier this pass.
+#
+# ACTIONABLE NEW LEAD, not yet pursued: querying whether Courier cell 0xBF15 ("Password Entry
+# Needed") is present/asserted is, by construction, a READ operation — this could be exactly the
+# "safe, non-destructive proxy" this file's blocker list has been missing (see blocker #3 above).
+# If a DEVICE with Level 2 configured to require no password reports this cell as absent/false,
+# and a device requiring one reports it present/true, a scanner could confirm the vulnerability by
+# READING this cell over DNP3 (or Modbus/serial Courier) rather than attempting any write. NOT YET
+# CONFIRMED: this pass traced the CLIENT-SIDE decision logic (should the UI show a password
+# dialog), not the actual DNP3-object-level wire encoding `CourierDnpExtractData`/
+# `CourierDnpSendData` use to read that specific cell remotely — that would be the next concrete
+# RE step (trace `fcn.1007e430`, the column/cell-lookup helper called at the 0xbf15 push site, and
+# whatever function ultimately serializes a Courier cell read into DNP3 objects) if this is picked
+# back up. Static analysis only, no live device touched, no motion/write capability built or
+# attempted — same posture as every other candidate in this file.
+#
+# UPDATE 2026-08-28, PART 4 — user supplied a 4th document batch (13 Schneider Electric Singapore
+# support-portal articles plus one full technical manual), read directly.
+#
+# STRONG NEW LEAD, standard DNP3 semantics, NO binary RE required: `ingest/Px3x-DNP_EN_M_C11.pdf`
+# ("DNP 3.0 Protocol for MiCOM Px3x", Schneider's own dedicated protocol manual — Px3x is Px4x's
+# sibling line, same vendor/generation, presumptively the same or near-identical DNP3
+# implementation, not independently confirmed for Px4x specifically). Confirms:
+#   - The device implements DNP3 Object 12 (Control Relay Output Block, the actual breaker/output
+#     CONTROL object — CourierDnp.dll's own strings never showed this object, meaning it lives in
+#     a different part of the relay's DNP3 stack than the S1 Studio engineering-tool DLL analyzed
+#     in Part 3) and Object 41 (Analog Output Block), via function codes 3/4/5/6 (Select, Operate,
+#     Direct Operate, Direct Operate No Ack) — "Always" supported per the manual's own
+#     function-code table.
+#   - Object 12's response Status field has a documented value "9 – Not authorized" (also "7 –
+#     Device in 'local' mode", "8 – Too many operations") — a standard-level DNP3 signal that
+#     could distinguish an access-denied control attempt from an accepted one. CAVEAT, stated by
+#     the manual itself: these specific codes are marked "(*)" and footnoted as "currently only
+#     documented in a recommendation by the [DNP Users Group] technical committee" — i.e. this
+#     confirms the STATUS CODE EXISTS in the DNP3 ecosystem this device targets, but does NOT by
+#     itself confirm Schneider's own Px3x/Px4x firmware actually populates code 9 specifically
+#     when Old Access Level denies a control attempt. That remains to be verified.
+#   - ACTIONABLE: DNP3's own Select-before-Operate model means a SELECT request never executes the
+#     control action (only Operate does) — so sending SELECT on a discovered Object 12 point and
+#     reading back the Status code is a standards-native, genuinely non-destructive probe. If a
+#     real device returns status 9 (or any other non-zero/rejected code) when Old Access Level is
+#     restricted, and 0 ("Request accepted") when it is not, this is exactly the safe
+#     "prove-it-without-changing-anything" proxy this file's blocker list has been missing —
+#     stronger and simpler than the Part 3 Courier-cell-read lead, since it needs no vendor-DLL
+#     knowledge at all, only a standard DNP3 master library. NOT YET CONFIRMED against a real or
+#     simulated device — the manual documents the code's existence, not this device's own
+#     behavior when access is actually restricted.
+#
+# CORROBORATING CONTEXT, weaker/indirect (different Schneider relay/RTU products, not Px4x
+# itself, cited only as supporting the general "no strong native DNP3 auth in this vendor's grid
+# portfolio" picture):
+#   - `ingest/DNP3 Communication on PowerLogic P5 Protection Relays...pdf` (Schneider Singapore
+#     support article, different relay family): states plainly under "Security": "No native
+#     encryption; use VLANs, firewalls, TLS tunnels, and IP whitelisting" as the vendor's own
+#     recommended mitigation — no device-level DNP3 authentication offered at all for this
+#     sibling product line.
+#   - `ingest/Sage RTU DNP3 Secure Authentication version (DNP SA) Compatibility...pdf`: confirms
+#     Schneider's SAGE RTU line supports only DNP-SA v2 (not SAv5/SAv6, and no firmware roadmap to
+#     add it) — same vendor, different product, same theme of legacy/weak-or-absent DNP3-level
+#     auth being normal across this portfolio.
+#
+# DOCUMENT-HUNT STATUS, informational: 3 of the 13 articles (`Register Map for the MiCOM
+# P54x...pdf`, `PM8000 series meter DNP 3.0 Device Profile Documentation...pdf`, `Vamp 255
+# communications maps...pdf`) are support-page SHELLS only — each names and links a real
+# attachment (a "Menu Database" zip for P54x, a `Powerlogic_PM8000_DNP3_DeviceProfileGuide.pdf`,
+# and `vamp255_fw10_108_motor_DNP3.xlsx`) that was NOT itself included in what got downloaded.
+# These are the concrete, named next targets if this document hunt continues — not fetched this
+# pass (out of scope for a review-what-was-supplied pass; flagging rather than auto-fetching).
+# Remaining 6 articles in this batch (SCADAPack x70 CLI/DNPDIAG/peer-to-peer, Connexium Tofino
+# firewall, GeoSCADA driver log translation, RemoteConnect protocol settings, M580/M340
+# BMXNOR0200 unsolicited behavior, generating a DNP3/Modbus outstation IP list) are all
+# Schneider-DNP3-ecosystem context on entirely different product lines (SCADAPack RTUs, M580/M340
+# PLCs) — read, zero keyword hits, confirmed clear negatives for this specific candidate.
+#
+# UPDATE 2026-08-29 — a genuinely separate but related capability came out of this same live-
+# capture effort: user captured MiCOM S1 Studio's own "Quick Connect > Scan network" feature
+# (Courier and IEC 103 modes both produced an identical request) and asked to duplicate it as a
+# new discovery method. Built as `core/discovery.py:micom_courier_scan()` — an ONC-RPC portmapper
+# query for RPC program 20002001, confirmed byte-for-byte from the capture. This is a NETWORK-
+# DISCOVERY capability (finds live Courier/IEC-103-capable hosts on a subnet), not a credential
+# check — it does NOT touch the Old Access Level / password question this candidate is about, and
+# does not change this file's confidence or buildability status. Recorded here only so a future
+# reader knows this capture effort had two separate outputs. Full detail:
+# lab-notes/side-quests.md, "MiCOM Courier / IEC 103 network discovery — BUILT 2026-08-29".
+#
+# UNRELATED CROSS-CHECK, same pass: the P3U relay's firmware 30.208 "Lock Remote Config" feature
+# (an opt-in GetSet/Telnet+HTTP lockout, found while reading the same bundled manuals) is a
+# different Schneider product's finding, already written up in
+# lab-notes/disclosures/schneider-p3-vampset-debug-password.md's new "Post-submission research
+# note" section — it does not touch this MiCOM Px4x candidate or its DNP3 question at all,
+# recorded here only so the connection isn't mistakenly assumed later.
+
+
+
+check_id: candidate-schneider-micom-px4x-unauthenticated-level2-default
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_only: true
+references:
+  - "Schneider Electric FAQ FA180139, \"Default password settings and recommendations for the Px4x MiCOM Relays\" (user-supplied)"
+  - "ingest/P54x1Z-TM-EN-2.3-GEV.pdf (GE Vernova official technical manual, MiCOM P40 Agile P543/P545)"
+description: >
+  MiCOM Px4x protection relays (P543/P545 and the wider Px4x family — currently manufactured and
+  documented by GE Vernova, per the GE Vernova trademark notice in their own current technical
+  manual; the original sourcing FAQ was published by Schneider Electric, likely reflecting the
+  product line's history through the 2015 Alstom Grid divestiture) ship with the front-HMI
+  "Password Control" setting factory-defaulted to "2" — full write access, including remote
+  circuit-breaker control, granted to all users with NO password required, on both the front port
+  (Courier) and at least one rear port (DNP3 named explicitly). GE Vernova's own current technical
+  manual confirms DNP3/Modbus/103 rear-port access still routes through this same legacy "Old
+  Access Level" scheme even on current-generation, RBAC-capable hardware. This is a
+  missing-authentication-by-default finding, not a guessable credential — deliberately NOT built
+  as an active check or script. See this file's own header comment for why this needs its own
+  human capability decision before any probe is considered, same tier as the Rockwell key-bypass
+  item (GE SR/UR's equivalent item is now closed — see CVE-2017-7905-ge-multilin-sr-ur-crypto.yaml).

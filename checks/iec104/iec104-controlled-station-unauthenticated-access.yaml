@@ -1,0 +1,63 @@
+# Armed 2026-11-12 (WWS Tier-1 build #2, water-wws-coverage-and-gaps-2026-11.md). IEC 60870-5-104
+# (IEC-104, TCP 2404) is a core water/wastewater + electric SCADA telecontrol protocol and a first-class
+# Geo SCADA Expert driver (confirmed in the Geo SCADA 2022 supported-protocol review). Its base form has
+# no authentication, so a reachable peer can read (General Interrogation) and control (C_SC/C_DC/C_RC/
+# C_SE). This is the missing-authentication exposure class (CWE-306), the same shape as the DNP3 / FINS /
+# MELSEC-SLMP unauthenticated-access checks. disclosure_status: public -- a documented exposure class.
+#
+# SAFETY: the executor reuses probe_iec104_identity, which sends ONLY the U-format STARTDT activation
+# (the benign session-start handshake, NOT a process command) and checks for STARTDT_CON. It NEVER sends
+# a C_SC/C_DC/C_RC/C_SE command. An actuation proof-of-impact is a scripts/safety_critical/ plan-confirm
+# tool, never this armed check.
+#
+# PASSIVE detection: a byte pattern for an IEC-104 control-command ASDU in a request -- the APCI start
+# 0x68 followed (after the length + 4 control octets) by a command TypeID (C_SC 45 / C_DC 46 / C_RC 47 /
+# C_SE 48-50, i.e. 0x2d-0x32) -- the control action the exposure permits, not the benign handshake.
+
+check_id: iec104-controlled-station-unauthenticated-access
+protocol: iec104
+kind: native
+module: checks.iec104.native.iec104_unauthenticated_access
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:H/A:H (9.4 CRITICAL for the enabled capability) -- an IEC 60870-5-104 controlled station with no authentication lets any reachable master read all points (General Interrogation) and issue control (C_SC/C_DC single/double command, C_RC step, C_SE set point -- e.g. pump/valve operation and setpoints). This check confirms the exposure via the benign STARTDT handshake only; it sends no control command."
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  protocol_probe: iec104_identity
+params:
+  default_port: 2404
+  timeout: 5.0
+references:
+  - "IEC 60870-5-104 (telecontrol over TCP/IP, default port 2404). The base protocol has no authentication; IEC 62351 / network controls are the external mitigation. STARTDT act/con APCI U-frames: 68 04 07 00 00 00 / 68 04 0B 00 00 00."
+  - "lib60870 (MZ Automation) + the Wireshark 104apci dissector -- OSS references for the APCI U-frame handshake and the command ASDU TypeIDs (C_SC_NA_1=45 ... C_SE_NC_1=50)."
+  - "Schneider Geo SCADA Expert 2022 Supported Drivers and Protocols -- IEC 60870-5-104 is a first-class Geo SCADA driver (water/utility SCADA host context)."
+  - "core/fingerprint.py probe_iec104_identity -- the benign STARTDT-handshake identity gate this check reuses (read-only, no command)."
+detection_hints:
+  transport: tcp
+  app_protocol: iec104
+  mitre_attack_id: T0855
+  analytic_story: "ICS Unauthorized Command"
+  broad:
+    description: >-
+      An IEC 60870-5-104 control-command ASDU in a request toward a controlled station: the APCI start
+      octet 0x68, then (after the length + 4 control octets) a command TypeID -- C_SC (45), C_DC (46),
+      C_RC (47) or C_SE (48-50). On a station reachable without authentication this is the control action
+      the exposure permits (e.g. a single command to operate a pump or valve).
+    patterns:
+      # 0x68 APCI start; plausible APDU length; 2 control octets; a low receive-seq octet; 1 control
+      # octet; TypeID C_SC/C_DC/C_RC/C_SE (45-50); VSQ 0x01 (single info object). Tightened 2026-11-12
+      # after a full-corpus Suricata run over the PNNL set: the prior "\x68.{5}[\x2d-\x32]" matched
+      # unrelated TCP (27 hits, all on port 1947/HASP, no IEC-104 present) -- the structural anchors
+      # below (length range + VSQ) remove that cross-protocol false positive.
+      - context: request
+        regex: "\\x68[\\x04-\\x14]..[\\x00\\x02].[\\x2d-\\x32]\\x01"
+description: >
+  IEC 60870-5-104 (IEC-104, TCP 2404) is a core water/wastewater and electric SCADA telecontrol
+  protocol and a first-class Geo SCADA Expert driver. Its base form has no authentication: a master
+  completes a STARTDT handshake and can then read all points (General Interrogation) and issue control --
+  C_SC/C_DC single/double command, C_RC regulating step, C_SE set point (CWE-306). This check confirms
+  the exposure by reusing a benign STARTDT session-start handshake; a station that confirms STARTDT with
+  no authentication accepts an unauthenticated master, so the control path is reachable the same way. The
+  executor sends ONLY the handshake -- never a control command; an actuation proof-of-impact is the
+  isolated scripts/safety_critical/ plan-confirm path. disclosure_status public: a documented exposure
+  class, not a novel finding.

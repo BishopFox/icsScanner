@@ -1,0 +1,72 @@
+# Default-credentials sweep, 2026-08-27 — bulk document review of
+# ingest/korenix_jetwave_2221g_users_manual_en.pdf and korenix_jetwave_2221g_datasheet_en.pdf.
+# Uses the generic checks/http/native/basic_auth_default_creds.py executor.
+#
+# NAMING DISCREPANCY, stated honestly rather than silently resolved: the supplied filenames say
+# "2221G", but the document's own title page, running header, and every in-body reference say
+# "JetWave 2212G" throughout (e.g. "Table 1 JetWave 2212G Basic Factory Default Settings",
+# "JetWave 2212G User Manual" page header) — no instance of "2221G" appears anywhere in the
+# document body itself. This check is filed under 2212G (the name the source document itself
+# uses consistently) with the filename discrepancy noted here for anyone cross-referencing later;
+# not assumed to be the same product as some other "2221G"-labeled unit without independent
+# confirmation.
+#
+# Source: official Korenix JetWave 2212G User Manual, read directly. "Table 1 JetWave 2212G Basic
+# Factory Default Settings": Username admin, Password admin. Confirmed again in section
+# "3.3 How to Login the Web-based Interface": "Enter the name of Account (Default: admin) and
+# password (Default: admin)... to login the main page of the device" and later, in the
+# troubleshooting section: "The default username/password is admin/admin." Default IP address:
+# 192.168.10.1. Web-based interface confirmed reachable via a standard browser (HTTP; no HTTPS
+# requirement stated).
+#
+# CAVEAT, same as other ambiguous-mechanism web-UI checks this sweep: the manual shows a "Web GUI
+# Login Page" with Account/Password fields but doesn't give the raw HTML form field names — built
+# as HTTP Basic Auth anyway at confidence: low, same established precedent as Antaira/Digi/
+# Conel/Teltonika/HMS Anybus/EtherWAN elsewhere in this project for the same device class
+# (embedded industrial network-equipment web UI).
+#
+# KNOWN FINGERPRINT-GATE GAP: no verifiable "Korenix" MAC OUI entry exists anywhere in the IEEE
+# registry (checked directly via Wireshark's manuf database, a direct IEEE-registry derivative —
+# ~58,000 entries searched, zero matches for "Korenix"). Korenix is owned by Beijer Electronics
+# Group, which DOES have 2 registered OUI blocks (00:12:77, 00:50:6C) — but there is no
+# confirmation Korenix-branded hardware actually ships under either parent block rather than its
+# own unregistered range, so neither is used here. Same disclosed-gap pattern as Digi
+# International, EtherWAN, and Teltonika elsewhere in this project — not guessed to paper over it.
+# (This is the SAME open gap already noted on the sibling checks/http/korenix-jetnet-5010g-
+# default-creds.yaml check from Phase 41 — both Korenix products share this limitation.)
+#
+# No CVE found — documented factory-default behavior.
+
+check_id: http-korenix-jetwave-2212g-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Korenix"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "admin"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (admin:admin)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46YWRtaW4="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "ingest/korenix_jetwave_2221g_users_manual_en.pdf"
+  - "ingest/korenix_jetwave_2221g_datasheet_en.pdf"
+description: "Korenix JetWave 2212G industrial wireless AP ships with a factory-default admin/admin web-UI login (default IP 192.168.10.1) — no CVE, documented factory-default behavior per the vendor's own manual. Supplied filename says '2221G'; the document itself consistently says '2212G' throughout — filed under the in-document name, discrepancy noted."

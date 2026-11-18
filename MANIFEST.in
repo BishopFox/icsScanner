@@ -1,0 +1,15 @@
+# Bundle the runtime data the scanner loads at run time (the check corpus, feed/OUI data, web assets)
+# and the docs, so an sdist / wheel is self-contained.
+graft checks
+graft web/static
+recursive-include core/data *
+recursive-include templates *.yaml
+include README.md CHANGELOG.md SECURITY.md CONTRIBUTING.md LICENSE NOTICE requirements.txt
+
+# Never ship development / internal trees (defense in depth; these are gitignored or export-excluded too).
+prune lab-notes
+prune tests
+prune dist
+prune output
+prune ingest
+global-exclude __pycache__ *.py[cod]

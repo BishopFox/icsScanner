@@ -1,0 +1,101 @@
+# Candidate stub — 2026-08-30, discovered via a real academic paper + a real open-source
+# reference implementation the user supplied directly. NOT executable (no `kind`). HIGH CAUTION,
+# same tier as this project's other robot-controller findings — this one, unlike the sibling
+# comau-c5g-teach-pendant-default-logins.yaml candidate, involves an interface whose whole
+# purpose is streaming physical robot motion commands, not just a login.
+#
+# GENUINELY DIFFERENT MECHANISM from the other 2 Comau candidates in this project
+# (comau-ftp-default-creds-unconfirmed-value.yaml, comau-c5g-teach-pendant-default-logins.yaml)
+# — this is neither FTP nor TP-INT. It's a ROS-Industrial-style TCP interface implemented in
+# PDL2 (Comau's own robot programming language), running as user-loaded programs on the
+# controller.
+#
+# SOURCES, all read/inspected directly, not search-summarized:
+#   - `2014_SIMPAR_Comau.pdf` — "ROS-I interface for COMAU robots" (Michieletto, Tosello,
+#     Romanelli, Ferrara, Menegatti; University of Padova IAS-Lab + Comau Robotics R&D,
+#     co-authored WITH Comau's own engineers). Describes a real-time TCP/IP connection letting a
+#     non-ROS-compliant external program send "motion primitives" / motion commands directly to
+#     a live C4G Open controller. No authentication of any kind is mentioned anywhere in the
+#     paper.
+#   - `github.com/CNR-STIIMA-IRAS/comau-experimental` — a real, still-published (though stale,
+#     last touched ~2016-2017, ROS Kinetic/Jade era) open-source ROS-Industrial driver
+#     implementing exactly this interface. Read the ACTUAL PDL2 source directly (not just the
+#     README, which discloses none of this):
+#       - `PDL_programs/Single_Arm/ROS_COMAU_tcp_utils.pdl` — `tcp_accept(port, ...)` calls
+#         `DV_CNTRL(DV_TCP_ACCEPT, netlun, port, '0.0.0.0')` — binds to ALL interfaces, accepts
+#         any connecting IP. No credential exchange anywhere in this file.
+#       - `PDL_programs/Single_Arm/ROS_COMAU_trajectory.pdl` — `PORT_TRJ = 1212`. This is the
+#         actual MOTION-COMMAND port: the wire format (ROS-Industrial "SimpleMessage"-style) is a
+#         header (msg_type/comm_type/reply_code) followed by a trajectory-point record —
+#         arm_number, queue_status, sequence_number, fly_tolerance, linear_vel, N joint-position
+#         floats, digital_output. Sending a well-formed point here would command REAL robot
+#         motion — this project will not implement that path in any tool, full stop.
+#       - `PDL_programs/Single_Arm/ROS_COMAU_robot_status.pdl` — `PORT_ROB_STS = 1214`, a
+#         SEPARATE port from the motion one. Confirmed by reading the full source: once a client
+#         connects, the server loop WRITEs a fixed 40-byte status record (length, msg_type=13
+#         "ROBOT_STATUS", comm_type, reply_code, drives_powered, e_stopped, error_code, in_error,
+#         in_motion, mode, motion_possible) every ~20ms, unconditionally — the client does not
+#         need to send anything at all. This is a genuine zero-interaction, zero-motion,
+#         read-only status broadcast — the safest possible verification target this finding has.
+#   - A third-party "knowledgebase" blog (industrialmonitordirect.com) was also checked for PDL2
+#     socket configuration details and explicitly NOT trusted as a primary source — its own
+#     content conflates PDL2 sockets with the unrelated Siemens S7 protocol's port 102, the same
+#     red flag (unsourced, protocol-confusing content) this project rejected outright for an
+#     earlier GE Multilin 750/760 claim. Its one plausible, lower-confidence claim (that a
+#     purchasable Comau software option, CR17920415 for C4G / CR17926300 for C5G, is required to
+#     enable PDL2 TCP/IP sockets at all) is noted but NOT relied upon — treat as unconfirmed.
+#
+# NOT A FACTORY DEFAULT — a real, important caveat, same characterization already used for the
+# Fanuc Socket Messaging finding in this project: this requires an integrator to have loaded and
+# be running these specific PDL2 programs on their controller (whether via the ROS-Industrial
+# driver above or a similar in-house implementation) — it is an opt-in, integrator-configured
+# capability, not something every Comau robot ships with active out of the box. Ports 1212/1214
+# are this SPECIFIC reference implementation's chosen values, not confirmed as a universal
+# Comau/ROS-Industrial standard.
+#
+# CURRENCY CHECK, 2026-08-30 — the underlying capability is CONFIRMED CURRENT, not a legacy-only
+# artifact of the 2014 paper/stale GitHub repo: Comau's own official product page for "Open
+# Controller" describes TCP/IP socket communication via PDL2 for external PC control as presently
+# supported on the C5GPlus (Rel 1.0-3.0), R1C-6, S1C-6, and C1C-6 controller lines (minimum system
+# software v4.41) — Comau's CURRENT product line, actively sold today. This independently
+# CORROBORATES (from Comau's own site, not the earlier unreliable blog) that PDL2 TCP/IP sockets
+# are a licensed add-on, not default: "contact Comau sales to request a Comau Open Controller
+# license," required even for already-delivered robots. The specific ports (1212/1214) and exact
+# wire format are still sourced only from the 2016-era CNR-STIIMA-IRAS repo — no newer public
+# implementation was found to cross-check them against, and no active fork/successor exists.
+# ROS-Industrial's own current project pages do not list Comau as an officially-supported driver
+# (it stayed an academic/CNR-ITIA community contribution, never promoted the way Motoman's was).
+#
+# BUILT 2026-08-30 as scripts/safety_critical/comau_ros_status_{plan,confirm}.py (this tier's 6th
+# tool), after an explicit user go-ahead. Connects ONLY to the status port (1214 in the reference
+# implementation, operator-supplied via a required --port argument, never a silent default) and
+# LISTENS — sends ZERO bytes at any point, matching the real PDL2 server's own behavior (it
+# broadcasts unconditionally, no request needed). No constant, function, or code path for the
+# separate motion-command port (1212) exists anywhere in this tool. Requires >=2 well-formed
+# ROBOT_STATUS frames before reporting CONFIRMED (a single frame is treated as inconclusive, not
+# proof of genuine periodic behavior). Byte order (undetermined from the PDL2 source alone) is
+# resolved by trying both and matching the known msg_type==13 constant — self-verifying, not
+# guessed. Verified via tests/smoke_test_safety_critical_comau_ros_status.py (21 assertions,
+# including an explicit check that the confirm script sends zero bytes to a mock server).
+
+check_id: candidate-comau-ros-industrial-unauthenticated-tcp-motion-status
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Comau"
+references:
+  - "2014_SIMPAR_Comau.pdf -- \"ROS-I interface for COMAU robots\" (Michieletto, Tosello, Romanelli, Ferrara, Menegatti), user-supplied"
+  - "https://github.com/CNR-STIIMA-IRAS/comau-experimental (PDL_programs/Single_Arm/*.pdl read directly)"
+description: >
+  A real-time, unauthenticated TCP/IP interface exists for commanding COMAU robot motion (via
+  PDL2 programs implementing a ROS-Industrial-style driver) -- confirmed via a Comau-co-authored
+  academic paper and a real open-source reference implementation whose actual PDL2 source was
+  read directly. Motion-command port (1212 in this implementation) accepts joint-position
+  trajectory points with zero authentication; a SEPARATE status-only port (1214) passively
+  broadcasts robot state (e-stop, drives-powered, mode, in-motion) to any connecting client with
+  no request needed at all -- the safest possible verification target if this is ever built.
+  NOT a factory default -- requires an integrator to have loaded and be running these specific
+  PDL2 programs. Not built: physical-actuation risk squarely matches this project's
+  scripts/safety_critical/ trigger; a concrete safe design (status-port-only, motion-port never
+  implemented) is sketched but awaiting an explicit human decision before implementation.

@@ -1,0 +1,42 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ FA299649 ("What are the
+# default User name and Password for the EGX, Link, and Com'X gateway devices?") directly.
+# Brand-new product for this project: Link150 (also sold/labeled as EGX150), a PowerLogic
+# Ethernet gateway. Webpage login: Administrator:Gateway — the same credential pair as EGX100/
+# EGX300, consistent with this whole product family sharing one default scheme.
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-link150-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["Administrator", "Gateway"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory credential (Administrator:Gateway) for the Link150 (EGX150) gateway webpage"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic QWRtaW5pc3RyYXRvcjpHYXRld2F5"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ FA299649, \"What are the default User name and Password for the EGX, Link, and Com'X gateway devices?\" (user-supplied)"
+description: "Schneider Electric Link150 (EGX150) Ethernet gateway ships with a factory-default webpage login of Administrator:Gateway — the same credential pair as the EGX100/EGX300 family. No CVE, documented factory-default behavior per Schneider's own FAQ."

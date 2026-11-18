@@ -1,0 +1,48 @@
+# Default-credentials sweep. HTTP twin of telnet-siemens-s7-300-basisk-hardcoded-creds.yaml —
+# see that file for the full source trail and the Phase 1 correction history. Same debug daemon,
+# same hardcoded account, exposed on both Telnet (23/tcp) and HTTP (80/tcp) per every source
+# checked.
+#
+# ASSUMPTION FLAGGED: sources describe this as an HTTP login without specifying Basic Auth vs.
+# form-based — assumed Basic Auth per the same reasoning as the Scalance X-200 and Modicon
+# checks (common case for an embedded debug web UI of this vintage), not independently confirmed
+# against real hardware.
+
+check_id: http-siemens-s7-300-basisk-hardcoded-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Siemens AG"
+params:
+  path: "/"
+  credentials:
+    - ["basisk", "basisk"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (basisk:basisk)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YmFzaXNrOmJhc2lzaw=="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+advisory_url: "https://www.cisa.gov/news-events/ics-alerts/ics-alert-11-204-01b"  # promoted from references (canonical advisory)
+references:
+  - "https://www.wired.com/2011/08/siemens-hardcoded-password/"
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.cisa.gov/news-events/ics-alerts/ics-alert-11-204-01b"
+description: >
+  Siemens SIMATIC S7-300 PLCs with integrated PROFINET shipped before October 2009 (and IM151-x
+  PN CPUs before September 2010) left a debug HTTP daemon enabled with a hardcoded
+  basisk:basisk login. No CVE assigned/confirmed — CWE-798 (Use of Hard-coded Credentials).

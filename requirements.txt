@@ -1,0 +1,49 @@
+# Install: pip install --user --break-system-packages -r requirements.txt
+# (WSL2/this environment has no system pip on Python 3.12 — see memory feedback_python_pip.md)
+
+pyyaml>=6.0          # target inventory + check metadata parsing
+
+# Credential resolution (core/target.py). On native Windows/macOS the OS keychain works via
+# keyring alone. On headless Linux (this dev environment — verified 2026-08-12, no D-Bus Secret
+# Service session) keyring's default backend is a no-op; keyrings.cryptfile provides an
+# AES-encrypted file backend instead, gated by the ICSSCANNER_KEYRING_PASSWORD env var. Only
+# actually needed at runtime if a target inventory has a `credential:` reference.
+keyring>=25.0
+keyrings.cryptfile>=1.3
+
+# OPC-UA client library (decided 2026-08-14 over python-opcua — see 00-PROJECT-CHARTER.md
+# § Scope: actively maintained, and a companion fuzzing toolkit — the reference
+# this check was ported from — already used it). Used for checks/opcua/native/* and
+# core/fingerprint.py's probe_opcua_identity().
+asyncua>=2.0
+
+# SSH client for checks/ssh/native/ssh_default_creds.py (default-credentials sweep, 2026-08-14)
+# — the de facto standard for scripted SSH password-auth testing, no real competing choice for
+# this use case. Telnet deliberately does NOT get a library dependency: stdlib telnetlib is
+# deprecated (removed in 3.13) and checks/telnet/native/telnet_default_creds.py hand-rolls a
+# minimal raw-socket client instead.
+paramiko>=3.0
+
+# MSSQL client for checks/mssql/native/mssql_default_creds.py (default-credentials sweep,
+# 2026-08-14, Wonderware Historian CVE-2017-5155) — decided over pyodbc for the same reason as
+# every other library choice here: pymssql bundles its own FreeTDS connector, no separate system
+# ODBC driver install needed. Also used by core/fingerprint.py's probe_mssql_identity().
+pymssql>=2.3
+
+# MQTT client for core/discovery.py's passive Sparkplug B listener (network discovery feature,
+# 2026-08-25). NOTE: this is a genuinely different kind of dependency from everything else in
+# this file — every library above talks to a check's OWN target device; paho-mqtt instead talks
+# to a THIRD-PARTY MQTT broker the operator names, purely to subscribe (read-only, never
+# publishes) to the standard spBv1.0/# topic wildcard for device discovery. Flagging this
+# explicitly rather than adding it quietly: it is the project's first dependency of this shape.
+# paho-mqtt is the de facto standard pure-Python MQTT client, no real competing choice.
+paho-mqtt>=2.0
+
+# Socket.IO client for checks/http/native/socketio_login_default_creds.py (2026-09-23, HMS
+# Anybus Atlas2 Plus / Osiris) — the de facto reference implementation for Engine.IO's own
+# transport-negotiation handshake plus Socket.IO's event framing on top; hand-rolling that wire
+# protocol would be exactly the kind of detail-risk this project avoids elsewhere. Long-polling
+# transport works with just this package; a device that requires a WebSocket upgrade would
+# additionally need websocket-client, not installed by default since no candidate has needed it
+# yet (Engine.IO's protocol always supports long-polling as the mandatory baseline transport).
+python-socketio>=5.0

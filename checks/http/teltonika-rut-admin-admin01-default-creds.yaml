@@ -1,0 +1,115 @@
+# Default-credentials sweep, Phase 41 (2026-08-27) — industrial communications systems category
+# (cellular routers/RTUs). Originally used checks/http/native/basic_auth_default_creds.py.
+#
+# CORRECTED 2026-09-22 (RutOS firmware/GPL-source review, vendor firmware ingest
+# teltonika-networks/): the Basic-Auth assumption was WRONG for the current RutOS generation.
+# Teltonika's own "Getting Started | Teltonika Networks Web API" PDF (developers.teltonika-
+# networks.com, fetched and read directly) documents the real mechanism as a JSON REST API:
+#     POST /api/login
+#     Content-Type: application/json
+#     Body: {"username": "...", "password": "..."}
+#     Success: {"success": true, "data": {"username": "...", "token": "...", "expires": ...}}
+# The PDF states HTTPS + this API is enforced by default on RUTX (from firmware 7.12) and
+# RUTC/RUTM/RUT9/RUT1/RUT2/RUT3/OTD/DAP/TAP/TRB families (from firmware 7.15) -- i.e. it's a
+# RutOS-platform-wide mechanism, not a single-product quirk, consistent with fingerprint_
+# precondition staying vendor-level rather than narrowed to one product.
+#
+# INDEPENDENTLY CONFIRMED from the real compiled source, not just the PDF: extracted
+# TRB500_R_GPL_00.07.24.5.tar.gz's actual `/api/login` handler (package/feeds/vuci/api-core/
+# bin/files/usr/lib/lua/api/core/login.lua -- LuaJIT-compiled bytecode; string constants survive
+# compilation and were read directly, not guessed) plus its response.lua/responder.lua envelope
+# modules:
+#   - Method: POST only ("HTTP method not supported for this endpoint, please use POST" on any
+#     other verb).
+#   - Success: HTTP 200, top-level JSON key "success" present (mutually exclusive with the
+#     failure envelope's top-level "errors" key, per response.lua's own assertion: "Only
+#     'errors' or 'data' can be defined in a response, not both").
+#   - Failure (bad credentials): HTTP 401, message "Login failed" / "Invalid username and/or
+#     password! Please try again."
+#   - Malformed request (missing/non-string fields): HTTP 400, "Authorization" / "Username
+#     and/or password is missing" / "UNAUTHORIZED"/"INCORRECT_REQUEST" STD_CODES.
+#   - CONFIRMED LOCKOUT MECHANISM, safety-relevant: the same handler calls acquire_lock/
+#     wait_for_lock/release_lock against /tmp/lock/api_login.lock and an is_blocked/ip_block
+#     check (log_connection_webui, "ip" "blocked" strings) -- i.e. this endpoint tracks and can
+#     block a source IP after repeated failed attempts. risk_reason downgraded from ["login"]
+#     (adverse tier) to UNSET (destructive tier, the conservative default) to reflect this real,
+#     confirmed lockout risk -- the original ["login"] classification predated this evidence and
+#     was too permissive.
+#   - Also present (not exercised by this check): 2FA support (a successful primary-credential
+#     check on a 2FA-enabled device returns "200 init_json_success, 2FA required" rather than a
+#     token) -- irrelevant to this check's default-disabled-2FA assumption but noted for anyone
+#     extending this check later.
+#
+# CREDENTIAL VALUE ITSELF: kept as admin/admin01 with the SAME low-confidence caveat as before
+# (Teltonika's wiki: admin01 was the default only through firmware 02.400/early hardware
+# batches; later firmware/batches use a per-unit serial-derived password) -- this pass did not
+# resolve whether admin/admin01 is still valid on current (07.xx) firmware specifically; that
+# remains an open question, not newly confirmed either way. One relevant data point found this
+# pass: the base-files template's /etc/passwd and /etc/shadow ship the OS-level "admin" and
+# "root" shell accounts LOCKED (shadow field "!", no password hash at all) -- but this reflects
+# shell/PAM login being disabled by design (auth for the web/API layer is a separate credential
+# store, not /etc/shadow), so it neither confirms nor rules out a static default at the API
+# layer -- recorded as context, not treated as corroboration either direction.
+#
+# Separate, unrelated CVEs on the same product line (CVE-2023-32349/CVE-2023-32350,
+# ICSA-23-131-08) both require an ALREADY-authenticated session as a precondition — privilege-
+# escalation-after-auth bugs, not a way in on their own — deliberately NOT implemented here
+# (wrong vuln class for a default-credentials check; would only matter chained after this check
+# already succeeded).
+#
+# KNOWN FINGERPRINT-GATE GAP (same pattern as Digi/Antaira/Korenix/EtherWAN in earlier phases):
+# no verifiable "Teltonika" OUI entry exists in core/fingerprint.py's table yet.
+#
+# No CVE — documented factory-default/fallback behavior, with the firmware/batch caveat above.
+
+check_id: http-teltonika-rut-admin-admin01-default-creds
+protocol: http
+kind: native
+module: checks.http.native.json_rest_login_default_creds
+destructive: true
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Teltonika Networks"
+params:
+  path: "/api/login"
+  username_field: "username"
+  password_field: "password"
+  credentials:
+    - ["admin", "admin01"]
+  success_status: 200
+  failure_status: 401
+  success_json_keys: ["success"]
+  https: true
+  default_port: 443
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own JSON POST to /api/login using the documented factory-fallback credential ({\"username\":\"admin\",\"password\":\"admin01\"})"
+    patterns:
+      - context: request
+        regex: "POST /api/login"
+  broad:
+    description: "Any POST to /api/login on this device — the vulnerability class (guessable credential against this specific REST endpoint), not just this scanner's own guessed value"
+    patterns:
+      - context: request
+        regex: "POST /api/login HTTP/1\\.[01]"
+references:
+  - "https://wiki.teltonika-networks.com/view/RUT950_Device_Recovery_Options"
+  - "Teltonika Networks official \"Getting Started | Teltonika Networks Web API\" (developers.teltonika-networks.com), fetched and read directly via pdftotext"
+  - "TRB500_R_GPL_00.07.24.5.tar.gz, user-supplied ingest, package/feeds/vuci/api-core/bin/files/usr/lib/lua/api/core/login.lua + response.lua/responder.lua, string constants read directly from LuaJIT bytecode"
+description: >
+  Teltonika Networks RutOS-based cellular routers/gateways (RUTC/RUTM/RUT1/RUT2/RUT3/RUT9/RUTX/
+  OTD/DAP/TAP/TRB families) expose a JSON REST login at POST /api/login (HTTPS by default from
+  firmware 7.12-7.15 depending on family) — confirmed both from Teltonika's own official Web API
+  documentation and independently from the real compiled /api/login handler in a genuine GPL
+  firmware source release. Tests the vendor-documented admin/admin01 factory-fallback credential
+  (Teltonika's own wiki: valid through firmware 02.400/early hardware batches; later units use a
+  per-unit serial-derived password instead) — a negative result is inconclusive, not a confirmed
+  patch, hence confidence: low. The real endpoint has a confirmed IP-lockout mechanism after
+  repeated failed attempts (found directly in the handler's own logic), so this check carries no
+  risk_reason override and stays at the conservative destructive tier. No CVE — documented
+  factory-default/fallback behavior.

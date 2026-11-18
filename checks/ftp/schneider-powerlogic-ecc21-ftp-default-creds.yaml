@@ -1,0 +1,48 @@
+# Sourced 2026-08-17 from Schneider Electric's own official support FAQ FA212757 ("How to
+# upgrade firmware on an EGX100/200/300/400, PM8ECC or ECC21 via the command prompt using FTP" —
+# currently maintained, last modified 4/11/2025), read directly, including a real captured FTP
+# session screenshot ("220 PowerLogic FTP Server ready" / "User (IP:(none)):" left blank / "331
+# User OK, send password" / password accepted, "230 Password OK"). ECC21 is an Ethernet
+# Communication Card for CM3/CM4-series power meters, not a gateway — a genuinely new product for
+# this project, not previously tracked. Same blank-username + "admin" mechanism as EGX200/EGX400
+# (the FAQ groups all three together explicitly). See
+# checks/ftp/native/ftp_blank_username_default_creds.py for why this mechanism needs its own
+# module rather than the generic ftp_default_creds.py.
+
+check_id: ftp-schneider-powerlogic-ecc21-default-creds
+protocol: ftp
+kind: native
+module: checks.ftp.native.ftp_blank_username_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  passwords:
+    - "admin"
+  default_port: 21
+detection_hints:
+  transport: tcp
+  app_protocol: ftp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own FTP login attempt(s) with a blank username (USER sent with no argument) and documented factory password(s) (admin)"
+    patterns:
+      - context: request
+        bytes: "USER \r\nPASS admin\r\n"
+  broad:
+    description: "Any FTP login attempt using a completely blank username — the vulnerability class (a device-specific credential shape rarely seen outside factory-default configurations), not the specific guessed password"
+    patterns:
+      - context: request
+        regex: "^USER \\r\\n"
+references:
+  - "https://www.se.com/us/en/faqs/FA212757/"
+description: >
+  Schneider Electric ECC21 Ethernet Communication Card (for CM3/CM4-series power meters) ships
+  with FTP server access (port 21) via a blank username and factory-default password "admin" —
+  confirmed directly from Schneider's own official support FAQ FA212757, including a real
+  captured FTP session. No CVE — documented factory-default behavior, not a disclosed
+  vulnerability.

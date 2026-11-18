@@ -1,0 +1,47 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ FA362938 ("NetBotz 750 |
+# Resetting a Lost Super User (Web UI) Account Password") directly. Genuinely separate service
+# from the already-built SSH root check on the same device family
+# (checks/ssh/apc-netbotz-750-root-default-creds.yaml, root:apc).
+#
+# Found inside a password-reset procedure, but the reset steps state the real factory default
+# plainly: "Log on to the Web UI of the appliance as the Super User (both user name and password
+# are superuser)." Applies to NetBotz Rack Monitor 750 (NBRK0750) and Wall Monitor 755 (NBWL0755),
+# NetBotz v5.X.
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention — no
+# contrary signal (custom form, dropdown) found in this FAQ.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-apc-netbotz-750-superuser-webui-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "American Power Conversion"
+params:
+  path: "/"
+  credentials:
+    - ["superuser", "superuser"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory credential (superuser:superuser) for the NetBotz 750/755 Web UI Super User account"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic c3VwZXJ1c2VyOnN1cGVydXNlcg=="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ FA362938, \"NetBotz 750 | Resetting a Lost Super User (Web UI) Account Password\" (user-supplied)"
+description: "APC (American Power Conversion) NetBotz Rack Monitor 750 (NBRK0750) and Wall Monitor 755 (NBWL0755) environmental monitoring appliances ship with a factory-default Web UI Super User login of superuser:superuser — a separate service from this device family's already-built SSH root account. No CVE, documented factory-default behavior surfaced inside Schneider's own password-reset FAQ."

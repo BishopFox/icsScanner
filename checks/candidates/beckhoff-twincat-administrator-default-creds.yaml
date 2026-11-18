@@ -1,0 +1,28 @@
+# Candidate stub — default-credentials sweep, Phase 10. NOT executable (no `kind`).
+# Network-surface question, same shape as the Phase 5 InTouch/System Platform candidates.
+#
+# SCADAPASS gives Administrator:1 for TwinCAT, described as "Software for the Windows control
+# and automation technology," citing Beckhoff's own infosys documentation site directly (a real
+# primary source, own vendor docs). TwinCAT is Windows engineering/runtime software, not
+# obviously a network-reachable device — unclear whether this credential gates a local Windows
+# account, a network-facing ADS (Automation Device Specification) route, or something else
+# entirely. Beckhoff's ADS protocol itself (port 48898/TCP or 851/UDP) is a real, separate,
+# non-standard proprietary protocol this project hasn't reverse-engineered — if this credential
+# turns out to gate ADS route authentication specifically, resolving it would need the same
+# wire-format research treatment as PCOM/TCP, not just a network-surface confirmation.
+
+check_id: candidate-beckhoff-twincat-administrator-default-creds
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Beckhoff Automation"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://infosys.beckhoff.com/english.php?content=../content/1033/sw_os/html/cx1000_os_xpe_geninfo.htm&id="
+description: >
+  Beckhoff TwinCAT — Administrator:1, sourced directly from Beckhoff's own documentation, but
+  TwinCAT is Windows engineering/runtime software with an unclear network-facing surface. May
+  relate to ADS protocol route authentication (a separate, non-standard proprietary protocol,
+  not reverse-engineered here) rather than a simple network login. Needs a network-surface
+  answer, and possibly ADS protocol research, before building.

@@ -1,0 +1,52 @@
+# Built check 2026-10-06 (candidate re-triage), promoted from
+# candidates/schneider-bmenua0100-opcua-default-creds.yaml. Blocker was "no OPC UA username/password
+# authentication executor yet" -- resolved by checks/opcua/native/opcua_default_creds.py (Phase 3).
+# Schneider BMENUA0100 (OPC UA module for Modicon M580) ships 2 factory-default OPC UA logins by
+# cybersecurity mode (Schneider FAQ FA405101): admin:password (Secured) and installer:Inst@ller1
+# (Standard). The executor tries both; whichever mode/policy the module is in, a live default
+# activates a session. LIMITATION: in Secured mode the module may require an encrypted SecurityPolicy
+# for the user token, which this (certificate-less) client cannot establish -> that path reports
+# NOT_APPLICABLE (fail-closed, never a false CONFIRMED); the Standard-mode / SecurityPolicy#None path
+# is the one this check can positively confirm.
+check_id: schneider-bmenua0100-opcua-default-creds
+protocol: opcua
+kind: native
+module: checks.opcua.native.opcua_default_creds
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H (9.8 CRITICAL)"
+destructive: true
+risk_reason: ["login"]
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+  product: "BMENUA0100 OPC UA communication module for Modicon M580 (opc.tcp, default port 4840)"
+params:
+  credentials:
+    - ["admin", "password"]
+    - ["installer", "Inst@ller1"]
+  default_port: 4840
+  require_username_endpoint: true
+  negative_control: true
+references:
+  - "Schneider Electric FAQ FA405101 'What is the default user name and password for the BMENUA0100 OPC UA module?' (user-supplied): admin:password (Secured mode), installer:Inst@ller1 (Standard mode)."
+detection_hints:
+  transport: tcp
+  app_protocol: opcua
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "No reliable narrow wire signature — OPC UA binary encodes the service as a numeric NodeId, not a matchable literal, and the UserName token password is not a stable plaintext pattern."
+    patterns: []
+  broad:
+    description: "An OPC UA connection: the Hello (HEL) message carries the endpoint URL 'opc.tcp://...' in cleartext before any security negotiation — the protocol-exposure class, not the specific credential."
+    patterns:
+      - context: request
+        regex: "opc\\.tcp://"
+description: >
+  Schneider Electric BMENUA0100 (OPC UA communication module for Modicon M580 PLCs) ships two
+  factory-default OPC UA logins depending on cybersecurity mode (Schneider FAQ FA405101):
+  admin:password (Secured) and installer:Inst@ller1 (Standard). The executor discovers endpoints
+  (requiring a UserName token), runs a random-bogus negative control, and tries both defaults —
+  CONFIRMED only if the bogus credential is rejected and a default is accepted. Secured-mode encrypted
+  endpoints (no client cert) report NOT_APPLICABLE. CVSS 3.1 9.8 CRITICAL. Built against
+  checks/opcua/native/opcua_default_creds.py.

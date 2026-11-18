@@ -1,0 +1,48 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ "What does the APPL light
+# on the Quantum NOE indicate?" directly. Product line: Modicon Quantum, module family 140NOE771xx
+# (the FAQ's own scope). Distinct mechanism from this project's existing
+# cve-2011-4859-schneider-modicon-quantum-{ftp,telnet}-default-creds.yaml checks — those cover the
+# CPU's FTP/Telnet services under CVE-2011-4859, this covers the separate NOE Ethernet module's
+# own embedded webpage, unrelated to that CVE.
+#
+# The FAQ's own Resolution, inside an unrelated crash-log-viewing procedure: "Enter the IP address
+# of the NOE into the browser and navigate the NOE webpage. The default username = USER and the
+# default password = USER."
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention.
+#
+# No CVE — documented factory-default behavior (separate from CVE-2011-4859, which covers a
+# different service on a different module in the same product line).
+
+check_id: http-schneider-modicon-quantum-noe-web-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["USER", "USER"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory credential (USER:USER) for the Modicon Quantum 140NOE771xx module's webpage"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic VVNFUjpVU0VS"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ, \"What does the APPL light on the Quantum NOE indicate?\" (user-supplied)"
+description: "Schneider Electric Modicon Quantum 140NOE771xx Ethernet module ships with a factory-default webpage login of USER:USER, separate from the CVE-2011-4859 FTP/Telnet default-credentials finding already tracked for this product line's CPU. No CVE for this specific webpage finding, documented factory-default behavior per Schneider's own FAQ."

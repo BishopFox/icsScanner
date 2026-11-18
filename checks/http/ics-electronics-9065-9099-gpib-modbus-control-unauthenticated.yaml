@@ -1,0 +1,62 @@
+# PROMOTED 2026-09-14 from checks/candidates/ics-electronics-9065-9099-unauthenticated-gpib-modbus-
+# command-relay.yaml, per explicit user go-ahead: "build the [candidate] with an explicit go-ahead
+# as described" — "as described" refers to the candidate's own note that a real check here needed
+# "a conservative, read-only-first design" before implementation, same bar this session applied to
+# the Valmet DNA/GE Cimplicity candidates and the M221 UMAS check before its own go-ahead.
+#
+# DELIBERATELY NARROWER than the finding described in the candidate stub: the candidate describes
+# TWO things — (1) the control page is reachable unauthenticated, and (2) its "cmd" field can
+# relay an arbitrary command to whatever GPIB instrument or Modbus RTU device is attached
+# downstream. This check confirms ONLY (1). It never sends the "cmd" field or presses "Send"
+# (submitsend) — only the page's separate, argument-less "Read" button (submitread), which reads
+# back the device's existing response buffer and cannot inject a new command. See
+# checks/http/native/ics_electronics_gpib_modbus_control_unauthenticated.py's own docstring for
+# the exact HTML confirming submitread takes no "cmd" parameter at all, and for the full sourcing
+# trail (grepped every .html file across all 5 of the vendor's official 90xx firmware packages for
+# "password"/"passwd"/"login" — zero matches anywhere in the whole product line).
+#
+# The full command-relay primitive (sending an actual "cmd" via submitsend) remains NOT built —
+# that is a materially different, riskier action (could reach a live in-service instrument or
+# Modbus field device) that was correctly identified as needing its own further explicit decision,
+# separate from this narrower reachability confirmation.
+#
+# NON-DESTRUCTIVE: a single idempotent read of an existing response buffer, no write of any kind
+# to the target device or anything attached to it.
+
+check_id: http-ics-electronics-9065-9099-gpib-modbus-control-unauthenticated
+protocol: http
+kind: native
+module: checks.http.native.ics_electronics_gpib_modbus_control_unauthenticated
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "ICS Electronics"
+references:
+  - "https://www.icselect.com/vxi11_install9.html"
+  - "https://www.icselect.com/pc_files/ICS_9065R8_AUpdate.zip — official 9065 (Ethernet-to-GPIB Gateway) firmware update package, extracted and read directly (control.html)"
+  - "https://www.icselect.com/pc_files/ICS_9099R14_AUpdate.zip — official 9099 (Ethernet-to-Modbus RTU Interface) firmware update package, extracted and read directly (control.html)"
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0861
+  analytic_story: "ICS Information Disclosure"
+  narrow:
+    description: "This scanner's own read-only GET to the ICS Electronics 9065/9099 control page's Read action (no command ever sent)"
+    patterns:
+      - context: request
+        regex: "GET /cgi\\?chain=control\\.html&submitread=Read HTTP/1\\.[01]"
+  broad:
+    description: "Any GET to this device's /cgi endpoint with chain=control.html — the vulnerability class (an unauthenticated control page that can relay commands to attached instrumentation), not the specific read-only probe this check happens to use"
+    patterns:
+      - context: request
+        regex: "GET /cgi\\?chain=control\\.html"
+description: >
+  ICS Electronics 9065 (Ethernet-to-GPIB Gateway) and 9099 (Ethernet-to-Modbus RTU Interface)
+  serve their control.html page — whose "cmd" field can relay arbitrary commands to whatever GPIB
+  instrument or Modbus RTU field device is attached downstream — with no authentication challenge
+  at all. This check confirms only that the page is reachable unauthenticated, via a read-only
+  "Read" action that takes no command parameter and cannot itself inject anything; it never
+  exercises the actual command-relay capability. Confirmed directly from the vendor's own shipped
+  HTML source in both official firmware packages, which contain zero password/login mechanism
+  anywhere in the entire 90xx product line.

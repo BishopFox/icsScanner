@@ -1,0 +1,47 @@
+# Default-credentials sweep, Phase 10 (Moxa, Beckhoff, Phoenix Contact). Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Sources (2 independent, with a firmware-version wrinkle handled honestly rather than guessed
+# away): SCADAPASS gives admin:root, citing the official Moxa AWK-3131-RCC manual directly. An
+# independent WebSearch found a MORE SPECIFIC detail from the same manual family: "admin:moxa
+# from firmware 1.4+, admin:root up to firmware 1.3" — i.e. both are real, just version-gated,
+# similar in shape to the Basisk (Phase 7) and MicroLogix (Phase 8) multi-pair situations. Both
+# pairs shipped, tried in order, rather than picking one and guessing which firmware a given
+# target runs.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-moxa-awk-3131-rcc-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Moxa Technologies"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "root"]
+    - ["admin", "moxa"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (admin:root, admin:moxa)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic (YWRtaW46cm9vdA==|YWRtaW46bW94YQ==)"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.moxa.com/Moxa/media/PDIM/S100000309/moxa-awk-3131a-series-manual-v7.0.pdf"
+description: "Moxa AirWorks AWK-3131-RCC industrial wireless AP/bridge ships with a factory-default admin/root (firmware ≤1.3) or admin/moxa (firmware 1.4+) web-UI login — no CVE, documented factory-default behavior."

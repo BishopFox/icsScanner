@@ -1,0 +1,60 @@
+# Default-credentials sweep, Phase 13 (CAREL, ENTES, Westermo — continuing the SCADAPASS pass).
+# Uses the generic checks/telnet/native/telnet_default_creds.py executor.
+#
+# Sources (3 independent, strong tier): SCADAPASS's own row; a dedicated Darius Freamon post,
+# "CAREL pCOWeb Multiple Default Accounts"; and — the strongest source in this check —
+# RedTeam Pentesting's own advisory RT-SA-2019-013 ("Unsafe Storage of Credentials in Carel
+# pCOWeb HVAC"), a named German pentest firm's own hands-on disclosure, fetched directly. RedTeam's
+# advisory maps these specific accounts to TELNET (manual section 9.7.2), correcting SCADAPASS's
+# own port assignment (which lumped them under FTP+HTTP) — the more authoritative primary source
+# was trusted over the secondary citation, per this project's established practice for resolving
+# source disagreements.
+#
+# cve_id: CVE-2019-13553 — RedTeam's own advisory hedges ("possibly overlaps"), but multiple
+# independent secondary trackers (Vulners, pentest-tools.com, both titled specifically
+# "...root User Default Passwords (Telnet)") assign this CVE to exactly this finding. Cited with
+# that nuance in mind, not blind certainty. CVSS v2 9.0 (per Vulners), obsolete hardware — CAREL
+# has stated no firmware update will be published (end-of-life since Dec 2017).
+#
+# nobody:BLANK is a genuine, separately-documented account (no password at all on some
+# firmware) — shipped as its own credential pair rather than folded into the others.
+
+check_id: telnet-carel-pcoweb-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+cve_id: CVE-2019-13553
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+severity: critical
+fingerprint_precondition:
+  vendor: "Carel s.p.a."
+params:
+  credentials:
+    - ["root", "froot"]
+    - ["httpadmin", "fhttpadmin"]
+    - ["carel", "fcarel"]
+    - ["guest", "fguest"]
+    - ["nobody", ""]
+  default_port: 23
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet username+password login attempt(s) using the documented factory credential(s) (root:froot, httpadmin:fhttpadmin, carel:fcarel, guest:fguest, nobody:'')"
+    patterns:
+      - context: request
+        regex: "root\\r\\nfroot\\r\\n|httpadmin\\r\\nfhttpadmin\\r\\n|carel\\r\\nfcarel\\r\\n|guest\\r\\nfguest\\r\\n|nobody\\r\\n\\r\\n"
+  broad:
+    description: "Any Telnet login attempt (a username followed by a password, both CRLF-terminated) on this device — the vulnerability class (default/weak credentials on this product's Telnet server), not the specific guessed credential"
+    patterns: []  # generic "any-line" pattern removed 2026-11-11 (real-traffic validation); no device-specific signature beyond the narrow probe/credential bytes. See lab-notes/zeek-detection-validation-pnnl-2026-11.md
+advisory_url: "https://www.redteam-pentesting.de/en/advisories/rt-sa-2019-013/"  # promoted from references (canonical advisory)
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.redteam-pentesting.de/en/advisories/rt-sa-2019-013/"
+  - "https://dariusfreamon.wordpress.com/2015/04/25/carel-pcoweb-multiple-default-accounts/"
+description: "CAREL pCOWeb HVAC communication card ships with multiple hardcoded/default Telnet accounts (CVE-2019-13553, CVSS 9.0) — end-of-life hardware, no firmware fix will be published."

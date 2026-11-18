@@ -1,0 +1,95 @@
+# Default-credentials sweep, Phase 22 — PROMOTED from the consolidated
+# `checks/candidates/phase22-bootcamp-remaining-family.yaml` stub after the user supplied a
+# direct link into Schneider's own FAQ (FA299252, "Default Webpage Username & Password for
+# PowerLogic Meters and/or their Ethernet Communication Card") and the resulting page PDF was
+# read directly (not just search-summarized) — the FAQ's own credential table states, verbatim,
+# "PM8000 | User1 | 0". Resolves the original blocker: the bootcamp list's garbled "Physical: 0"
+# fragment turns out to be this same password value, truncated in transcription.
+#
+# Uses the generic checks/http/native/basic_auth_default_creds.py executor.
+#
+# SECOND CREDENTIAL ADDED 2026-08-24: user supplied FA316783 directly ("PM8000 Webpage
+# credentials," Schneider Electric Singapore, published 2017, last modified 2024) — independently
+# confirms User1:0 (the "advanced security" mode's default) AND reveals a second, separate mode:
+# when "standard security" is enabled instead, the login is username "8000" (a literal fixed
+# username, not a port number — resolving what the original garbled bootcamp-list "FTP: 8000:"
+# fragment most likely actually meant), password = the meter's front panel password, documented
+# factory default "0". Standard and advanced security are mutually exclusive device modes, so
+# both credential pairs are tried here — a real device is in exactly one mode.
+#
+# FTP QUESTION RESOLVED NEGATIVE, 2026-08-25: the original bootcamp row's "FTP: 8000:" fragment
+# was long suspected to name a genuinely separate FTP service (same shape as the EGX400/EGX200/
+# ECC21 family below), but every attempt to confirm it kept resolving to webpage-login data
+# instead. Two things closed this out the same day: (1) user supplied FA243275 directly ("PM8000
+# default IP address, username, and password") — the exact FAQ that had been blocked from
+# automated fetch — and its "Environment" is "Web server" only, no FTP mentioned; it also gives
+# the default IP address, 169.254.0.10 (an IPv4LL/link-local self-assigned address, not itself a
+# credential, not stored in params). (2) user supplied the current official PowerLogic PM8000
+# series User Manual (7EN02-0336-12, 03/2026) directly — its "Default meter security settings"
+# table (p.53) exhaustively lists every default-enabled communications protocol on this device
+# (HTTPS, SSH Terminal, SFTP, SNMP, Modbus TCP, ION, Secure ION, MQTT, BACnet/IP) and there is no
+# FTP entry at all — only SFTP. Conclusion: PM8000 does not offer plain FTP; the "8000" username
+# in the bootcamp list's FTP-labeled row is the SAME standard-security-mode webpage credential
+# already captured above, not a separate service. No FTP check exists or is planned for PM8000.
+#
+# THIRD CREDENTIAL ADDED 2026-08-25: the same current User Manual's "User accounts (Advanced
+# security mode only)" table (p.55) reveals a previously-unknown second default advanced-mode
+# account — User2:0, "Default viewer" (view-only access), alongside the already-known User1:0
+# "Default administrator." User3 through User50 are listed as not activated with no default
+# password. Added here as a genuine new finding from a primary source, not a guess.
+#
+# No CVE — documented factory-default behavior.
+#
+# MECHANISM TENSION FLAGGED, NOT YET RESOLVED, 2026-08-30: this check's own module
+# (basic_auth_default_creds) assumes HTTP Basic Auth, but Schneider's official product-help site
+# (product-help.se.com, a different/newer doc corpus than the FAQs/manual cited above) describes
+# the actual web-login flow as a session-cookie-backed custom HTML FORM — "You must have cookies
+# enabled... The webpage login prompt is displayed... Enter a valid username and password. Select
+# your desired Language from the drop-down list box, and click Log In." A language dropdown
+# inside the same prompt as the credential fields is hard to reconcile with a plain Basic Auth
+# challenge (a browser's native Basic Auth dialog has no room for a third control). This doesn't
+# necessarily mean the check is wrong — some embedded web servers layer a cosmetic form/JS over
+# an underlying Basic Auth challenge, or offer both — but it's a real, unresolved question this
+# check's own "confidence: low" already anticipated, not a new problem. Worth a live-capture or
+# HTML-source check before raising confidence past low. Sources: product-help.se.com/docs/
+# PowerLogic-PM8000/en-us/content/05-webpages/accessing-webpages-for-data-viewing-and-meter-
+# configuration.htm and .../07-cybersecurity/changing-the-default-password.htm (also independently
+# re-confirms this check's password value "0", and default security mode "Advanced").
+
+check_id: http-schneider-powerlogic-pm8000-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["User1", "0"]
+    - ["User2", "0"]
+    - ["8000", "0"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credentials for both device security modes (User1:0 and User2:0 under advanced security, 8000:0 under standard security)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic (VXNlcjE6MA==|VXNlcjI6MA==|ODAwMDow)"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://www.se.com/us/en/faqs/FA299252/"
+  - "https://www.se.com/sg/en/faqs/FA316783/"
+  - "https://www.se.com/us/en/faqs/FA243275/"
+  - "PowerLogic PM8000 series User manual, 7EN02-0336-12, 03/2026 (user-supplied)"
+description: "Schneider Electric PowerLogic PM8000/PM8240/PM8243/PM8244 power meters ship with factory-default webpage logins — User1:0 (advanced security, administrator), User2:0 (advanced security, viewer), and 8000:0 (standard security) — no CVE, documented factory-default behavior per Schneider's own FAQs and current official User Manual (all directly confirmed, not search-summarized). No FTP service exists on this device family — confirmed negative via FA243275 and the manual's own exhaustive default-protocols table."

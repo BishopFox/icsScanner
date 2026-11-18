@@ -1,0 +1,57 @@
+# Native check — read-preferred confirmation of the GE Multilin 750's factory default
+# Communications Port Passcode ("0") over Modbus. See
+# checks/modbus/native/ge_multilin_750_760_factory_passcode.py for the implementation (shared
+# with the 760 check — same document, same registers) and lab-notes/human-review-queue.md
+# (Priority 1) for the full research trail. Built 2026-08-30 after the user supplied GE
+# Multilin's own "750/760 Feeder Management Relay COMMUNICATIONS GUIDE" (GEK-106473F) directly —
+# the exact document this candidate had named as its missing blocker since 2026-08-17.
+#
+# EXTRA CAUTION: real feeder protection relay, same review bar every other GE Multilin check in
+# this project gets. destructive:true — the read path is non-destructive (a plain register read),
+# but the write-fallback path is a real Modbus write, hence risk_reason includes device_write.
+# Requires an explicit `product_hint: "750"` on the target — there is no live way to distinguish
+# the 750 from its GE Multilin siblings (including its own sibling 760) over Modbus.
+
+check_id: ge-multilin-750-factory-passcode
+protocol: modbus
+kind: native
+module: checks.modbus.native.ge_multilin_750_760_factory_passcode
+destructive: true
+risk_reason: ["device_write"]  # write-fallback path is a real Modbus register write; read-preferred path is non-destructive; lockout not documented for this model
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "GE Automation"
+  product: "750"
+params:
+  slave_address: 1
+detection_hints:
+  transport: tcp
+  app_protocol: modbus
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own read of the Communications Port Passcode register (0088h, FC03, 4 registers) — a raw Modbus RTU-over-TCP frame (slave address 1, the default params.slave_address; CRC-16 included per the module's own _crc16())"
+    patterns:
+      - context: request
+        bytes: "\\x01\\x03\\x00\\x88\\x00\\x04"
+  broad:
+    description: "Any Modbus RTU read or write to holding register 0088h (Communications Port Passcode) — the underlying GE Multilin passcode-based access-control mechanism on this relay family, any slave address"
+    patterns:
+      - context: request
+        regex: "\\x03\\x00\\x88\\x00\\x04|\\x10\\x00\\x88\\x00\\x04"
+references:
+  - "GE Publication Code GEK-106473F, GE Multilin Part Number 1601-0229-A7 — '750/760 Feeder Management Relay COMMUNICATIONS GUIDE', software revision 7.3x, supplied directly by the user"
+  - "GE Publication GEK-106293D (750/760 Instruction Manual, firmware 5.X) and GEK-106471L (software 7.2x) — factory-default passcode value '0' confirmation (already on file, see lab-notes/human-review-queue.md)"
+description: >
+  GE Multilin 750/760 Feeder Management Relay ships with a factory-default Communications Port
+  Passcode of "0" (holding registers 0088h-008Bh, 4 words, ASCII format F33) — confirmed via GE
+  Multilin's own dedicated Communications Guide (GEK-106473F) for the register/mechanism, and two
+  separate Instruction Manuals (GEK-106293D, GEK-106471L) for the factory-default value itself.
+  Read-preferred design: directly reads the passcode register (non-destructive) rather than
+  attempting a login write first, since this manual documents the register as genuinely readable.
+  Falls back to a write (FC10) only if the read is blocked, and that fallback never self-reports
+  CONFIRMED — matching this project's established honesty standard for GE Multilin write-fallback
+  paths. No CVE — documented factory-default behavior. No Access Lockout is documented for this
+  passcode field in GEK-106473F, so this check performs exactly one read (or one read + one
+  write), never retries.

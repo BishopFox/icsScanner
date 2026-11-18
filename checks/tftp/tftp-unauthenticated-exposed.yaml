@@ -1,0 +1,61 @@
+# Built 2026-09-22 alongside the Smart Install check -- the two are commonly discussed together
+# (Smart Install's real exploitation path, per CVE-2018-0171 and the public SIET tool, works by
+# directing a switch to fetch a malicious config/image over TFTP), but this check is fully
+# generic and not tied to Cisco or any other single vendor: TFTP (RFC 1350) has no
+# authentication field anywhere in the protocol, so an unauthenticated response from a TFTP
+# server is the exposure itself, for any device that happens to run one.
+#
+# See checks/tftp/native/tftp_unauthenticated_exposed.py and
+# core/fingerprint.py's probe_tftp_identity() for the full mechanism: a single RRQ for a
+# scanner-tagged, deliberately nonexistent filename, confirmed only on a well-formed RFC 1350
+# DATA (opcode 3) or ERROR (opcode 5) reply -- never a real file transfer, never a retry.
+#
+# No CVSS score, deliberately -- unlike the Smart Install check, actual severity here depends
+# entirely on what a given device serves over TFTP (a config backup helper, a firmware upgrade
+# path, or nothing sensitive), which this generic, vendor-agnostic check has no way to know.
+# Framed as an informational CWE-306 exposure signal instead, same posture this project already
+# takes for other protocol-level findings whose impact isn't self-contained (see
+# checks/snmp/snmp-community-default-creds.yaml's own "weaker negative" honesty note for the
+# same kind of deliberate restraint). No CVE -- TFTP's lack of authentication is RFC 1350's
+# documented protocol design, not a vulnerability in any one implementation.
+
+check_id: tftp-unauthenticated-exposed
+protocol: tftp
+kind: native
+module: checks.tftp.native.tftp_unauthenticated_exposed
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  protocol_probe: tftp_identity
+references:
+  - "https://www.rfc-editor.org/rfc/rfc1350"
+detection_hints:
+  transport: udp
+  app_protocol: tftp
+  mitre_attack_id: T0886
+  analytic_story: "ICS Unauthorized Command Execution"
+  # T0886 (Remote Services), same reasoning as the sibling Smart Install check built alongside
+  # this one: no credential is guessed (CWE-306, not CWE-798), so T0812 doesn't fit.
+  narrow:
+    description: "This scanner's own TFTP RRQ (octet mode) for a scanner-tagged, deliberately nonexistent filename ('icsscanner-probe-nonexistent-file')"
+    patterns:
+      - context: request
+        regex: "\\x00\\x01icsscanner-probe-nonexistent-file\\x00octet\\x00"
+  broad:
+    description: "Any TFTP RRQ/WRQ reaching UDP/69 that receives a well-formed DATA or ERROR reply -- the underlying exposure (an unauthenticated TFTP server answering at all), not just this scanner's own specific probe filename"
+    patterns:
+      - context: request
+        regex: "^\\x00[\\x01\\x02]"
+description: >
+  TFTP (RFC 1350, UDP/69) has no authentication mechanism anywhere in the protocol -- any file a
+  TFTP server serves is reachable by any client that can reach the port, with no credential
+  involved. This check confirms exposure via a single read request for a scanner-tagged,
+  deliberately nonexistent filename, treating any well-formed DATA or ERROR reply as
+  confirmation that an unauthenticated TFTP server answered -- never a real file transfer.
+  Commonly co-located with Cisco Smart Install exposure (see
+  cisco-smart-install-unauthenticated-exposed.yaml): Smart Install's own exploitation path
+  directs a switch to fetch a malicious config/image over TFTP, so both findings present on one
+  host is a materially worse combined risk than either alone. No CVSS score -- impact depends
+  entirely on what a given device serves over TFTP, which this generic check cannot know.
+  disclosure_status: public -- TFTP's lack of authentication is RFC 1350's documented design.

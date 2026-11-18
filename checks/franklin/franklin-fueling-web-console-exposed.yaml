@@ -1,0 +1,75 @@
+# Built 2026-11-13 (WWS/fuel coverage). Net-new: no prior Franklin Fueling candidate or check existed.
+# Grounded in firmware triaged this session (vendor firmware ingest): RCS 1.6.3 (platform "mc",
+# motor/pump control console), EVO 600/6000 3.31.4 and EVO ONE LLD 200/400 3.32.2 (platform "tg",
+# automatic tank gauge + line-leak detection). All three run the common Franklin "bb-*" Debian-armhf
+# platform; the web UI is served by mc-web-server / tg-web-server on libbb-web-server, and the served
+# bundle carries unauthenticated "Franklin Fueling Systems" / "Franklin Electric" branding.
+#
+# WHAT THIS IS: an exposed-management-interface identity check, same class as the Geo SCADA WebX and the
+# ATG serial-command-port checks. A network-reachable Franklin Fueling console web interface is the
+# exposed-ICS-web-management surface CISA fuel/WWS guidance warns against: the login + remote-operations
+# surface for a device that controls fuel dispensing / leak detection (tg) or motors incl. E-stop (mc).
+#
+# WHAT THIS IS NOT (no overclaim): these consoles are hardened -- WebAuthn/FIDO2 web login, ALL OS
+# accounts locked (no default/crackable password), SSH host + TLS keys generated at boot, GPG-signed APT
+# updates. This check confirms reachability + identity only; it is NOT a credential bypass and asserts no
+# default/weak credential. The probe sends one unauthenticated GET "/" -- no credentials, no writes.
+#
+# FINGERPRINT (firmware-verified, no live device): the web root /scripts/*.js are STATIC assets the login
+# page loads before authentication; every file begins with
+#     // Copyright (c) <year> Franklin Fueling Systems|Franklin Electric. All rights reserved.
+# and /scripts/default.js is byte-common across all three platforms (RCS mc, EVO 600/6000 tg, EVO ONE tg).
+# The probe reads that firmware-known asset first (exact unauth content -> high), then falls back to the
+# root response's non-standard "Set-Login" bb-web-server header and/or served brand. It fails closed (no
+# brand and no Set-Login -> NOT_APPLICABLE). Exercised against a mock in
+# tests/smoke_test_franklin_fueling_web_console.py. confidence ceiling: low (firmware-derived; the probe
+# itself reports high on the exact static asset or brand+Set-Login, medium on a lone signal).
+#
+# disclosure_status: public -- documented products + documented exposure class (detection coverage, not a
+# novel vulnerability; the firmware itself is hardened, so there is no credential/key weakness to disclose).
+
+check_id: franklin-fueling-web-console-exposed
+protocol: franklin
+kind: native
+module: checks.franklin.native.franklin_fueling_web_console_exposed
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:L (6.3 MEDIUM) -- a Franklin Fueling Systems fuel-site controller (automatic tank gauge / line-leak-detection or motor-control console; bb-web-server platform) has its management web interface reachable on the network. This is the exposed-ICS-web-management class CISA fuel/WWS guidance says to remove from untrusted networks: the login + remote-operations surface for fuel dispensing, leak detection, or motor E-stop. This check confirms reachability + identity ONLY; device login is WebAuthn/FIDO2 and it asserts no credential bypass."
+destructive: false
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  # Gated by the Franklin Fueling web identity probe (core/fingerprint.py
+  # probe_franklin_fueling_web_identity): one unauthenticated GET "/" that requires the served Franklin
+  # brand marker (fail-closed). Target: Franklin Fueling mc/tg console (RCS, EVO 600/6000, EVO ONE LLD).
+  protocol_probe: franklin_fueling_web_identity
+params:
+  default_port: 443
+  timeout: 5.0
+references:
+  - "Franklin Fueling Systems fuel-site controllers -- common Debian-armhf 'bb-*' platform; web UI via mc-web-server (platform 'mc', e.g. RCS) / tg-web-server (platform 'tg', e.g. EVO 600/6000, EVO ONE LLD). Fingerprint derived from firmware RCS 1.6.3, EVO 3.31.4, EVO ONE 3.32.2 (franklinfueling.com)."
+  - "CISA / EPA fuel + Water and Wastewater Sector guidance: ICS/SCADA management and HMI web interfaces must not be reachable from untrusted networks; internet-exposed fuel/tank-gauge and SCADA interfaces are a recurring intrusion vector."
+  - "Companion coverage: checks/atg/veeder-root-tls-atg-serial-command-port-exposed.yaml -- Franklin Fueling tank-gauge (tg) consoles commonly also expose the TLS-350-compatible ATG Serial Command Port (TCP/10001), the unauthenticated inventory/config surface."
+  - "core/fingerprint.py probe_franklin_fueling_web_identity -- the read-only GET '/' identity gate this check reuses."
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0822
+  analytic_story: "ICS Exposed Management Interface"
+  narrow:
+    description: >-
+      A Franklin Fueling Systems console HTTP response: the served UI bundle names "Franklin Fueling
+      Systems" (or "Franklin Electric"), identifying an exposed Franklin fuel-site controller web console.
+    patterns:
+      - context: response
+        regex: "Copyright \\(c\\) [0-9]{4} Franklin (Fueling Systems|Electric)"
+description: >
+  Franklin Fueling Systems fuel-site controllers (automatic tank gauges, line-leak-detection consoles, and
+  motor/pump control consoles) run a common Debian-armhf "bb-*" platform whose web UI (mc-web-server /
+  tg-web-server on libbb-web-server) is the remote management/operations surface. This check confirms such
+  a console is network-reachable by reusing a read-only, unauthenticated GET "/" that matches the served
+  Franklin Fueling brand marker plus a bb-web-server platform signal -- a fingerprint derived from firmware
+  (RCS 1.6.3, EVO 600/6000 3.31.4, EVO ONE LLD 200/400 3.32.2). A reachable console web interface is the
+  exposed-ICS-web-management class CISA fuel/WWS guidance warns against: the login + remote-operations
+  vector for fuel dispensing, leak detection (tg) or motor E-stop (mc). The check identifies the interface
+  only -- it sends no credentials, makes no writes, and does NOT claim a credential bypass (these consoles
+  use WebAuthn/FIDO2 and ship with all OS accounts locked). disclosure_status public: documented product +
+  documented exposure class, i.e. detection coverage, not a novel vulnerability.

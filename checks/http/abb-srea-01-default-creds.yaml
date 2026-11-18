@@ -1,0 +1,47 @@
+# Default-credentials sweep, Phase 9. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor. Also the check that motivated fixing
+# a real data-quality bug in core/fingerprint.py's ABB OUI entries (00:0A:DC/00:E0:85 were wrong
+# per the official IEEE registry — replaced with verified prefixes; see that file's comment).
+#
+# Sources (2 independent, one primary): SCADAPASS, citing the official ABB Drives User's Manual
+# for the SREA-01 Ethernet Adapter Module (library.e.abb.com — ABB's own site); corroborated by
+# an independent WebSearch that found the SAME official manual PDF directly (confirming
+# admin:admin as the default Ethernet configuration credential, alongside the default static IP
+# 10.200.1.1).
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-abb-srea-01-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "ABB AB"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "admin"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (admin:admin)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46YWRtaW4="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://library.e.abb.com/public/f355a67551218ae7c1257dc0003298c5/3BDS021515-600_-_en_AC_800M_6.0_PROFINET_IO_Configuration.pdf"
+  - "https://library.e.abb.com/public/741426fdfab94d988b69615f121d5f2f/EN_SREA_01_UM_C_web.pdf"
+description: "ABB SREA-01 Ethernet Adapter Module (drives networking) ships with a factory-default admin/admin web-UI login — no CVE, documented factory-default behavior, confirmed directly in ABB's own manual."

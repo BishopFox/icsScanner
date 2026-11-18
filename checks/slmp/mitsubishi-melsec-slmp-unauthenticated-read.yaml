@@ -1,0 +1,71 @@
+# Built check 2026-10-06 (secondary-source sweep follow-up, lab-notes/secondary-firmware-sourcing-
+# register.md). Net-new (no prior SLMP candidate; the existing candidate-cve-2025-3699 is a different
+# Mitsubishi product, the G-50). Built WITHOUT the gated GX Works3 installer — instead from PUBLIC
+# protocol sources (the XGT playbook), so no cracked/repacked installer was needed.
+#
+# FINDING (CWE-306 missing authentication): Mitsubishi MELSEC Q/L/iQ-R (and iQ-F/FX5) CPUs expose the
+# SLMP / MC-protocol binary "3E frame" service on an Ethernet port (commonly TCP 5000, set in the
+# CPU's Open Settings). SLMP has NO authentication of its own; the only gate MELSEC offers is an
+# OPTIONAL Ethernet "remote password", which is OFF by default. When unset, any client can batch
+# read/write PLC device memory and change CPU state with no credential.
+#
+# This check sends ONE benign, READ-ONLY SLMP batch-read of a single word at D0 and treats a
+# well-formed 3E response as proof the CPU answered an unauthenticated request (= no remote password
+# on that port). It NEVER writes, changes mode, or probes the remote-password mechanism. Non-
+# destructive, safe to fire unsupervised (same discipline as the Modbus-read / ENIP-identity /
+# LS-XGT probes).
+#
+# WIRE FORMAT cross-verified (no live PLC needed for a read; same rigor as the LS-XGT + Schneider
+# UMAS checks): Mitsubishi "MELSEC Communication Protocol Reference Manual" SH-080008 + FX5 SLMP
+# manual JY997D60801, AND the OSS impl senrust/pymcprotocol (type3e.py) -- both agree on the 3E
+# binary frame (subheader 0x5000 big-endian; command 0x0401 batch-read; device D = 0xA8, head 3B LE
+# + code 1B; response subheader 0xD000, completion code 2B LE @offset 9 = 0x0000 on success, data
+# @offset 11). Built against checks/slmp/native/melsec_slmp_unauth_read.py (smoke test locks the
+# request vector + drives a mock MELSEC 3E server).
+check_id: mitsubishi-melsec-slmp-unauthenticated-read
+protocol: slmp
+kind: native
+module: checks.slmp.native.melsec_slmp_unauth_read
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H (9.8 CRITICAL) -- unauthenticated SLMP permits read AND write of PLC memory + CPU mode control; this check confirms the exposure via a safe READ only"
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  # Gated by the SLMP protocol-identity probe (core/fingerprint.py probe_slmp_identity): the scanner
+  # confirms a MELSEC/SLMP 3E stack (0xD000 response) on the port before this check runs. Target
+  # product: MELSEC Q/L/iQ-R/iQ-F(FX5) CPU exposing the SLMP/MC 3E binary service (TCP, default 5000).
+  protocol_probe: slmp_identity
+params:
+  default_port: 5000
+  device_code: 0xA8
+  head_device: 0
+  count: 1
+  timeout: 5.0
+references:
+  - "Mitsubishi MELSEC Communication Protocol Reference Manual (SH-080008) + MELSEC iQ-F FX5 SLMP manual (JY997D60801): SLMP/MC 3E binary frame, batch-read command 0x0401, TCP binary default port 5000; Ethernet 'remote password' is optional and OFF by default (the only authentication MELSEC offers on this service)."
+  - "senrust/pymcprotocol (src/pymcprotocol/type3e.py, mcprotocolconst.py) -- OSS cross-verification of the exact 3E binary request/response framing + device codes (D = 0xA8; subheader 0x5000 BE request / 0xD000 response; completion code at offset 9; data at offset 11)."
+detection_hints:
+  transport: tcp
+  app_protocol: slmp
+  mitre_attack_id: T0855
+  analytic_story: "ICS Unauthorized Command"
+  narrow:
+    description: "This scanner's own SLMP 3E batch-read-word request for D0 (subheader 50 00, command 0x0401, device D=0xA8): the application bytes after the header."
+    patterns:
+      - context: request
+        bytes: "\\x01\\x04\\x00\\x00\\x00\\x00\\x00\\xa8\\x01\\x00"
+  broad:
+    description: "Any MELSEC SLMP/MC 3E binary REQUEST frame on TCP 5000 -- the fixed 3E request header prefix (subheader 0x5000 BE, network 0x00, PC 0xFF, dest module I/O 0x03FF)."
+    patterns:
+      - context: request
+        bytes: "\\x50\\x00\\x00\\xff\\xff\\x03"
+description: >
+  Mitsubishi MELSEC Q/L/iQ-R/iQ-F CPUs expose the SLMP / MC-protocol binary (3E frame) service on an
+  Ethernet port (commonly TCP 5000) with NO authentication by default -- the only gate, an optional
+  Ethernet "remote password", is off out of the box (CWE-306). This check sends a single benign
+  READ-ONLY SLMP batch-read of one word at D0 and confirms the CPU answered an unauthenticated
+  request (well-formed 3E response, subheader 0xD000), demonstrating that no remote password is set
+  and that an attacker could read/write PLC memory and change CPU state unauthenticated. The 3E frame
+  is cross-verified across the Mitsubishi MELSEC Communication Protocol manual, the FX5 SLMP manual,
+  and the pymcprotocol OSS implementation. CVSS 3.1 9.8 CRITICAL (read tested; the protocol also
+  permits unauthenticated write/mode-change). Built against checks/slmp/native/melsec_slmp_unauth_read.py.

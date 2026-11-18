@@ -1,0 +1,50 @@
+# Default-credentials sweep, Phase 20. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor. Different Phoenix Contact product
+# line from the still-unresolved Phase 10 candidate (`checks/candidates/
+# phoenix-contact-logic-plus-default-creds.yaml`, "Logic+," product identity never confirmed) —
+# this is the FL SWITCH industrial Ethernet switch family specifically, a well-documented,
+# clearly-identified product line. Does not resolve the Logic+ candidate; a separate finding.
+#
+# Sources (2 independent): the official Phoenix Contact FL SWITCH GHS 12G/8 user manual
+# (ManualsLib-hosted "Password Concept" section, fetched directly, quoted verbatim: "By default
+# upon delivery, the user name is 'admin' and the password is 'private'"); corroborated by an
+# independent PLCtalk forum thread confirming the same value for the wider FL SWITCH line.
+#
+# No CVE — documented factory-default behavior. Phoenix Contact's OUI entries already existed
+# in core/fingerprint.py (added in an earlier milestone) — this is the first real check to use
+# them.
+
+check_id: http-phoenix-contact-fl-switch-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Phoenix Contact"
+params:
+  path: "/"
+  credentials:
+    - ["admin", "private"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (admin:private)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46cHJpdmF0ZQ=="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://us.metoree.com/categories/102285/"
+  - "https://www.manualslib.com/manual/1567136/Phoenix-Contact-Fl-Switch-Ghs-12g-8.html?page=65"
+  - "https://www.plctalk.net/forums/threads/phoenix-contact-ethernet-switch-password.137809/"
+description: "Phoenix Contact FL SWITCH industrial Ethernet switches ship with a factory-default admin/private web-UI login — no CVE, documented factory-default behavior."

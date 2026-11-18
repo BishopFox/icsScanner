@@ -1,0 +1,44 @@
+# Omron FINS unauthenticated-access detection — built 2026-10-13, promoted from
+# checks/candidates/omron-nj-fins-unauthenticated-memory-control.yaml (research record; full detail
+# + the NJ FINS guide citation there). Closes the project's FINS probe->check gap (a fins_identity
+# probe existed but no FINS check).
+#
+# FINS has NO authentication. This SAFE, READ-ONLY check reuses probe_fins_identity to send one benign
+# CONTROLLER DATA READ (FINS 0x0501; returns model/version) over FINS/UDP then FINS/TCP; a well-formed
+# FINS response == the CPU accepts FINS with no credential (CWE-306), i.e. MEMORY AREA WRITE + RUN/STOP
+# are reachable the same way. It NEVER issues write/run/stop. Documented, by-design FINS behavior
+# (Omron NJ guide: "Network write protection: Not supported") -> disclosure_status: public, a detection,
+# not a novel vuln. destructive:false (one benign read; the fingerprint probe already sends it anyway).
+# confidence: high -- a FINS response to the unauth read is unambiguous; FINS has nothing to pass.
+
+check_id: omron-fins-unauthenticated-access
+protocol: fins
+kind: native
+module: checks.fins.native.fins_unauthenticated_access
+destructive: false
+risk_reason: []
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  protocol_probe: fins_identity
+params:
+  default_port: 9600
+  timeout: 5.0
+detection_hints:
+  transport: udp
+  app_protocol: fins
+  mitre_attack_id: T0812
+  analytic_story: "ICS Unauthenticated Access"
+  narrow:
+    description: "This scanner's FINS Controller Data Read (command code 05 01) sent over FINS/UDP 9600 (and FINS/TCP after the node-address handshake) with no authentication -- the distinctive signal is the FINS command 0501 (CPU UNIT DATA READ) frame."
+    patterns:
+      - context: request
+        regex: "\\x05\\x01"
+  broad:
+    description: "FINS traffic to UDP/TCP 9600 from one source enumerating controllers -- Controller Data Read is read-only and indistinguishable from legitimate FINS management on the wire."
+    patterns:
+      - context: request
+        regex: "FINS"
+references:
+  - "Omron Sysmac NJ FINS Technical Guide W518-E1-01: NJ-series accept FINS/TCP+UDP (9600) MEMORY AREA READ/WRITE + RUN/STOP; UM-read / DIP-write / NETWORK-write protection all 'Not supported'. FINS has no authentication layer."
+  - "core/fingerprint.py probe_fins_identity: the benign Controller Data Read (0x0501) over FINS/UDP + FINS/TCP that this check reuses."

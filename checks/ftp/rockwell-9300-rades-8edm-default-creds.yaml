@@ -1,0 +1,37 @@
+# Default-credentials sweep, Phase 8. FTP variant — see checks/http/rockwell-9300-rades-8edm-
+# default-creds.yaml for the full source trail. Same device, but a DIFFERENT account for FTP
+# specifically (uploader:ZYPCOM, not the blank-username web/telnet pair) per SCADAPASS's own
+# row — not guessed at, the source explicitly lists a distinct FTP account.
+
+check_id: ftp-rockwell-9300-rades-8edm-default-creds
+protocol: ftp
+kind: native
+module: checks.ftp.native.ftp_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Rockwell Automation"
+params:
+  credentials:
+    - ["uploader", "ZYPCOM"]
+detection_hints:
+  transport: tcp
+  app_protocol: ftp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own FTP USER/PASS login attempt(s) using the documented factory credential(s) (uploader:ZYPCOM)"
+    patterns:
+      - context: request
+        bytes: "USER uploader\r\nPASS ZYPCOM\r\n"
+  broad:
+    description: "Any FTP USER/PASS login attempt on this device — the vulnerability class (default/weak credentials on this product's FTP server), not the specific guessed credential"
+    patterns:
+      - context: request
+        regex: "^USER \\S*\\r\\nPASS \\S*\\r\\n"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "http://literature.rockwellautomation.com/idc/groups/literature/documents/um/gmsc10-um004_-en-e.pdf"
+description: "9300-RADES/9300-8EDM industrial modems/switches ship with a factory-default uploader/ZYPCOM FTP login — no CVE, documented factory-default behavior."

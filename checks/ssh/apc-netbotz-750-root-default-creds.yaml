@@ -1,0 +1,55 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ FA373416 ("NetBotz 750 |
+# Resetting a Lost Root Account Password") directly. Brand-new product for this project: NetBotz
+# 750 (NBRK0750 rack monitor, NBWL0755 wireless variant) — an APC/Schneider environmental
+# monitoring appliance.
+#
+# Found inside a password-RESET procedure, not a "what's the default" FAQ, but the reset steps
+# themselves state the real factory default plainly: "Log on as the Root user (root). When
+# prompted for an existing password (5.3.0 onwards), the default is 'apc'." The FAQ's own Issue
+# field frames this account as reachable "via console or SSH" — this check covers the SSH path
+# specifically (console/serial access is out of this project's network-scanning scope).
+#
+# SCOPE: firmware 5.3.0 and above per the FAQ's own explicit qualifier ("(5.3.0 onwards)") —
+# older firmware's default is not stated here and is not assumed to match.
+#
+# CORRECTED 2026-08-25 — NOT a virgin out-of-box default: a second Schneider FAQ ("NetBotz 700
+# Series | Configuring Network Settings") describes the NORMAL first-time console setup flow and
+# states plainly "Log on with the Root account user name (root) and password (you set the
+# password on first use)" — meaning a genuinely never-configured appliance has NO factory-preset
+# root password at all. "root:apc" specifically is what the DELIBERATE hardware reset-switch
+# recovery procedure sets it to (per FA373416) — still a real, valid finding (any device that has
+# gone through that documented recovery procedure and not since had its password changed uses
+# root:apc), just not accurately described as a factory-shipped default. Description corrected
+# accordingly.
+#
+# No CVE — documented behavior (recovery-procedure-set value, not a factory-shipped default).
+
+check_id: ssh-apc-netbotz-750-root-default-creds
+protocol: ssh
+kind: native
+module: checks.ssh.native.ssh_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "American Power Conversion"
+params:
+  credentials:
+    - ["root", "apc"]
+detection_hints:
+  transport: tcp
+  app_protocol: ssh
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "No narrow wire-level signature is possible for this check — SSH encrypts the session immediately after key exchange, so the specific username/password pair this scanner sends is never visible as a plaintext byte pattern on the wire."
+    patterns: []
+  broad:
+    description: "Repeated SSH authentication attempts against this device family from a single source in a short window — the vulnerability class (a credential-guessing pass), not a specific guessed value, since SSH's encryption prevents matching the actual username/password on the wire"
+    patterns:
+      - context: request
+        regex: "SSH-2\\.0-"
+references:
+  - "Schneider Electric FAQ FA373416, \"NetBotz 750 | Resetting a Lost Root Account Password\" (user-supplied)"
+description: "APC (American Power Conversion) NetBotz 750 (NBRK0750, NBWL0755) environmental monitoring appliances, on firmware 5.3.0 and above, set the root SSH password to 'apc' whenever the documented hardware reset-switch recovery procedure is used — not a virgin factory-shipped default (a never-configured unit requires setting the root password on first use), but a real, valid finding for any device that has undergone that recovery procedure without a subsequent password change. No CVE, documented behavior per Schneider's own password-reset FAQ."

@@ -1,0 +1,67 @@
+# Candidate stub — 2026-08-25. User supplied Schneider FAQ FA159659 ("Default administrator
+# BLOCKER TAG (2026-09-22 triage pass): code-gap -- Needs a new UDP+MD5-keyed-auth wire protocol module implemented (the ongoing PCNS<->NMC heartbeat channel) -- a substantial engineering task, not a resource-acquisition gap; Application Note 20 (not yet obtained) could help specify the exact packet format.
+# authentication phrase used by PowerChute Network Shutdown to communicate with the Network
+# Management Card") directly. NOT executable (no `kind`).
+#
+# What's confirmed: on the SAME NMC device family already partially built in this sweep
+# (checks/ftp/apc-ups-nmc2-default-creds.yaml, .../telnet/, .../ssh/ — AP9630/AP9631), the
+# "administrator authentication phrase" used for PowerChute Network Shutdown (PCNS) <-> NMC
+# communication defaults to the literal string "admin user phrase" — but ONLY on NMC1
+# (AP9617/9618/9619) and NMC2 (AP9630/9631/9635) running firmware 6.7 and below. NMC firmware 6.8+
+# (paired with PowerChute Network Shutdown 4.4.x+) has NO default at all — the phrase must be set
+# manually before HTTP/HTTPS can even be enabled for PCNS use, closing this window entirely on
+# updated firmware. Same "legacy-firmware-only" shape as the Altivar ATV600 finding built
+# earlier this same batch.
+#
+# What's blocking it: this is NOT a login to the web UI/FTP/Telnet/SSH services already built for
+# this device — it's a separate application-level shared secret used specifically for the PCNS<->
+# NMC communication protocol (the FAQ's own screenshot shows it as a distinct "Authentication
+# Phrase" field under "PowerChute Shutdown Parameters," alongside a separate PCNS "User Name"
+# field like "pcnstester" — a genuinely different credential pair from apc/apc). The actual wire
+# mechanism (what protocol/port PCNS uses to authenticate to the NMC with this phrase — HTTP POST,
+# a custom UDP discovery exchange, or something else) is not sourced here at all.
+#
+# FOLLOW-UP, 2026-08-25: user supplied a second, related Schneider FAQ, FAQ000266909 ("How to
+# configure the PowerChute Network Shutdown Parameters on a Network Management Card?"),
+# directly. Its own screenshot of the NMC3's "PowerChute Shutdown Parameters" configuration page
+# narrows (but doesn't fully close) the wire-mechanism gap: the "PCNS Communication Protocols"
+# section on that same page lists only HTTP and HTTPS as options — confirming PCNS talks to the
+# NMC over HTTP/HTTPS, not a separate custom port/protocol. The same screenshot's "User Name"
+# field shows "PCNSadmin" — POSSIBLY the actual default username (paired with the "admin user
+# phrase" default already confirmed), but this reading is not certain: it could equally be
+# placeholder/example text in an otherwise-unconfigured field rather than a true factory default.
+# Not upgraded to a confirmed value without independent confirmation.
+#
+# PROTOCOL DETAIL RESOLVED, STILL NOT BUILDABLE, 2026-08-25: a third Schneider FAQ, FA373363
+# ("What ports are utilized by PowerChute Network Shutdown and how are they secured?"), supplied
+# directly, gives the concrete wire picture: initial PCNS<->NMC REGISTRATION happens over TCP port
+# 80 (HTTP, MD5 auth) or 443 (HTTPS) — confirming the HTTP/HTTPS framing above. ONGOING
+# communication after registration, though, happens over UDP port 3052 (a heartbeat packet every
+# 25s, plus a MACONFIG notification every 100s) using MD5-based packet authentication — the FAQ
+# states explicitly "the password is never sent in plain text." This means even the registration
+# step's username+phrase aren't a simple Basic-Auth-style plaintext pair, and the ongoing UDP
+# channel needs its own MD5 keyed-authentication scheme replicated to interact with at all. This
+# is a genuinely nontrivial protocol-implementation task (a new UDP+MD5-auth wire module), not a
+# simple credential-list addition — same tier of effort as the earlier-flagged BMENUA0100 OPC UA
+# gap elsewhere in this batch.
+#
+# Action needed: implement the actual MD5-keyed UDP:3052 heartbeat/registration exchange (a real
+# protocol capture or Application Note 20, referenced but not obtained, would give the exact
+# packet format) before this can be built as a check. Also still unconfirmed: whether "PCNSadmin"
+# is genuinely a factory-default username or just placeholder text.
+
+check_id: candidate-apc-nmc-powerchute-authentication-phrase
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "American Power Conversion"
+references:
+  - "Schneider Electric FAQ FA159659, \"Default administrator authentication phrase used by PowerChute Network Shutdown to communicate with the Network Management Card\" (user-supplied)"
+  - "Schneider Electric FAQ FAQ000266909, \"How to configure the PowerChute Network Shutdown Parameters on a Network Management Card?\" (user-supplied)"
+  - "Schneider Electric FAQ FA373363, \"What ports are utilized by PowerChute Network Shutdown and how are they secured?\" (user-supplied, resolves TCP 80/443 registration + UDP 3052 MD5-authenticated heartbeat protocol detail)"
+description: >
+  APC Network Management Card 1 (AP9617/9618/9619) and NMC2 (AP9630/9631/9635), on firmware 6.7
+  and below, default their PowerChute Network Shutdown authentication phrase to the literal
+  string "admin user phrase" — a separate credential from this device family's already-built
+  FTP/Telnet/SSH/web logins. Not built — the actual PCNS<->NMC wire protocol is unconfirmed.

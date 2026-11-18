@@ -1,0 +1,44 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ FAQ000244592 ("What is the
+# default user name and password for the M580 CPU webpages with firmware v4.02 or greater?")
+# directly. Brand-new product for this project: Modicon M580, Schneider's flagship large PLC
+# platform, widely deployed in critical infrastructure.
+#
+# Default webpage login: webuser:webuser, for CPU firmware v4.02 and above (the FAQ's own scope —
+# earlier firmware not addressed by this source and not assumed to match).
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-modicon-m580-webpage-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["webuser", "webuser"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory credential (webuser:webuser) for the Modicon M580 CPU webpage"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic d2VidXNlcjp3ZWJ1c2Vy"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ FAQ000244592, \"What is the default user name and password for the M580 CPU webpages with firmware v4.02 or greater?\" (user-supplied)"
+description: "Schneider Electric Modicon M580 PLC CPUs, on firmware v4.02 and above, ship with a factory-default embedded webpage login of webuser:webuser. No CVE, documented factory-default behavior per Schneider's own FAQ."

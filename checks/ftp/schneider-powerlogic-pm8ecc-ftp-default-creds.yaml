@@ -1,0 +1,48 @@
+# Sourced 2026-08-17 from Schneider Electric's own official support FAQ FA212757 ("How to
+# upgrade firmware on an EGX100/200/300/400, PM8ECC or ECC21 via the command prompt using FTP" —
+# currently maintained, last modified 4/11/2025), read directly. PM8ECC is an Ethernet
+# Communication Card for PM800-series power meters, not a gateway — a genuinely different product
+# CLASS from EGX100/300 (kept as its own separate check file rather than folded into either
+# gateway check, matching this project's 1:1 check_id-to-product convention), but the FAQ groups
+# it explicitly with EGX100/EGX300 as sharing the identical Administrator/Gateway (case-sensitive)
+# credential ("To upgrade EGX100, EGX300 or PM8ECC via the command prompt..."), documented via the
+# same captured FTP session screenshot. A genuinely new product for this project, not previously
+# tracked. Uses the standard checks/ftp/native/ftp_default_creds.py executor.
+
+check_id: ftp-schneider-powerlogic-pm8ecc-default-creds
+protocol: ftp
+kind: native
+module: checks.ftp.native.ftp_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  credentials:
+    - ["Administrator", "Gateway"]
+  default_port: 21
+detection_hints:
+  transport: tcp
+  app_protocol: ftp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own FTP USER/PASS login attempt(s) using the documented factory credential(s) (Administrator:Gateway)"
+    patterns:
+      - context: request
+        bytes: "USER Administrator\r\nPASS Gateway\r\n"
+  broad:
+    description: "Any FTP USER/PASS login attempt on this device — the vulnerability class (default/weak credentials on this product's FTP server), not the specific guessed credential"
+    patterns:
+      - context: request
+        regex: "^USER \\S*\\r\\nPASS \\S*\\r\\n"
+references:
+  - "https://www.se.com/us/en/faqs/FA212757/"
+description: >
+  Schneider Electric PM8ECC Ethernet Communication Card (for PM800-series power meters) ships
+  with FTP server access (port 21) via factory-default credential Administrator/Gateway —
+  confirmed directly from Schneider's own official support FAQ FA212757, which documents this
+  exact mechanism (grouped explicitly with EGX100 and EGX300) including a real captured FTP
+  session. No CVE — documented factory-default behavior, not a disclosed vulnerability.

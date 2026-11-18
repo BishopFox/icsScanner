@@ -1,0 +1,85 @@
+# Candidate stub — default-credentials sweep, Phase 8 (SCADAPASS cross-reference). NOT
+# executable (no `kind`). May turn out to RESOLVE the still-open
+# checks/candidates/ge-pacsystems-rx3i-ftp-default.yaml ambiguity from Phase 3 (that candidate
+# noted two searches disagreeing on whether "System"/"system" was the username or password) —
+# not merged into it yet because the exact product-line overlap (RX3i vs. RX7i) isn't confirmed.
+#
+# SCADAPASS gives THREE separate rows for GE Intelligent Platforms PACSystems modules, all
+# citing the same secondary-mirror source (platforma.astor.com.pl, a Polish reseller hosting
+# what appears to be a real GE manual, cross-referenced by one row to pdfsupply.com's GFK-2849 —
+# GFK-#### is GE Fanuc's real official manual numbering scheme, matching the numbering already
+# used for the RX3i System Manual GFK-2314 in the Phase 3 candidate):
+#   - IC695PNC001 (PROFINET Controller), IC695ECM850 (IEC 61850 Client): admin:system via
+#     Telnet, port 23/tcp
+#   - IC695ETM001/IC695CPE305/310/330, IC698ETM001/IC698CPE010/020/030/040/IC698CRE020/030/040:
+#     password "system" (no username given), port 18245/udp
+#   - IC698CPE030/040/IC698CRE030/040: user:system via FTP, port 21/tcp
+# IC695* is the RX3i platform, IC698* is the larger RX7i platform — this candidate covers BOTH
+# rather than assuming which one Phase 3's ambiguous RX3i FTP lead was about.
+#
+# UPDATE 2026-08-31: user supplied three current, official Emerson/GE PACSystems manuals directly
+# — GFK-2224AG ("PACSystems RX3i/RSTi-EP TCP/IP Ethernet Communications User Manual," Jan 2025),
+# GFK-2830AD ("PACSystems RXi, RX3i and RSTi-EP Controllers Secure Deployment Guide," Jan 2025),
+# and an older-vintage "Rx3i-Ethernet_Manual.pdf" (same content family, different edition) — all
+# read directly via pdftotext, resolving the original PDF-extraction blocker. Note: PACSystems is
+# now an Emerson product line (both manuals published under Emerson.com/PACSystems), not GE — same
+# kind of vendor-attribution correction already made for GE Vernova/MiCOM elsewhere in this
+# project; `fingerprint_precondition` vendor string kept as-is for now pending a decision on
+# whether to update it project-wide.
+#
+# CONFIRMED, independently, in BOTH GFK-2224AG and the older Rx3i manual (same value in 2 separate
+# editions): the "Advanced User Parameters" table's FTP Parameters section states plainly:
+#   tpassword    Password for login for FTP access.    Default "system"    Range: 0 to 8 characters
+# This directly confirms SCADAPASS's FTP password claim from a real, current, primary source.
+# Also confirmed (same table, "UDP" section... actually "staudp" under a different task listing):
+# staudp = "Remote command UDP port," default 18245 (4745H) — this is GE/Emerson's "Ethernet
+# Station Manager" remote diagnostic service, confirming SCADAPASS's port-18245/UDP row is a real,
+# named service (Station Manager), not an arbitrary/misattributed port.
+#
+# CONFIRMED, structurally, in GFK-2830AD (the Secure Deployment Guide): a Telnet-reachable "PNC
+# admin" account (PROFINET Controller command shell) and a separate "admin" account (ECM850
+# command shell) both exist, and the guide's own "Default Provided" column states "Yes" for both
+# — a default password IS documented to exist for these Telnet accounts. HOWEVER: this security-
+# focused document deliberately does NOT state the literal default value anywhere (a reasonable
+# vendor choice for a hardening guide) — "admin:system" for Telnet specifically remains
+# UNCONFIRMED by any of the 3 documents reviewed, even though the FTP password happens to be
+# "system" and it would be plausible the same value is reused.
+#
+# ONE GENUINE, NOT-A-SEARCH-GAP FINDING: the FTP Parameters table has NO username field at all —
+# only "tpassword" is listed as a configurable AUP parameter. Checked directly: no FTP username
+# is documented anywhere in either communications manual (a targeted username/login search found
+# only OPC UA's own separate, unrelated username scheme — OpcUserLevel2 etc., a different
+# interface). This is NOT confirmed to mean "blank username accepted" the way the Schneider
+# EGX400 FTP finding was (that one had an actual worked FTP session transcript showing a real
+# blank-username login; this device has no such transcript in what's been reviewed) — genuinely
+# unconfirmed, not assumed either way.
+#
+# STILL NOT BUILT: (1) FTP is one confirmed value (password "system") short of a complete
+# credential pair — needs either a real FTP session transcript/capture showing what username (if
+# any) is expected, or empirical confirmation that any/blank username is accepted; (2) Telnet
+# admin default password value is structurally confirmed to exist but not stated in any source
+# reviewed — needs a document that states it directly, or a live/lab test; (3) whether Station
+# Manager's UDP:18245 service shares the same tpassword value or has its own separate credential
+# is not stated anywhere reviewed.
+
+check_id: candidate-ge-pacsystems-ic695-ic698-telnet-ftp-default-creds
+protocol: multi
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "GE Automation"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "GFK-2224AG, \"PACSystems RX3i/RSTi-EP TCP/IP Ethernet Communications User Manual\", Emerson, Jan 2025, user-supplied"
+  - "GFK-2830AD, \"PACSystems RXi, RX3i and RSTi-EP Controllers Secure Deployment Guide\", Emerson, Jan 2025, user-supplied"
+  - "Rx3i-Ethernet_Manual.pdf (older-vintage edition of the same manual family), user-supplied"
+description: >
+  GE/Emerson PACSystems (RX3i/IC695* and RX7i/IC698* families) — FTP password "system" now
+  CONFIRMED via 2 independent editions of Emerson's own current Ethernet Communications manual
+  (Advanced User Parameters, "tpassword" default). Station Manager remote-command UDP port 18245
+  also confirmed as a real, named service. Telnet admin accounts (PNC admin, ECM850 admin) are
+  confirmed to HAVE a default password (Secure Deployment Guide's own "Default Provided: Yes"
+  column) but the literal value is not stated in any source reviewed. Not built: FTP has a
+  confirmed password but no documented username field at all (a real gap, not a search miss);
+  Telnet's actual default value is unconfirmed; whether Station Manager shares the FTP password
+  or has its own is unstated.

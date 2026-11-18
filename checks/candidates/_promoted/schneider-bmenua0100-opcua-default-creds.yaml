@@ -1,0 +1,40 @@
+# PROMOTED 2026-10-06 (candidate re-triage) -> checks/opcua/schneider-bmenua0100-opcua-default-creds.yaml via the new OPC UA executor
+# checks/opcua/native/opcua_default_creds.py (UserName session-activation + GetEndpoints guard +
+# random-bogus negative control). The 'no OPC UA auth executor' blocker is resolved.
+# Candidate stub — 2026-08-25. User supplied Schneider FAQ FA405101 ("What is the default user
+# name and password for the BMENUA0100 OPC UA module?") directly. NOT executable (no `kind`).
+# Brand-new product for this project: BMENUA0100, the OPC UA communication module for Modicon
+# M580 PLCs.
+#
+# What's confirmed, cleanly and directly: 2 distinct default credential pairs depending on the
+# module's cybersecurity operating mode:
+#   Secured mode:  admin:password
+#   Standard mode: installer:Inst@ller1
+# Both apply to the module's OPC UA server (standard port 4840).
+#
+# What's blocking it: this project has NO existing OPC UA username/password authentication
+# executor. `core/fingerprint.py:probe_opcua_identity()` implements enough of the OPC UA binary
+# protocol (HELLO/OpenSecureChannel) to fingerprint a server, but does not implement
+# ActivateSession with a UserIdentityToken (username+password) — the actual login exchange. The
+# existing `checks/opcua/native/anon_write_*.py` modules test a DIFFERENT thing entirely (whether
+# an anonymous/no-credential session can write) — they don't authenticate with a username/
+# password at all, so they aren't reusable here as-is.
+#
+# Action needed: build a new OPC UA username/password authentication executor (extending the
+# existing OpenSecureChannel handshake with a real ActivateSession + UserIdentityToken exchange,
+# likely reusing `probe_opcua_identity()`'s low-level framing) before this can become a real
+# check — a genuine new-protocol-capability task, not a quick credential-list addition.
+
+check_id: candidate-schneider-bmenua0100-opcua-default-creds
+protocol: opcua
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+references:
+  - "Schneider Electric FAQ FA405101, \"What is the default user name and password for the BMENUA0100 OPC UA module?\" (user-supplied)"
+description: >
+  Schneider Electric BMENUA0100 (OPC UA communication module for Modicon M580 PLCs) ships with
+  2 factory-default OPC UA logins depending on cybersecurity mode: admin:password (Secured mode)
+  and installer:Inst@ller1 (Standard mode). Not built — this project has no OPC UA username/
+  password authentication executor yet. See this file's own header comment.

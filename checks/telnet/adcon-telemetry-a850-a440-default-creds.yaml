@@ -1,0 +1,52 @@
+# Default-credentials sweep, Phase 22 — first check built from the scadasecuritybootcamp.com
+# credential-list triage (see lab-notes/side-quests.md), a new source, not SCADAPASS/Metoree.
+# Uses the generic checks/telnet/native/telnet_default_creds.py executor.
+#
+# Sources (3 independent, converging): scadasecuritybootcamp.com's "SCADA/ICS Default Password
+# List" (root:840sw for the A850 Telemetry Gateway, A850 Telemetry Gateway ver2, and A440
+# Wireless Modem); independently corroborated by two router-default aggregator sites
+# (192-168-1-1-ip.co, hardreset.info) both citing the same root:840sw value specifically for
+# these two models (as distinct from "root:root" given elsewhere for other Adcon Telemetry
+# devices — the "840sw" variant is model-specific, not a generic guess). Adcon's A850 runs an
+# embedded Linux OS, consistent with a root-shell-style default credential.
+#
+# Adcon Telemetry (acquired by OTT HydroMet) makes remote telemetry/SCADA base stations widely
+# used in agricultural and environmental monitoring — real, if niche, industrial deployment.
+#
+# No CVE — documented factory-default behavior. Protocol assumed Telnet (consistent with this
+# sweep's other embedded-Linux root-credential devices of a similar era, e.g. TAC Xenta, Moxa
+# IA240/241) — not independently confirmed as Telnet vs SSH in the sources checked; if this
+# fingerprint never fires in practice, that's the first thing to re-verify.
+
+check_id: telnet-adcon-a850-a440-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Adcon Telemetry GmbH"
+params:
+  credentials:
+    - ["root", "840sw"]
+  default_port: 23
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet username+password login attempt(s) using the documented factory credential(s) (root:840sw)"
+    patterns:
+      - context: request
+        bytes: "root\r\n840sw\r\n"
+  broad:
+    description: "Any Telnet login attempt (a username followed by a password, both CRLF-terminated) on this device — the vulnerability class (default/weak credentials on this product's Telnet server), not the specific guessed credential"
+    patterns: []  # generic "any-line" pattern removed 2026-11-11 (real-traffic validation); no device-specific signature beyond the narrow probe/credential bytes. See lab-notes/zeek-detection-validation-pnnl-2026-11.md
+references:
+  - "http://scadasecuritybootcamp.com/SCADA-Default-Password-List.php"
+  - "https://www.192-168-1-1-ip.co/adcon-telemetry/routers/43/"
+  - "https://www.hardreset.info/devices/adcon/adcon-telemetry/faq/default-password/default-password/"
+description: "Adcon Telemetry A850 Telemetry Gateway (incl. ver2) and A440 Wireless Modem ship with a factory-default root/840sw login — no CVE, documented factory-default behavior."

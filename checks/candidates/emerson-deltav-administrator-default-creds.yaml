@@ -1,0 +1,33 @@
+# Candidate stub — default-credentials sweep, Phase 11. NOT executable (no `kind`).
+# Network-surface question, same shape as the Phase 5 InTouch/System Platform candidates and
+# Phase 9's Mitsubishi MES3 candidate — NOT a credential-confirmation gap.
+#
+# SCADAPASS gives Administrator:deltav for Emerson's DeltaV Digital Automation System, citing a
+# university course "Getting Started" guide (chem.mtu.edu) rather than an official Emerson
+# source — a weaker source tier than most of this sweep, worth noting on its own. DeltaV is a
+# MAJOR, extremely widely-deployed process-control DCS platform — flagged despite the weaker
+# source specifically because of how significant a real finding here would be, not because the
+# lead itself is unusually strong.
+#
+# NOT built: no port or protocol is given in the source row at all. DeltaV's engineering/
+# operator-station software runs on Windows workstations — this credential most likely gates a
+# local Windows domain/workgroup account (the university guide describes initial workstation
+# setup), not a network-facing service with an obvious host:port this tool could probe. Would
+# need identification of a specific DeltaV network service (if any) that presents this same
+# login before this becomes buildable.
+
+check_id: candidate-emerson-deltav-administrator-default-creds
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Emerson Electric"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "http://www.chem.mtu.edu/chem_eng/current/new_courses/CM4120/2009/Getting%20Started.pdf"
+description: >
+  Emerson DeltaV Digital Automation System — Administrator:deltav, single-sourced to a
+  university course guide (weaker tier than most of this sweep). DeltaV is a major, widely-
+  deployed DCS platform, flagged for that significance despite the weaker source. No port/
+  protocol given — likely a local Windows workstation account, not a network-reachable service.
+  Needs identification of a specific network-facing DeltaV service before building.

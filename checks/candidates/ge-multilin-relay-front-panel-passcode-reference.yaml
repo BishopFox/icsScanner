@@ -1,0 +1,46 @@
+# Candidate/reference stub — RECOVERED 2026-08-30. NOT executable (no `kind`). This is a
+# reference document, not a per-model research gap — see below.
+#
+# HOW THIS CAME TO EXIST: this project's original `checks/candidates/ge-multilin-relay-factory-
+# passcode.yaml` (Phase 3, 2026-08-14 onward) tracked BOTH the network/Modbus mechanism research
+# for 469/489/750/760/850/869 AND a `physical_access_reference` entry for the same relays' LOCAL
+# front-panel passcode entry — the two are genuinely different facts (a keypad entry a technician
+# performs on-site vs. a Modbus register a network scanner probes). When that file's network-
+# research half was fully resolved (2026-08-30, all 6 models promoted to real checks — see
+# lab-notes/human-review-queue.md's GE Multilin passcode entry) it was deleted as having "no
+# state left to track" — but that deletion also silently removed the still-valid front-panel
+# reference half, caught by `tests/smoke_test_physical_access_reference.py`'s own regression
+# check rather than a manual review. This file recovers exactly that content, standalone, since
+# `web/server.py`'s `/api/physical-access-checks` route only ever reads from
+# `registry.candidates()` — a real check being promoted network-side does not make the front-
+# panel entry method stop existing or stop being useful to an onsite technician.
+#
+# WHY IT'S STILL VALUABLE even though every model now has a real network check: the front-panel
+# path is a genuinely separate access method (no network connectivity needed at all), useful for
+# a technician working directly at the relay, or as independent corroboration when a network
+# check can't reach a target (e.g. no serial-to-Ethernet gateway available). Not a duplicate of
+# the real checks — a different, still-relevant workflow entry.
+
+check_id: candidate-ge-multilin-relay-front-panel-passcode-reference
+protocol: modbus
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "GE Automation"
+physical_access_reference:
+  summary: "GE Multilin protection relays (469/489/750/760/850/869 and others) — factory default passcode, entered via the front-panel keypad, disabling the passcode security feature for setpoint changes. A separate remote/Modbus mechanism is confirmed and BUILT for all 6 of these models — see their own real checks (checks/modbus/ge-multilin-*-factory-passcode.yaml) — this reference entry covers the local front-panel path specifically."
+  steps:
+    - "On the relay's front panel, navigate to the passcode/security entry menu (menu structure varies by model — see the relay's own front-panel operator manual)."
+    - "Enter the factory default passcode: 0"
+references:
+  - "https://docs.ips.us/docs/W1002126.pdf"
+  - "https://www.manualslib.com/manual/1324624/Ge-Multilin-850.html?page=146"
+description: >
+  GE Multilin protection relays (469 Motor Management Relay, 489 Generator Management Relay,
+  750/760 Feeder Management Relay, 850 Feeder Protection System, 869 Motor Protection System,
+  and likely others in the same product families) ship with factory default passcode "0" —
+  documented across multiple corroborating instruction manuals — which disables the passcode
+  security feature entirely for setpoint changes when entered via the front-panel keypad. All 6
+  named models also have a real, built network check for the equivalent Modbus-side mechanism
+  (see checks/modbus/ge-multilin-*-factory-passcode.yaml) — this entry exists purely for the
+  separate local/physical-access workflow, independent of network reachability.

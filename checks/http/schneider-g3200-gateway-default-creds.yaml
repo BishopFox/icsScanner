@@ -1,0 +1,47 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ "What are the default login
+# credentials for the G3200 gateway?" directly. New product for this project: G3200 gateway.
+#
+# The FAQ's own Resolution gives a table of two default accounts (a third row, "User-defined
+# accounts," is explicitly a non-default and correctly excluded here):
+#   Administrator (Default account) — Default Password: G3200
+#   Guest (Default account)         — Default Password: Guest
+# Both pairs are tried, in order (Administrator first, since it's the higher-privilege account).
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention — the FAQ's
+# own title refers to "the G3200 webpage," no custom form fields mentioned.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-g3200-gateway-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["Administrator", "G3200"]
+    - ["Guest", "Guest"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credentials (Administrator:G3200, then Guest:Guest) for the G3200 gateway's webpage"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic (QWRtaW5pc3RyYXRvcjpHMzIwMA==|R3Vlc3Q6R3Vlc3Q=)"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ, \"What are the default login credentials for the G3200 gateway?\" (user-supplied)"
+description: "Schneider Electric G3200 gateway ships with two factory-default webpage accounts: Administrator:G3200 and Guest:Guest. No CVE, documented factory-default behavior per Schneider's own FAQ."

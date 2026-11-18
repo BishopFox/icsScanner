@@ -1,0 +1,117 @@
+# Candidate promoted directly to a real check — 2026-09-16. User asked to build a check for the
+# SICAM A8000 CPC80 default-credential finding surfaced while researching CVE-2021-45106 (see
+# checks/candidates/CVE-2021-45106-siemens-sicam-toolbox-ii-oracle-hardcoded-credentials.yaml's
+# own "BONUS FINDING" note). Confirmed no prior candidate/check for this specific finding existed
+# before writing this file.
+#
+# THE FINDING, verbatim from the "SICAM A8000 Series/RTUs/TOOLBOX II/Device Manager ADMINISTRATOR
+# Security Manual" (DC0-115-2.27, Edition 07.2022, fetched directly via curl+pdftotext — the same
+# document already used to resolve the CVE-2021-45106 research): section 11.2.1, a device
+# user-account table for "SICAM A8000 Series" states a single predefined ADMINISTRATOR-role user:
+#     Username: administrator
+#     Password: ******** [footnote] CPC80 of CP-8000, CP-802x <= revision 07 has default
+#               password 1703. CP-8031/CP-8050, CPC80 of CP-8000, CP-802x >= revision 14: no
+#               default password set.
+# The SAME section states plainly: "The definition of users, their passwords and the assignment
+# of roles to these users is realized via SICAM WEB" — confirming the mechanism is the device's
+# own web management interface, not TOOLBOX II's separate engineering-protocol port (see the
+# sibling AK3 candidate for that different mechanism).
+#
+# THE WIRE PROTOCOL, reverse-engineered directly (not guessed) from a genuinely UNENCRYPTED SICAM
+# WEB frontend package found in this same ingest batch: `SWEB0026.F20` (module "SWEB00 SICAM WEB
+# Version: 2620" per the CP-8000/CP-8021/CP-8022 TOOLBOX II content catalog) unpacks as an
+# ordinary opkg/`ar` package (`SWEB00-SWEB00_V26.20_all.ipk` -> `data.tar.gz` -> a real, plaintext
+# webpack-built JS single-page application, ~1500 files, no encryption or obfuscation blocking
+# readability this time) -- a genuinely different, much more approachable artifact than the
+# comprehensively-encrypted "SICORE" platform found on the newer CP-8030/8031/8050 hardware in
+# this same research thread. Its own login-dialog module (`requestLogOn`) and bootstrap chunk
+# together show the EXACT request/response shape, now implemented in
+# `checks/http/native/sicam_web_logon_default_creds.py`:
+#     POST /sicweb-ajax/auth   (Content-Type: application/xml)
+#     <?xml version="1.0" encoding="UTF-8"?>
+#     <Cmd_LogOn><authentication user="administrator" pwd="1703"/><language id="en"/></Cmd_LogOn>
+# A successful login is a `<status value="1">` or `<status value="3">` together with a
+# `<Rsp_LogOn>` element in the response — confirmed directly from the same app's own response
+# parser (`responseLogOnLogOff`), not inferred.
+#
+# UPDATE 2026-09-16: the protocol-stability caveat below is now RESOLVED, not just assumed. A
+# second, much older SICAM WEB sample turned up in a later ingest batch --
+# `CP-8000_21_22_V11_SWEBUpdate.zip` -> `SWEB0004.F` -> `SWEB00_V04_arm.ipk` (dated 2016/2017,
+# version 04 vs. the version 26 sample this check was originally built from) -- also a genuinely
+# unencrypted opkg/ar package, this time using an un-minified Dojo-Toolkit-based frontend (real,
+# readable file/directory names, not a webpack content-hash bundle). Its own
+# `js/layers/layer_init.js` contains the IDENTICAL `requestLogOn` XML template, byte-for-byte the
+# same structure already implemented here, confirming the wire protocol has been stable across at
+# least a decade of SICAM WEB releases (2016 -> 2026), not just assumed stable from one sample.
+# The literal "1703" password itself does not appear in EITHER frontend package (expected -- it's
+# a runtime/device-side credential in CPC80's own user database, not something the generic login
+# frontend would ever embed), so the credential value itself still rests on the Admin Security
+# Manual as its sole source -- only the WIRE PROTOCOL claim is strengthened by this second sample.
+#
+# HONEST CAVEAT on scheme (HTTP vs HTTPS): the manual documents both HTTP (80) and HTTPS (443) as
+# available "Web server" ports without stating which is CPC80's own default -- this check defaults
+# to plain HTTP, overridable via `https: true` in params if a specific target needs it.
+#
+# SCOPE: only affects CPC80 of CP-8000/CP-802x hardware at firmware revision <= 07 -- explicitly
+# NOT current/patched firmware (revision >= 14, or the CP-8031/CP-8050/CPCI85 hardware examined
+# elsewhere in this research thread, which has "no default password set"). A real, but bounded and
+# already partially self-mitigating (old-hardware-only) exposure.
+#
+# UPDATE 2026-09-16 (new 126-file ingest batch, `Manual_CP-8000_CP-802x_ENG_DC8-037-2.11.pdf`,
+# Edition 07.2025): directly confirms what "no default password set" (firmware revision >= 14)
+# actually means in practice, and that it is NOT simply "fixed" -- the device forces a
+# define-a-password flow on whichever administrator connects first over the (default-enabled)
+# SICAM WEB interface, which is itself a distinct, real exposure window, not a closed issue. Filed
+# as its own separate candidate rather than folded into this check (different vulnerability shape,
+# and NOT safely testable the way this check's static "1703" credential is): see
+# `checks/candidates/siemens-sicam-web-unclaimed-administrator-first-login.yaml`.
+
+check_id: sicam-a8000-cpc80-web-default-creds
+protocol: http
+kind: native
+module: checks.http.native.sicam_web_logon_default_creds
+destructive: true
+risk_reason: ["login"]  # a real authentication attempt; no documented lockout mechanism found for SICAM WEB
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Siemens AG"
+  product: "SICAM A8000 CPC80"
+params:
+  credentials:
+    - ["administrator", "1703"]
+  path: "/sicweb-ajax/auth"
+  https: false
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Cmd_LogOn XML request body, containing the literal default credential — verified directly against this check's own _build_logon_body() output, not hand-derived"
+    patterns:
+      - context: request
+        regex: "<Cmd_LogOn><authentication user=\"administrator\" pwd=\"1703\"/>"
+  broad:
+    description: "Any POST to /sicweb-ajax/auth carrying a Cmd_LogOn XML body against a SICAM A8000 device — the vulnerability class (default/weak SICAM WEB credentials), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "POST /sicweb-ajax/auth"
+      - context: request
+        regex: "<Cmd_LogOn>"
+references:
+  - "SICAM A8000 Series/RTUs/TOOLBOX II/Device Manager ADMINISTRATOR Security Manual (DC0-115-2.27, Edition 07.2022), fetched directly via curl+pdftotext, section 11.2.1"
+  - "SWEB0026.F20 (SICAM WEB frontend module, version 26.20), user-supplied firmware content bundle, unpacked directly (ordinary opkg/ar + tar.gz, no encryption) — checks/http/native/sicam_web_logon_default_creds.py's own docstring has the full extraction chain"
+description: >
+  Siemens SICAM A8000 Series devices using the CPC80 module (CP-8000/CP-802x hardware,
+  firmware revision <= 07 only — fixed in revision >= 14) ship with a predefined SICAM WEB
+  ADMINISTRATOR-role account, username "administrator", literal default password "1703" —
+  confirmed directly from Siemens's own official Admin Security Manual. The SICAM WEB login wire
+  protocol itself (POST /sicweb-ajax/auth, an XML Cmd_LogOn command, XML Rsp_LogOn/status
+  response) was reverse-engineered directly from a genuinely unencrypted SICAM WEB frontend
+  package found in this project's own ingest review — a rare case in this research thread where
+  the protocol details came from readable JavaScript rather than firmware disassembly. High
+  confidence: both the credential and the (assumed firmware-revision-stable) protocol are
+  confirmed from real vendor artifacts, not guessed — the one open assumption is that the
+  protocol shape hasn't changed between the vulnerable (<=07) and the current/patched (>=14)
+  firmware revision this sample was actually extracted from.

@@ -1,0 +1,25 @@
+# Candidate stub — DELIBERATELY kept as a candidate (kind: absent), low priority. Phase 41
+# (2026-08-27). Legacy sibling of checks/telnet/perle-iolan-default-creds.yaml — a DIFFERENT,
+# older product line with a different value, do not merge.
+#
+# Source: Perle's own KB 401 ("Default userID and passwords for various Perle products"),
+# fetched and read directly — the legacy IOLAN+ terminal servers accept ANY string as the
+# username (no real username check performed at all) with a fixed admin password of "iolan".
+# EOL product line — kept as a low-priority stub rather than an active check since the current
+# IOLAN DS/TS/DG/TG line (already built) covers the vendor's actively-shipped product.
+#
+# No CVE found.
+
+check_id: candidate-perle-iolan-plus-legacy-default-creds
+protocol: telnet
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Perle"
+  product: "IOLAN+"
+references:
+  - "https://help.perle.com/?a=4&q=401"
+description: >
+  Perle's legacy IOLAN+ terminal servers (EOL product line) accept any username with a fixed
+  admin password of "iolan" over Telnet, per Perle's own KB article. Low-priority candidate —
+  the current IOLAN DS/TS/DG/TG line has an active check instead.

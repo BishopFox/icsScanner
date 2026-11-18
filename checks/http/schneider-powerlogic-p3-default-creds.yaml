@@ -1,0 +1,68 @@
+# Default-credentials sweep, 2026-08-24 — user-supplied Schneider Electric FAQ (FA337647, "How
+# can I log in after connection to Powerlogic P3 Web server?", Schneider Electric Singapore,
+# published 2018, last modified 2026), read directly. Surfaced while researching the P3 relay's
+# Vampset configuration software (see lab-notes/human-review-queue.md Priority 1 for the separate,
+# more severe debug-terminal/fixed-factory-password finding from that same research pass).
+#
+# Independently cross-corroborated: Vampset's own shipped configuration templates (e.g.
+# configs/P3U30_30.109.vfm in the Vampset v2.2.209 archive) carry header fields "OperPwd: 1" and
+# "ConfPwd: 2" — these turn out to literally encode the same default password digits per role
+# this FAQ documents (Operator=1, Configurator=2), not internal-only IDs as first suspected while
+# investigating the OperPwd/ConfPwd disclosure question — that question is now resolved: these
+# are the real factory-default values, matching an independent primary source exactly.
+#
+# 3 role-based accounts, all with simple single-digit passwords:
+#   user:0       - read-only (parameters, measurements, events)
+#   operator:1   - control actions + protection stage setting changes
+#   conf:2       - commissioning (CT/VT scaling) AND explicitly named for HTTP Web Server access
+#
+# WIRE MECHANISM ASSUMPTION, explicitly flagged: this FAQ describes the credentials themselves
+# but not the exact login UI (HTTP Basic Auth vs. a custom form) — this check assumes Basic Auth,
+# matching this project's default executor for this class of device (the FAQ's own phrasing,
+# "log in using the correct default credentials," is consistent with either, no login-form
+# screenshot given). If the real device uses a custom form instead, this check will simply get a
+# NOT_APPLICABLE/ERROR result rather than a false positive.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-powerlogic-p3-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+  product: "P3"
+params:
+  path: "/"
+  credentials:
+    - ["user", "0"]
+    - ["operator", "1"]
+    - ["conf", "2"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credentials for all 3 default roles (user:0 read-only, operator:1 control, conf:2 configurator/commissioning)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic (dXNlcjow|b3BlcmF0b3I6MQ==|Y29uZjoy)"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this relay family), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://www.se.com/us/en/faqs/FA337647/"
+description: >
+  Schneider Electric PowerLogic P3 / Easergy P3 protection relays ship with 3 factory-default,
+  role-based Web Server logins — user:0 (read-only), operator:1 (control actions), conf:2
+  (commissioning/configurator, explicitly the role needed for Web Server access per Schneider's
+  own FAQ) — no CVE, documented factory-default behavior. Independently cross-corroborated by the
+  Vampset configuration software's own shipped device templates, which encode the same
+  role-to-password-digit mapping in their own header metadata.

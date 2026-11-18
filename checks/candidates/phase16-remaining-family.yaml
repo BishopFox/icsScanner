@@ -1,0 +1,37 @@
+# Candidate stub — default-credentials sweep, Phase 16. NOT executable (no `kind`). Consolidates
+# the remaining leads from this phase's vendor batch across three different blocking reasons.
+#
+# ARCHITECTURALLY OUT OF SCOPE (local passcode / medical / messy source data):
+# - Alstom MiCOM/KVGC202 protection relays (passcode "AAAA") — same local front-panel-passcode
+#   pattern as GE Multilin relays (Phase 3, excluded there for the same reason); citing GE Grid
+#   Solutions documentation since Alstom's grid business was acquired by GE in 2015.
+# - Barco MediCal QAWeb Agent, Hitachi EUB-550 Ultrasound Diagnostic Scanner — explicitly
+#   medical-device products, out of this sweep's scope.
+# - BinTec Elmeg (4 SCADAPASS rows) — internally inconsistent/low-confidence source data across
+#   every row (one row is literally "any routers" with a generic suggested-password list, not a
+#   specific finding); the one row with a real industrial application (W2002T-n WLAN AP "for
+#   applications in rolling stocks") has no port given either. Not pursued this phase.
+#
+# RESEARCH GAP — credential-format mismatch:
+# - Phasefale JouleTemp (SCADAPASS: admin:pass) — an independent search of the actual
+#   instruction manual found this is a SINGLE PASSWORD mechanism ("pass" only, entered via a
+#   keypad LOd menu), not a genuine username:password pair. Same architecture-mismatch shape as
+#   Phase 13's ENTES gateways.
+#
+# PROMOTED 2026-08-16: Wellintech KingSCADA (administrator:administrator, role KVAdministrator)
+# was here as a "real credential, no confirmed port" research gap. The user supplied the missing
+# port/path (80, /ksweb) — promoted to `checks/http/wellintech-kingscada-default-creds.yaml`, no
+# longer part of this stub.
+
+check_id: candidate-phase16-remaining-family
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_only: true
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+description: >
+  Phase 16 leftovers: Alstom MiCOM (local passcode), Barco/Hitachi EUB-550 (medical, out of
+  scope), BinTec Elmeg (low-confidence source data), Phasefale JouleTemp (single-password, not
+  a username:password pair).

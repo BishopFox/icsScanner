@@ -1,0 +1,62 @@
+# Default-credentials sweep, Phase 16 — PROMOTED from the consolidated
+# `checks/candidates/phase16-remaining-family.yaml` stub after the user supplied the missing
+# detail (port 80, standard HTTP; login page at /ksweb) that was blocking it. A dedicated
+# research pass (2026-08-16) had already ruled out both real WellinTech CVEs as unrelated
+# (ICSA-12-129-01 is a different weak-password-storage bug; CVE-2013-2826's port 8130 is the
+# KAEClientManager Console, a different component) and found two candidate manuals that 403'd
+# automated fetch — see `lab-notes/human-review-queue.md` Priority 2.6 for the full trail. The
+# user's port/path confirmation resolved the one remaining gap.
+#
+# Uses the generic checks/http/native/basic_auth_default_creds.py executor.
+#
+# Source: SCADAPASS, citing a 2011 ZeroNights/DefCon Russia conference presentation
+# (Volobuev/Minozhenko/Polyakov, "Practical demonstration of typical attacks and 0days in SCADA
+# and PLC/controllers") — administrator:administrator, role KVAdministrator, on KingSCADA's
+# "Web Publish" interface. No independent written-manual corroboration found (both ICPDAS-hosted
+# manual PDFs blocked automated fetch), but the credential/mechanism is specific and consistent
+# across every source checked, and this is a real, significant Chinese industrial SCADA/HMI
+# platform (Wellintech markets itself as Asia's largest independent automation-software vendor).
+#
+# KNOWN FINGERPRINT-GATE GAP: KingSCADA is pure software (runs on arbitrary Windows server
+# hardware), not an embedded device — there is no "Wellintech" hardware OUI to register, same
+# structural situation as the Siemens WinCC MSSQL candidate. Unlike a pymodbus-style library,
+# this check IS destructive (a real login attempt), so registry.py's validation blocks the
+# `protocol_only: true` escape hatch here — shipped with a `vendor: "Wellintech"` precondition
+# that will never match via OUI lookup, same disclosed-gap pattern as eWON (Phase 11) and several
+# other Phase 9-19 checks.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-wellintech-kingscada-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Wellintech"
+params:
+  path: "/ksweb"
+  credentials:
+    - ["administrator", "administrator"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (administrator:administrator)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW5pc3RyYXRvcjphZG1pbmlzdHJhdG9y"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at /ksweb — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET /ksweb HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.slideshare.net/DefconRussia/pavel-volobuev-alexander-minozhenko-alexander-polyakov-practical-demonstration-of-typical-attacks-and-0days-in-scada-and-plccontrollers"
+description: "Wellintech KingSCADA (Web Publish interface) ships with a factory-default administrator/administrator web-UI login (role KVAdministrator) on port 80, path /ksweb — no CVE, documented factory-default behavior."

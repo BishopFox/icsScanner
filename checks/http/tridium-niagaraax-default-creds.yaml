@@ -1,0 +1,56 @@
+# Default-credentials sweep, Phase 9. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Sources (3 independent, strong tier): SCADAPASS (tridium:niagara); an HVAC-Talk forum thread
+# from real field technicians independently stating the same pair; Tridium's OWN "Niagara 4
+# Hardening Guide" PDF (a vendor-authored security document explicitly warning users to change
+# this exact default — the strongest kind of corroboration, the vendor's own security guidance
+# confirming the default exists).
+#
+# Tridium/Niagara is a significant, widely-deployed building-automation platform (JACE
+# controllers) with real CVE history (e.g. the 2012 "Internet of Things" Niagara vulnerabilities
+# disclosed at DEF CON). No CVE cited here specifically — this is the documented factory default
+# itself, not a separate numbered vulnerability.
+#
+# ASSUMPTION FLAGGED: NiagaraAX's web interface historically defaults to port 80/HTTP (confirmed
+# via search for the AX generation specifically — later Niagara 4.x installations commonly move
+# to different ports, e.g. 4911/FoxS, and/or require HTTPS) and the exact login mechanism (Basic
+# Auth vs. a Niagara-specific login form/JNLP platform daemon) was NOT independently confirmed
+# against real hardware — same caveat class as every other Basic-Auth-assumed check in this
+# sweep, but flagged more strongly here since Niagara's login flow is known to be more complex
+# than a typical embedded web UI in later product generations.
+
+check_id: http-tridium-niagaraax-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Tridium Inc."
+params:
+  path: "/"
+  credentials:
+    - ["tridium", "niagara"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (tridium:niagara)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic dHJpZGl1bTpuaWFnYXJh"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://hvac-talk.com/vbb/threads/189119-Jace-default-login"
+  - "https://www.tridium.com/content/dam/tridium/en/documents/document-lists/Niagara4-Hardening-Guide-2023.pdf"
+description: "Tridium NiagaraAX JACE controllers ship with a factory-default tridium/niagara login — no separate CVE, documented factory-default behavior that Tridium's own hardening guide explicitly warns about."

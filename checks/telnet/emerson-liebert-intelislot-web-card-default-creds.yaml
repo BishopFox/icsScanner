@@ -1,0 +1,70 @@
+# Default-credentials sweep, Phase 11. Uses the generic
+# checks/telnet/native/telnet_default_creds.py executor.
+#
+# Sources (2 independent): SCADAPASS, citing the official Emerson Network Power monitoring
+# documentation (sl-52615.pdf) directly; corroborated by an independent WebSearch that found
+# BOTH the same document quoted directly (a ManualsLib-hosted "Table 17 Factory Default
+# Passwords" excerpt of the IntelliSlot IS-WEB485ADPT installation manual) AND several
+# aggregator sites converging on the same value.
+#
+# No CVE — documented factory-default behavior. UPS/power-monitoring web card, same
+# IT/OT-boundary reasoning as the MPH2 Rack PDU check.
+#
+# STRENGTHENED 2026-10-02 -- a new Vertiv ingest batch (vendor firmware ingest)
+# independently confirmed this same default DIRECTLY from real shipped firmware, not just vendor
+# documentation/SCADAPASS: re-fetched and re-read SL-52615 directly via pdftotext (Section 5.7
+# "Change Username / Password", Table 15 "Factory default passwords") -- identical table content
+# to what this check already cited. Additionally confirmed, via each binary's own embedded
+# product-identification strings (read directly with `strings`, not assumed from filename), that
+# this same shared IntelliSlot platform/web-UI codebase spans at least IS-WEBL_HID10_5.280.5
+# ("IntelliSlot Web Card") and IS-IPBML_HID10_5.1E0.5 ("IntelliSlot BMS/IP Card"), with
+# IS-WEBADPT/IS-WEBCARD/IS-WEBLBDS/IS-WEBLB/IS-WEBS/IS-WEBX/OCWEBCARD all sharing byte-identical
+# embedded JavaScript warning text with those two confirmed samples -- strong evidence of the same
+# underlying codebase across all of them, consistent with Vertiv's own manual listing Web Card-LB,
+# Web Card-LBDS, and Web/485 Card-ADPT as compatible products. NOT confirmed to the same standard:
+# IS-IPBMS/IS-IPBMX (plausible, not independently string-confirmed), IS-WEBRT3 (embedded strings
+# suggest a cellular/SIM-equipped variant with a DIFFERENT version-numbering scheme -- genuinely
+# possibly a different underlying platform, not assumed to share this default), and OC485 (no
+# firmware .bin located in this ingest batch). Confidence raised low -> high on this basis: this is
+# now independently confirmed from the vendor's own manual AND cross-checked against real,
+# currently-relevant shipped firmware (not just third-party aggregator citations). Login wire
+# format itself (exact Telnet prompt sequence) was not re-captured this pass -- the firmware is a
+# raw, custom-headerized PowerPC image with no filesystem container unblob/binwalk could
+# decompose, so this corroboration is evidentiary (confirms the credential and product-family
+# scope), not a wire-format re-verification.
+
+check_id: telnet-emerson-liebert-intelislot-web-card-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Emerson Electric"
+  product: "Liebert IntelliSlot Web Card family -- confirmed via embedded firmware strings on IntelliSlot Web Card (IS-WEBL) and IntelliSlot BMS/IP Card (IS-IPBML); shared codebase evidence also covers Web/485 Card-ADPT, Web Card-LB, Web Card-LBDS, and related models per the vendor's own compatible-products list"
+params:
+  credentials:
+    - ["Liebert", "Liebert"]
+    - ["User", "User"]
+  default_port: 23
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet username+password login attempt(s) using the documented factory credential(s) (Liebert:Liebert, User:User)"
+    patterns:
+      - context: request
+        regex: "Liebert\\r\\nLiebert\\r\\n|User\\r\\nUser\\r\\n"
+  broad:
+    description: "Any Telnet login attempt (a username followed by a password, both CRLF-terminated) on this device — the vulnerability class (default/weak credentials on this product's Telnet server), not the specific guessed credential"
+    patterns: []  # generic "any-line" pattern removed 2026-11-11 (real-traffic validation); no device-specific signature beyond the narrow probe/credential bytes. See lab-notes/zeek-detection-validation-pnnl-2026-11.md
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.manualslib.com/manual/47126/Emerson-Liebert-Intellislot-Is-Web485adpt.html?page=31"
+  - "https://aglt2.org/wiki/pub/AGLT2/MSUInfraMonConfig/SL-52615_REV02_08-08.pdf -- re-fetched and re-read directly via pdftotext, 2026-10-02, Section 5.7 and Table 15, confirming identical content"
+  - "User-supplied ingest: IS-WEBL_HID10_5.280.5_089394.zip, IS-IPBML_HID10_5.1E0.5_089394.zip (vendor firmware ingest) -- AppFwUpdt.bin's own embedded product-identification strings read directly via `strings`, 2026-10-02"
+description: "Emerson Liebert IntelliSlot Web Card (UPS/power monitoring) ships with factory-default Liebert/Liebert (full access) and User/User (read-only) Telnet logins — no CVE, documented factory-default behavior."

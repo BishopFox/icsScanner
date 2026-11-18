@@ -1,0 +1,62 @@
+# Default-credentials sweep, Phase 22 — PROMOTED from the consolidated
+# `checks/candidates/phase22-bootcamp-remaining-family.yaml` stub after the user supplied the
+# missing detail: a direct link into the official ABB RTU500 series User Manual (ManualsLib,
+# page 21, "Table 4: Default user accounts in the RTU") plus confirmation that the web server
+# defaults to HTTPS. A direct fetch of that exact page/table confirmed it verbatim — this closes
+# the "circular low-tier-aggregator sourcing" gap that held this one back originally (every
+# other source found for "admin:admin" traced back to the same unverified claim, not an
+# independent primary-source confirmation). Held to a higher bar than most of this sweep because
+# RTU500 is safety-critical power-grid equipment (now an ABB/Hitachi Energy product).
+#
+# Uses the generic checks/http/native/basic_auth_default_creds.py executor.
+#
+# Table 4 gives FIVE predefined accounts, each username == password, each with a distinct role:
+# Admin/Admin (Administrator role — the account the user specifically flagged), Operator/
+# Operator (Operator, Viewer), Installer/Installer (Installer, Engineer), Engineer/Engineer
+# (Engineer, SECAUD, RBACMNT), Viewer/Viewer (Viewer, SECADM). All five shipped, not just Admin —
+# same "ship every role-based default account the source gives" pattern as SAMSON TROVIS 5590's
+# two tiers and Tecomat Foxtrot's ten role accounts. The manual also notes RTU560-migrated units
+# retain their ORIGINAL RTU560 credentials rather than these RTU500 defaults — a real fingerprint
+# gate limitation (this check can't distinguish a migrated RTU560 unit from a fresh RTU500),
+# disclosed rather than silently ignored.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-abb-rtu500-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "ABB AB"
+params:
+  path: "/"
+  https: true
+  credentials:
+    - ["Admin", "Admin"]
+    - ["Operator", "Operator"]
+    - ["Installer", "Installer"]
+    - ["Engineer", "Engineer"]
+    - ["Viewer", "Viewer"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (Admin:Admin, Operator:Operator, Installer:Installer, Engineer:Engineer, Viewer:Viewer) (this device's web UI uses HTTPS — these bytes are only visible on the wire if TLS is terminated/inspected at the monitoring point, not to a passive plaintext capture)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic (QWRtaW46QWRtaW4=|T3BlcmF0b3I6T3BlcmF0b3I=|SW5zdGFsbGVyOkluc3RhbGxlcg==|RW5naW5lZXI6RW5naW5lZXI=|Vmlld2VyOlZpZXdlcg==)"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s) (this device's web UI uses HTTPS — these bytes are only visible on the wire if TLS is terminated/inspected at the monitoring point, not to a passive plaintext capture)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "http://scadasecuritybootcamp.com/SCADA-Default-Password-List.php"
+  - "https://www.manualslib.com/manual/1323862/Abb-Rtu500-Series.html?page=21"
+description: "ABB RTU500 series (now ABB/Hitachi Energy) ships with five factory-default web-UI accounts over HTTPS — Admin/Admin (Administrator role), Operator/Operator, Installer/Installer, Engineer/Engineer, Viewer/Viewer — no CVE, documented factory-default behavior per the official user manual. Units migrated from RTU560 retain their original RTU560 credentials instead, not covered by this check."

@@ -1,0 +1,42 @@
+# Default-credentials sweep, Phase 11. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Sources (2 independent): SCADAPASS, citing the official Advantech EKI-7659C/7657C industrial
+# switch manual; corroborated by an independent WebSearch converging on admin:admin, explicitly
+# noting it applies to both console and web-based access.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-advantech-eki-7659c-7657c-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Advantech Co. Ltd."
+params:
+  path: "/"
+  credentials:
+    - ["admin", "admin"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (admin:admin)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YWRtaW46YWRtaW4="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://advdownload.advantech.com/productfile/Downloadfile5/1-2CM2M7/EKI-7659C_Manual_Ed2.pdf"
+description: "Advantech EKI-7659C/7657C industrial managed switches ship with a factory-default admin/admin web-UI login — no CVE, documented factory-default behavior."

@@ -1,0 +1,48 @@
+# Example target inventory — copy and edit, don't scan straight from this file.
+# Loaded by core/target.py:load_target_inventory(). See 00-PROJECT-CHARTER.md § Scope for the
+# format decision and the credential-handling policy.
+#
+# AUTHORIZED USE ONLY — only list devices you own or have explicit written permission to test.
+#
+# `host:` is one exact IP or FQDN per entry, never a CIDR range. An FQDN is DNS-resolved at
+# connect time and works with no extra config. A range like 192.168.1.0/24 is NOT supported —
+# deliberately, not just unbuilt: 00-PROJECT-CHARTER.md frames this project's inventory model as
+# matching "ICS reality of small known asset lists," not a broad network sweep tool. Handing it a
+# CIDR string won't error explaining why; it'll just be treated as one unresolvable hostname.
+
+targets:
+  # Minimal entry: nothing beyond host is required. No vendor/product hint means
+  # fingerprint_precondition matching relies entirely on active fingerprinting at scan time.
+  - host: 192.168.1.50
+
+  # Full entry: vendor/product hints are a FALLBACK, not an override (core/scan_engine.py:
+  # _apply_vendor_hint_fallback(), added 2026-08-16) — a live OUI/protocol probe is always tried
+  # first, and if it resolves a real vendor, that wins even if it disagrees with the hint below.
+  # The hint only fills in when the live probe finds NOTHING (no MAC in the ARP cache, or a MAC
+  # whose OUI isn't in core/fingerprint.py's curated table) — useful for targets whose vendor you
+  # already know but this project hasn't verified an OUI for yet (several shipped checks carry
+  # exactly this gap, see lab-notes/default-credentials-sweep.md). `version:` still does nothing
+  # — there's no version-range matching in this project at all yet, hint or otherwise.
+  - host: 192.168.1.60
+    port: 502
+    protocol: modbus
+    vendor: schneider-electric
+    product: modicon-m221
+    version: "1.10.2"
+
+  # Entry with a credential reference for auth-requiring checks (e.g. OPC-UA). This is a
+  # REFERENCE, never a plaintext secret — the actual value lives in the keyring backend, set
+  # once via:
+  #   python3 -c "import keyring; keyring.set_password('icsscanner-lab', 'opcua-engineer', 'the-actual-password')"
+  # A `password:`/`secret:`/`token:`/`api_key:` field directly on a target entry is a hard
+  # load-time error (core/target.py:_FORBIDDEN_PLAINTEXT_FIELDS) — this is enforced, not just
+  # documented convention.
+  - host: 192.168.1.70
+    port: 4840
+    protocol: opcua
+    vendor: openplc
+    credential:
+      service: icsscanner-lab
+      username: opcua-engineer
+    metadata:
+      note: "lab OPC-UA server, engineer role for auth-required check content"

@@ -1,0 +1,100 @@
+# PROMOTED 2026-09-14 to checks/vnc/abb-cp600-hmi-vnc-no-authentication-default.yaml, per user
+# BLOCKER TAG (2026-09-22 triage pass): live-hardware-gap -- File explicitly flags a debugger/emulator follow-up as the way to resolve the glossed-over detail, rather than static disassembly alone.
+# request ("add vnc rfb protocol executor") — built this project's first VNC/RFB executor
+# (checks/vnc/native/_rfb_common.py + vnc_no_auth.py + vnc_default_creds.py) to unblock it. This
+# stub is kept for its sourcing history (see below), same convention as every other promoted
+# candidate in this project.
+#
+# Candidate stub — 2026-09-14. User asked to "retry BSPCP600UN30V231 and BSPCP600UN31V231
+# independent of cron now" after an earlier unattended cron firing left these two files
+# genuinely inconclusive (a proprietary, Windows CE-based firmware-update wrapper format around
+# the actual `mainos`/`configos` images this project's RE effort could not fully decode in the
+# time available — see project memory entry -98). NOT executable (no `kind`). Confirmed no prior
+# CP600/VNC candidate/check existed before writing this file (`grep -ril "cp600\|panel
+# builder\|vnc" checks/` returned nothing relevant).
+#
+# WHAT THE RE PASS ESTABLISHED, independent of the finding below (kept for the record): these two
+# BSP packages are for the ABB CP600 range of Windows-CE-based HMI panels (NOT the newer
+# Linux/JMobile-based CP6xx generation already covered by
+# `checks/candidates/abb-cp6xx-jmobile-admin-default-password.yaml` — same physical model numbers
+# [CP604/607/610/etc.] appear in BOTH BSP families' filenames, meaning ABB migrated the same
+# hardware SKUs across two entirely different OS platforms over time; this candidate is about the
+# OLDER Windows CE generation specifically, a materially different finding, not a duplicate).
+# `update.bat`/`autoexec.bat` inside the BSP zip run `OSManager.exe -c configos... -m mainos... -x
+# XLDRNOR... -b uboot...` and directly reference `\Flash\qthmi\HMIce.exe` and `\Flash\qthmi\VNC\
+# VNC.exe` — confirming a Windows CE OS with a bundled VNC server binary. `OSManager.exe` (PE32,
+# Windows CE ARM Thumb) statically links a real zlib inflate() implementation (confirmed via
+# r2 disassembly: the exact verbatim zlib error strings "incorrect header check"/"incorrect data
+# check"/"invalid window size"/"unknown compression method", and a decompressor state-machine
+# whose field-offset access pattern — 0x58/0x5c "window" fields, 0x4000 default window size —
+# matches zlib's own inflate_state struct) — meaning `mainos`/`configos` are a proprietary,
+# non-flat-filesystem, zlib-based NAND-update container, not a simple tar/squashfs/ext4/jffs2/ubifs
+# image (all of which were checked and ruled out via magic-byte search). Locating the exact
+# start-of-compressed-data offset was NOT achieved by direct ARM disassembly of OSManager.exe's
+# generic path/dispatch routine (fcn.0001909c, 1232 instructions, largely unrelated file-path
+# parsing logic) within a proportionate amount of effort — recorded as a genuine RE dead end, not
+# glossed over, in case a future pass wants to pick this up with a debugger/emulator instead of
+# static disassembly.
+#
+# THE ACTUAL FINDING — resolved via ABB's own official documentation instead, which turned out to
+# answer the underlying credential question directly and more authoritatively than firmware RE
+# would have (RE could only reveal whether THIS SPECIFIC SAMPLE has a password set, not ABB's own
+# stated factory-default behavior across the whole product line):
+#   1. ABB Application Note AN00235, "CP600 HMI – Enabling the VNC Server" (Rev A, 2015,
+#      library.e.abb.com/public/44134122d24a4c97ae7cacba6effb7a5/..., fetched and read directly
+#      via pdftotext): "The 'Options' tab allows you to specify security settings, including a
+#      password (which is null by default), that will ensure anyone attempting a VNC client
+#      connection can only do so if they provide the correct credentials. The VNC server uses TCP
+#      port 5900..."
+#   2. ABB Application Note 3ADR011288, "How to use VNC Server" (references "PB610 V4.5.0 AND
+#      CP600 BSP V1.3" — i.e. the SAME BSP generation family as the UN30/UN31 V2.3.1 packages this
+#      pass was investigating; library.e.abb.com/public/4fa75089d73e4c46b978184c9466947f/...,
+#      fetched and read directly via pdftotext), describing the NEWER "System Settings > Services
+#      > VNC Service" configuration path (superseding the older Panel-Builder-project-property
+#      method AN00235 describes): "Set the 'Enable' and 'Autostart' to activate the VNC Server. By
+#      default, the port is 5900 and authentication is disabled." The same document explicitly
+#      states VNC itself defaults to OFF/Disabled out of the box, and recommends disabling it "if
+#      it is not required" — i.e. ABB's own documentation acknowledges the risk but ships the
+#      insecure default anyway once an integrator turns the feature on, rather than defaulting to
+#      secure-when-enabled.
+# TWO INDEPENDENT OFFICIAL ABB DOCUMENTS, describing TWO DIFFERENT configuration UI generations,
+# BOTH confirm the same underlying behavior — this is not a one-off oversight in a single
+# document, and the behavior has persisted across at least one BSP generational change.
+#
+# NET EFFECT: a genuinely common, documented, intended remote-access feature (VNC, TCP 5900) on
+# real, currently-fielded ABB CP600 industrial HMI panels — when enabled by an integrator, a
+# realistic and common configuration choice given the feature's entire purpose is to grant remote
+# view/CONTROL access to the live operator interface — ships with NO PASSWORD and NO
+# AUTHENTICATION by default. Unlike most default-credential findings in this sweep, there is no
+# username/password pair to guess here: standard RFB/VNC protocol negotiation with "None" as the
+# security type is sufficient, if the server is running with its shipped defaults.
+#
+# NOT YET BUILDABLE: this project has no VNC/RFB protocol executor (`checks/` has no `vnc/`
+# directory at all). Building this would need a small RFB handshake client (protocol version
+# negotiation + security-type negotiation, confirming the server offers/accepts security-type
+# "None" per RFC 6143) — a real, scoped, net-new protocol implementation, not a params-only reuse
+# of an existing module. No fingerprint_precondition beyond vendor/product is proposed here since
+# CP600's own network identity (a distinctive banner/port signature reachable via a fingerprint
+# probe) was not independently established this pass.
+
+check_id: candidate-abb-cp600-hmi-vnc-no-authentication-default
+protocol: vnc
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "ABB"
+  product: "CP600"
+references:
+  - "ABB Application Note AN00235, \"CP600 HMI – Enabling the VNC Server\" (Rev A, 2015) — library.e.abb.com/public/44134122d24a4c97ae7cacba6effb7a5/AN00235-CP600_HMI_Enabling_the_VNC_Server_Rev_A_EN.pdf, fetched and read directly via pdftotext"
+  - "ABB Application Note 3ADR011288, \"How to use VNC Server\" — library.e.abb.com/public/4fa75089d73e4c46b978184c9466947f/Application Note 3ADR011288.pdf, fetched and read directly via pdftotext, describes the newer System Settings > Services > VNC Service configuration path for CP600 BSP V1.3-generation firmware"
+description: >
+  ABB CP600 industrial HMI panels (Windows CE-based generation, e.g. CP604/607/610 and siblings —
+  a different OS platform from the newer Linux/JMobile CP6xx generation already covered elsewhere
+  in this sweep) support an optional, commonly-used VNC remote-access server (TCP port 5900) that
+  ships with NO PASSWORD and NO AUTHENTICATION enabled by default once activated — confirmed
+  directly, independently, in TWO separate official ABB application notes describing two different
+  BSP-generation configuration UIs (Panel Builder project properties in the older generation;
+  System Settings > Services in the newer BSP V1.3 generation, the same family as the
+  BSPCP600UN30V231/UN31V231 packages that prompted this investigation). ABB's own documentation
+  recommends disabling VNC if not required, acknowledging the risk rather than shipping a secure
+  default. Not yet buildable: this project has no VNC/RFB protocol executor.

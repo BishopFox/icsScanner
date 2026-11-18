@@ -1,0 +1,26 @@
+# Candidate stub — bonus find while researching Wonderware (Phase 5), same
+# w3h/icsmaster CSV fetch. Distinct from CVE-2010-2772 (checks/candidates/
+# CVE-2010-2772-siemens-wincc.yaml, which is about a hardcoded MSSQL backend credential) — this
+# is WinCC's own APPLICATION-level login layer. NOT executable (no `kind`).
+
+check_id: candidate-siemens-wincc-7x-application-login-default
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Siemens AG"
+references:
+  - "https://raw.githubusercontent.com/w3h/icsmaster/master/Scada_Password.csv"
+  - "http://www.toolswatch.org/2013/02/new-scada-default-passwords-added-to-dpe-xml-database/"
+description: >
+  Siemens WinCC 7.x application-level default logins (confirmed via w3h/icsmaster's
+  Scada_Password.csv, itself citing toolswatch.org's DPE-XML SCADA default-password database):
+  winccd:winccpass, wincce:winccpass, DMUser:Data&Pass, Administrator:Administrator.
+  Same open question as Wonderware InTouch (checks/candidates/wonderware-intouch-native-
+  security-default.yaml): WinCC is a Windows HMI/SCADA application, not a network device with an
+  obvious management port. WinCC has network-facing components (WebNavigator web client, DCOM/
+  OPC-based remote access) but which of these, if any, presents this specific application login
+  remotely was not confirmed in this pass. Source tier is lower than most of this sweep's
+  built checks (a community CSV citing a 2013 third-party database, not a CISA/NVD/vendor
+  primary source) — treat with extra skepticism even once the network-surface question is
+  resolved.

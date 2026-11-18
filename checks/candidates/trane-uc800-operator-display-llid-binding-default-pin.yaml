@@ -1,0 +1,98 @@
+# Candidate stub — 2026-09-14. User asked for an in-depth review of the Trane files that had
+# turned up mixed into a Bosch Rexroth firmware batch, plus any other not-yet-opened ingest
+# files. Trane Technologies Company LLC — a real, unrelated vendor from the rest of this batch,
+# confirmed via NSIS installer branding strings ("TRANE TECHNOLOGIES COMPANY LLC") in
+# 62000528-RTAE-Firmware-3.11.exe / -3.15_SIGNED.exe. New vendor for this project. NOT executable
+# (no `kind`). Confirmed no prior Trane candidate/check existed before writing this file.
+#
+# THE PACKAGE: both RTAE firmware .exe files are NSIS installers unpacking to a versioned
+# `62000528/<version>/` tree (11 versions bundled, 1.03 through 3.15) — a real Trane "UC800"
+# unit-controller software/configuration package for their air-cooled chiller product line
+# (confirmed directly: `ICS/equipment.role`'s own content names
+# `equipmentType="Chiller/RTAE_ACRA"` / `traneID="UC800_RTAE_ACRA"`). Application logic itself
+# (`Application/6200-0529-*.uc8`) is genuinely encrypted (entropy 8.0 uniformly, "Tranesig"-style
+# vendor-signed binary elsewhere in this same batch — see below) — not pursued, matches this
+# project's standing practice of noting real encryption and stopping rather than attempting to
+# break it.
+#
+# THE FINDING, directly confirmed by extracting and reading the bundled front-panel "Operator
+# Display" web UI (`DisplayFiles/6200-0625-*.zip`, a real HTML/JS bundle, "Trane Operator
+# Display" per its own <title>):
+#   `uidata/default/odSecurity-odSecurity_default.xml` (literally the "_default" UI-data profile)
+#   contains, verbatim:
+#     <obj is="trane:OD/ui/odSecurityFeature_v1/">
+#       <str name="featureName" val="LLIDBinding" />
+#       <str name="password" val="2718" />
+#     </obj>
+#   A hardcoded 4-digit PIN ("2718") gating the "LLIDBinding" feature — LLID = LonWorks Local ID;
+#   this same package bundles a separate `Llids/LLIDs.zip` + `Profiles.xml`, confirming LLID
+#   binding is the LonWorks fieldbus device-commissioning/network-binding function for this
+#   chiller's control network. `SecurityController.js` (also bundled, read directly) confirms a
+#   real keypad-style login flow (`showLoginKeypad`, `GenericKeypad.AUTHORIZATION`) gates this and
+#   other settings pages.
+#
+# SCOPE — genuinely NOT a network-reachable finding, checked directly rather than assumed either
+# way: `share/platform/assets/javascript/com/localserver/LocalServer.js` (also bundled) hardcodes
+# `HOST_ADDRESS: "http://127.0.0.1:8080"` for every backend call this UI makes (get_data,
+# set_data, hw_reset, flush, etc.) — this is a LOOPBACK-ONLY local API, confirming the "Operator
+# Display" bundle is a kiosk-style UI meant to run IN A BROWSER ON THE PHYSICAL TOUCHSCREEN
+# ITSELF (the controller's own local display hardware), talking to its own local backend — not a
+# web app served out over the network to a remote browser. A remote client requesting this same
+# HTML would have no local :8080 backend to call against. This is a genuine, checked conclusion,
+# not a guess: the finding is a FRONT-PANEL TOUCHSCREEN PIN, out of this project's active-network-
+# scanner charter by construction, same category as this project's existing physical_access_
+# reference entries (e.g. the SIMATIC FDE Gateway Wi-Fi/serial-password candidate).
+#
+# NOT BUILDABLE AS A NETWORK CHECK, and never will be for this specific mechanism — belongs in
+# the Field Reference tab (physical_access_reference field) as a genuinely useful on-site-
+# technician reference, not a checks/ or scripts/safety_critical/ entry.
+#
+# OTHER FILES REVIEWED THIS SAME PASS, briefly, all clean negatives or already-covered patterns:
+#   - The 4 .scfx chiller-config files (WaterCooledCentrifugal x2, AirCooledRotary, AirCooledScroll,
+#     ~100-110MB each) are ALL genuinely, uniformly encrypted (entropy 8.0 checked at start/
+#     middle/end of each file, not just a truncated sample) — a distinctive "Tcrp...Tranesig"
+#     signed-container format. Not pursued, same standing practice as SCALANCE S615.
+#   - `Firmware_V261002.zip` — NOT a stray different vendor as first suspected from the unusual
+#     "OPERATOR22"/"OPEXwin" naming: confirmed Bosch Rexroth via the bundled MSI's own embedded
+#     manufacturer string ("Manufacturer: Bosch Rexroth AG", "C:\REXROTH\..."). Its WiFi module
+#     firmware (`gwk_line_5.10.0.0C105.0.signed.oem.rom`) is a rebranded Lantronix xPico Wi-Fi
+#     module (confirmed via embedded build-path strings, "C:/Users/.../Xpico_win/..." and literal
+#     "(Lantronix)" version-string markers) — genuinely NOT a default-credential gap: its own
+#     compiled-in UI strings explicitly enforce a forced default-password change ("Only changing
+#     the default admin password is allowed during the initial setup", EN 18031/EU RED compliance
+#     language) — a hardened, not vulnerable, build. A clean negative, not a guess.
+#   - `Firmware_2.11.0.zip` (2 raw ARM Cortex-M `.bin` images, no filesystem/OS) — also Bosch
+#     Rexroth (one embedded "boschrexroth.com" string, no other vendor/product identifying
+#     strings at all) — bare-metal firmware with no discoverable network-facing surface; a dead
+#     end, not pursued further.
+#   - `SL_SI-WARNUNG_5.zip` / `SL-CSoS_EA_SI-Warnung.zip` — customer safety-warning-letter PDFs
+#     (same category as the already-reviewed SL_SI-WARNUNG_4.zip), not firmware.
+#   - `Multi_Pump_watersupply_01V02.zip`, `Firmware_HydraulicDrive_HDE_20V20.zip`,
+#     `System350_V2.500_SP5.zip` — all match already-established Bosch Rexroth no-finding formats
+#     from this same sweep (opaque `.ibf`/`.elx` drive firmware, a Windows config-tool installer)
+#     — not independently re-verified in further depth this pass, consistent with the prior
+#     spot-check discipline for this format class.
+
+check_id: candidate-trane-uc800-operator-display-llid-binding-default-pin
+protocol: local-only
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Trane Technologies"
+  product: "UC800"
+references:
+  - "Trane's own official firmware/software download package (user-supplied): 62000528-RTAE-Firmware-3.15_SIGNED.exe, DisplayFiles/6200-0625-03-00.zip -> uidata/default/odSecurity-odSecurity_default.xml"
+physical_access_reference:
+  summary: "Trane UC800 chiller unit controllers (RTAE_ACRA and likely sibling equipment-role variants) ship with the front-panel 'Operator Display' touchscreen's LLID (LonWorks) network-binding feature gated by a hardcoded default 4-digit PIN, 2718, found in the shipped default UI-data profile."
+  steps:
+    - "Locate the physical Operator Display touchscreen on the chiller unit."
+    - "Navigate to the settings/security-gated page that triggers the LLIDBinding feature (LonWorks network commissioning)."
+    - "At the keypad login prompt, enter PIN 2718."
+    - "If unchanged from factory default, this grants access to reconfigure the unit's LonWorks control-network binding from the front panel."
+description: >
+  Trane UC800-series chiller unit controllers (confirmed for the RTAE_ACRA equipment role) ship
+  with the front-panel Operator Display's "LLIDBinding" (LonWorks network-binding) feature gated
+  by a hardcoded default PIN, "2718", found directly in the vendor's own shipped default UI-data
+  profile (odSecurity-odSecurity_default.xml). Confirmed to be a physical touchscreen-only
+  mechanism (the UI's own backend calls are hardcoded to loopback 127.0.0.1:8080), not a network-
+  reachable web login — recorded as a Field Reference physical-access item, not a network check.

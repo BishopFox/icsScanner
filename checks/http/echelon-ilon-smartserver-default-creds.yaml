@@ -1,0 +1,46 @@
+# Default-credentials sweep, Phase 12. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor. Sibling:
+# checks/ftp/echelon-ilon-smartserver-default-creds.yaml (same credential, FTP variant).
+#
+# Covers i.LON SmartServer, i.LON SmartServer 2.0, i.LON 600, i.LON 100e4 (LonWorks/IP building
+# energy management servers) — ilon:ilon per two of SCADAPASS's own rows for this family.
+#
+# Sources (2 independent): SCADAPASS, citing the official Echelon-hosted i.LON SmartServer
+# Freely Programmable Modules User Guide; corroborated by a dedicated Darius Freamon post
+# specifically titled "Echelon i.LON defaults."
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-echelon-ilon-smartserver-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Echelon Corp."
+params:
+  path: "/"
+  credentials:
+    - ["ilon", "ilon"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (ilon:ilon)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic aWxvbjppbG9u"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://dariusfreamon.wordpress.com/2013/05/10/echelon-i-lon-defaults/"
+description: "Echelon i.LON SmartServer/i.LON 600/i.LON 100e4 (LonWorks/IP building energy management) ship with a factory-default ilon/ilon web-UI login — no CVE, documented factory-default behavior."

@@ -1,0 +1,53 @@
+# Default-credentials sweep, Phase 22 — scadasecuritybootcamp.com credential-list triage.
+# Uses the generic checks/http/native/basic_auth_default_creds.py executor.
+#
+# A DIFFERENT PowerLogic model from the sibling EGX200/EGX400 lead (see
+# checks/candidates/schneider-powerlogic-egx200-egx400-password-only.yaml) — EGX100 genuinely
+# uses a username:password scheme, confirmed by Schneider Electric's OWN official FAQ, the
+# strongest corroboration tier this sweep uses (same pattern as eWON/LOYTEC's own security docs).
+#
+# Sources (3 independent, one being Schneider's own): scadasecuritybootcamp.com;
+# Schneider Electric's own FAQ (se.com/us/en/faqs/FA299649, "What are the default User name and
+# Password for the EGX, Link, and Com'X gateway devices?"); the official EGX100 User Guide
+# (schneider-electric.com, doc ref 63230-319-204).
+#
+# No CVE — documented factory-default behavior.
+#
+# UPDATE 2026-08-17: the SAME Administrator/Gateway credential independently corroborated for a
+# completely different service on this device — FTP (port 21), via Schneider's own support FAQ
+# FA212757 (real captured FTP session). See checks/ftp/schneider-powerlogic-egx100-ftp-default-creds.yaml.
+
+check_id: http-schneider-powerlogic-egx100-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["Administrator", "Gateway"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (Administrator:Gateway)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic QWRtaW5pc3RyYXRvcjpHYXRld2F5"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "http://scadasecuritybootcamp.com/SCADA-Default-Password-List.php"
+  - "https://www.se.com/us/en/faqs/FA299649/"
+  - "https://download.schneider-electric.com/files?p_Doc_Ref=63230-319-204"
+description: "Schneider Electric PowerLogic Ethernet Gateway EGX100 ships with a factory-default Administrator/Gateway web-UI login, per Schneider's own FAQ — no CVE, documented factory-default behavior."

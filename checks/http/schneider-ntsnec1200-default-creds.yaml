@@ -1,0 +1,47 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ FAQ000272986 ("What is the
+# default user name and password for the Edge I/O network interface module NTSNEC1200?")
+# directly. Brand-new product for this project: NTSNEC1200, an "Edge I/O" network interface
+# module.
+#
+# Default: SecurityAdmin:AAAAAAAA — the SAME credential pair independently found on the IFE
+# Module's firmware v4/5 (checks/http/schneider-ife-module-default-creds.yaml), a real
+# cross-product corroboration of this specific scheme within Schneider's product line.
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention — this
+# FAQ does not state an explicit "Environment" field, but the identical credential pair on the
+# IFE Module is documented there as a Web Server/webpage login.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-ntsnec1200-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["SecurityAdmin", "AAAAAAAA"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory credential (SecurityAdmin:AAAAAAAA) for the NTSNEC1200 Edge I/O module"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic U2VjdXJpdHlBZG1pbjpBQUFBQUFBQQ=="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ FAQ000272986, \"What is the default user name and password for the Edge I/O network interface module NTSNEC1200?\" (user-supplied)"
+description: "Schneider Electric NTSNEC1200 Edge I/O network interface module ships with a factory-default webpage login of SecurityAdmin:AAAAAAAA — the same credential pair independently confirmed on the IFE Module's firmware v4/5. No CVE, documented factory-default behavior per Schneider's own FAQ."

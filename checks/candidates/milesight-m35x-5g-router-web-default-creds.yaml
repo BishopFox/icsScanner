@@ -1,0 +1,54 @@
+# Candidate stub — 2026-10-16, Downloads PDF docscan sweep (sidecar scan_source_file over the
+# Milesight M350/M351-5G router manuals: QIG-M350-v1-20210820, User-Manual-M351-5G-v1-01-250327,
+# Quick-Installation-Guide-M351-5G-v1-02-250318, Datasheet-M351-5G). NOT executable (no `kind`).
+#
+# CONFIRMED (Milesight's own manuals, read via pdftotext): the Milesight M350 / M351-5G industrial
+# cellular routers ship a documented default web login — username `root`, password `2wsx#EDC`, at
+# default URL http://192.168.1.1. Also documented: default Wi-Fi WPA passphrase `12345678`, and a
+# default IPsec PSK for the PSK connection profile. Public, vendor-documented factory default (the
+# QIG explicitly instructs changing it on first login) — the Moxa/WAGO/iSMA-decline bucket
+# (documented default, NOT a CVE), same disposition as the other documented-default checks.
+#
+# FINGERPRINT GATE — RESOLVED 2026-10-19: now gated on protocol_probe milesight_router_identity
+# (core/fingerprint.py), a remote-capable active probe grounded on CVE-2023-43261 (VulnCheck's
+# public PoC): the Milesight/Ursalink router httpd answers an UNAUTHENTICATED GET /login over TLS
+# with a distinctive JSON envelope ({"model":"UR35","rtver":"35.2.0.10","oem":...,
+# "result":[{"login":"false",...}]}). This replaces the old bare `vendor: "Milesight"` gate (which
+# was OUI-only / not remote-capable) with a specific, router-only identity test.
+#
+# STILL-OPEN blockers (not a disclosure gate — do NOT ship as a guess):
+#  1. LOGIN REQUEST SHAPE — REFRAMED by CVE-2023-43261 (was "unknown HTML form field names"): the
+#     leaked httpd.log payload shows the router web login is a JSON API call, not a classic form:
+#       {"core":"user","function":"login","values":{"username":"<u>","password":"<p>"}}
+#     This points at checks/http/native/json_rest_login_default_creds.py rather than
+#     form_post_default_creds.py. BUT the exact HTTP endpoint path + method that carries this payload
+#     is NOT confirmed by the public writeup (it only quoted the log line, not the request). The
+#     (ZipCrypto-encrypted) router.tar web tree would confirm the endpoint — decrypt still pending.
+#  2. The M35x also exposes SSH v2 and Telnet (User-Manual §SSH p89 / §Telnet p90), but whether
+#     those accept the SAME root/2wsx#EDC is UNCONFIRMED — a shared web credential string is not
+#     proof the SSH/CLI login uses it (feedback_verify_wire_format_per_product). If confirmed, the
+#     SSH path is the cleaner arm (ssh_default_creds, unambiguous — no login-endpoint problem).
+#
+# BUILDABLE once ANY of: (a) the JSON login endpoint path+method is confirmed (router.tar www, live
+# device, or page source) -> json_rest_login_default_creds.py; or (b) SSH is confirmed to accept
+# root/2wsx#EDC -> ssh_default_creds. Fingerprint gate is now in place. Not disclosure-worthy
+# (documented default). See reference_downloads_pdf_documented_defaults (memory) for the PDF sweep.
+check_id: candidate-milesight-m35x-5g-router-web-default-creds
+protocol: http
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  protocol_probe: "milesight_router_identity"
+references:
+  - "Milesight M350/M351-5G QIG + User Manual + Quick Installation Guide + Datasheet (user-supplied local copies, read via pdftotext 2026-10-16)"
+  - "CVE-2023-43261 (VulnCheck write-up) — Milesight/Ursalink UR5X/UR32/UR35/UR41 router httpd: unauthenticated GET /login discloses model/rtver JSON; login is a JSON API ({core:user,function:login,values:{username,password}})"
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+description: >
+  Milesight M350 / M351-5G industrial cellular routers ship a documented default web login
+  (username `root`, password `2wsx#EDC`, http://192.168.1.1), plus a default Wi-Fi passphrase
+  `12345678` and a default IPsec PSK — confirmed from Milesight's own manuals. Public vendor-
+  documented factory default (not a CVE). Fingerprint gate is now in place (protocol_probe
+  milesight_router_identity, grounded on CVE-2023-43261). Not yet armed: the JSON login endpoint
+  path+method is not confirmed from the public writeup, and the SSH/Telnet paths' acceptance of the
+  same credential is unverified. Buildable once the JSON login endpoint is confirmed
+  (json_rest_login_default_creds) OR SSH-credential reachability is confirmed (ssh_default_creds).

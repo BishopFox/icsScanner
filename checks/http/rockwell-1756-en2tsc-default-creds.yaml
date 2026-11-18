@@ -1,0 +1,45 @@
+# Default-credentials sweep, Phase 8 — surfaced by the SCADAPASS cross-reference against
+# Rockwell (already "closed out" in Phase 2). Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Sources (2 independent): SCADAPASS, citing the official Rockwell 1756-ENET/1756-EN2* user
+# manual (literature.rockwellautomation.com/idc/groups/literature/documents/um/enet-um003_-en-p.pdf
+# — not text-extractable in this environment, no PDF library installed, treated as cited-not-
+# read); corroborated by an independent WebSearch converging on the same Administrator/admin pair
+# for this exact model.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-rockwell-1756-en2tsc-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Rockwell Automation"
+params:
+  path: "/"
+  credentials:
+    - ["Administrator", "admin"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (Administrator:admin)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic QWRtaW5pc3RyYXRvcjphZG1pbg=="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "http://literature.rockwellautomation.com/idc/groups/literature/documents/um/enet-um003_-en-p.pdf"
+description: "1756-EN2TSC EtherNet/IP communication module ships with a factory-default Administrator/admin web-UI login — no CVE, documented factory-default behavior."

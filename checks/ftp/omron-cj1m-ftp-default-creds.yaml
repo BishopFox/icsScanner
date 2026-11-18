@@ -1,0 +1,57 @@
+# Default-credentials sweep, Phase 9 candidate PROMOTED 2026-08-19. User supplied Omron's own
+# official "CJ-Series CPU Units with Ethernet Functions Operation Manual" (W441, read directly
+# via pdftotext). Resolves the original ambiguity: the manual's own "Ethernet Functional Element
+# Memory Allocations" default-settings table gives, for FTP: "Login: None" / "Password: None
+# ('CONFIDENTIAL')" / "Port No.: 0 (Number 21 is used.)" — i.e. a genuinely BLANK username (not
+# "anonymous"), authentication purely via the password "CONFIDENTIAL". Same mechanism shape
+# already solved by checks/ftp/native/ftp_blank_username_default_creds.py (built for the
+# Schneider PowerLogic EGX400 family) — reused directly, no new module needed.
+#
+# NOTE: the manual gives NO separate confirmation this default password gates read vs. write
+# access to the CPU Unit's file memory, and it's the ONLY FTP account documented (no separate
+# admin/operator tier the way some other checks in this project have) — treated as a single-tier
+# credential.
+#
+# HTTP half of the original candidate is a SEPARATE finding (default password "ETHERNET",
+# form-based web login, not FTP) — NOT resolved by this promotion, see the candidate file (now
+# scoped to HTTP only).
+
+check_id: ftp-omron-cj1m-default-creds
+protocol: ftp
+kind: native
+module: checks.ftp.native.ftp_blank_username_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "Omron Corporation"
+params:
+  passwords:
+    - "CONFIDENTIAL"
+  default_port: 21
+detection_hints:
+  transport: tcp
+  app_protocol: ftp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own FTP login attempt against Omron CJ1M using a blank username and the documented factory password"
+    patterns:
+      - context: request
+        regex: "^USER \\r\\n"
+      - context: request
+        bytes: "PASS CONFIDENTIAL\r\n"
+  broad:
+    description: "Any FTP login attempt using a completely blank username — the vulnerability class (a device-specific credential shape rarely seen outside factory-default configurations), not the specific CONFIDENTIAL password"
+    patterns:
+      - context: request
+        regex: "^USER \\r\\n"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "W441 — Omron's own official CJ-Series CPU Units with Ethernet Functions Operation Manual, user-supplied local copy"
+description: >
+  Omron CJ1M CPU Units with Ethernet Functions ship with FTP server access (port 21) via a blank
+  username and factory-default password "CONFIDENTIAL" — confirmed directly from Omron's own
+  official Operation Manual (W441)'s Ethernet Functional Element default-settings table. No CVE —
+  documented factory-default behavior, not a disclosed vulnerability.

@@ -1,0 +1,31 @@
+# Candidate stub — 2026-08-25. User supplied Schneider FAQ "How to access the web interface of
+# APC by Schneider Electric Dry Contact I_O (AP9614)" directly. NOT executable (no `kind`).
+#
+# What's confirmed: the AP9614 Dry Contact I/O card's web interface has a factory-default login
+# of apc:apc (HTTP only, no HTTPS support, changed on first login).
+#
+# What's blocking it: the FAQ's own step 1 requires physically connecting the card to a PC "by
+# using supplied USB cable" and confirming a "Remote NDIS Compatible Device" network adapter
+# appears — the web UI is reached at a fixed link-local address (169.254.111.222) over that
+# USB-tethered virtual NIC, not over a normal routable Ethernet connection. Same
+# out-of-scope-for-remote-network-scanning shape this project already ruled on for the NetBotz v3
+# local-USB-serial console (apc-netbotz-300-500-root-default-creds.yaml, resolved out of scope
+# 2026-08-25) — a genuine finding, but not one this scanner's remote-network architecture can
+# reach.
+#
+# Action needed: none expected — this is a documented dead end for this project's scanning model,
+# not a pending research item. Kept as a candidate for completeness/audit trail only.
+
+check_id: candidate-apc-ap9614-usb-rndis-default-creds
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_only: true
+references:
+  - "Schneider Electric FAQ, \"How to access the web interface of APC by Schneider Electric Dry Contact I_O (AP9614)\" (user-supplied)"
+description: >
+  APC by Schneider Electric AP9614 Dry Contact I/O card has a factory-default web UI login of
+  apc:apc, but the web UI is only reachable over a physical USB-RNDIS tether to a fixed
+  link-local address — not over a normal routable network connection. Out of scope for this
+  project's remote-network-scanning architecture; not built. See this file's own header comment.

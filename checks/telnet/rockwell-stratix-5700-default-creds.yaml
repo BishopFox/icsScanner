@@ -1,0 +1,49 @@
+# Default-credentials sweep, Phase 2 (Rockwell). Uses the generic
+# checks/telnet/native/telnet_default_creds.py executor with the new password_only mode (added
+# 2026-08-14 specifically for this check — Stratix is Cisco-IOS-lineage, line-password login,
+# no username prompt at all).
+#
+# Sources (verified 2026-08-14, cross-checked across two independent articles, not a single
+# search summary — per this session's own "Basisk" lesson): theautomationblog.com's "Setting the
+# Password in Your Stratix Switch" (fetch blocked by a 403, but corroborated independently by:)
+# plcgurus.net's "Stratix 5700 Express Setup: The Ultimate Guide", fetched directly, which states
+# the default username is blank and the default password is "switch." — trying both "switch" and
+# "switch." (with the trailing period) since the source text's punctuation is ambiguous about
+# whether the period is part of the password or just sentence-ending punctuation.
+
+check_id: telnet-rockwell-stratix-5700-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Rockwell Automation"
+references:
+  - "https://www.plcgurus.net/stratix-5700-express-setup/"
+  - "https://theautomationblog.com/setting-the-password-in-your-stratix-switch/"
+params:
+  password_only: true
+  credentials:
+    - ["", "switch"]
+    - ["", "switch."]
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet password-only (no username exchange) login attempt(s) using the documented factory credential(s) ('':switch, '':switch.)"
+    patterns:
+      - context: request
+        regex: "switch\\r\\n|switch\\.\\r\\n"
+  broad:
+    description: "Any single-token password sent immediately after connecting with no username exchange — the vulnerability class (this device's line-password Telnet login model), not the specific guessed password(s)"
+    patterns: []  # generic "any-line" pattern removed 2026-11-11 (real-traffic validation); no device-specific signature beyond the narrow probe/credential bytes. See lab-notes/zeek-detection-validation-pnnl-2026-11.md
+description: >
+  Stratix 5700 industrial Ethernet switches (Rockwell-branded, Cisco IOS under license) ship
+  with a factory-default line password for Telnet/CLI access — blank username, password
+  "switch" (trailing period ambiguity in the source noted, both variants tried). No CVE —
+  documented factory-default behavior, not a separate vulnerability advisory.

@@ -1,0 +1,77 @@
+# Candidate stub — 2026-11-09, dam-lock-scada-sweep-2026-11.md (Dams-sector gap, strongest net-new
+# lead). NOT executable (no `kind`). Deconfliction: no prior VTScada/Trihedral candidate or check
+# existed anywhere in this project before writing this file.
+#
+# TARGET: Trihedral VTScada (water/dam-focused SCADA HMI; now AVEVA). Its built-in "Internet Server" /
+# Thin-Client / "VTScada Anywhere" web interface is routinely exposed to the network and is
+# remotely fingerprint-able via its browser login page. Vendor documentation states the Thin-Client
+# login transmits the account name and password as Base64 (HTTP Basic) and that "the login is the sole
+# protection afforded to a VTScada Thin Client Server from unauthorized access."
+#
+# WHY IT MATTERS (public CVE anchors — the exposure is a documented class, so disclosure_status:public):
+#   - CVE-2016-4532 (ICSA-16-159-01): UNAUTHENTICATED path traversal -> arbitrary file read (8.x < 11.2.02).
+#   - CVE-2016-4523 (ICSA-16-159-01): WAP-interface DoS -- listed in the CISA KEV catalog (added 2022-04-15).
+#   - CVE-2022-3181 (ICSA-22-300-04): crafted HTTP request crashes VTScada (unauth DoS, CVSS 7.5; LAN +
+#     internet-facing both affected).
+# A benign identity probe that confirms a VTScada Internet Server is reachable also flags an instance in
+# the CVE-affected class (version-gated), same shape as the CODESYS-WebVisu / Node-RED unauth-exposure
+# checks. The probe must be READ-ONLY (an unauthenticated GET of the login page) and must NEVER exercise
+# the CVE-2016-4532 traversal or any DoS.
+#
+# FIRMWARE ACQUIRED, NOT EXTRACTABLE (2026-11-09): user supplied the VTScada 12.3.01 trial
+# (VTScada.zip -> VTScadaSetup.exe, 222 MB). It is a Trihedral-custom
+# NSIS self-extractor ("Nullsoft Install System vTrihedral-3.11.0.1", 7z reports "NSIS-3 BadCmd=13")
+# that 7z, unblob, and binwalk ALL fail to unpack (0 files); the LZMA payload makes raw strings useless.
+# WINE RUN ATTEMPTED (4x, headless Xvfb + wine 9.0): the installer IGNORES /S and /D silent flags and
+# runs an interactive wizard + inner driver sub-installers; best result was ~1724 prerequisite/driver
+# files (Brand.dll, modem TSP) but the MAIN runtime (Program Files\Trihedral\VTScada\...\VTScada.exe,
+# which generates the web UI + emits the HTTP banner) never extracted before timeout, and GUI
+# auto-advance (xdotool) crashed. RESOLVED 2026-11-10: the installer bundles the Microsoft Edge
+# WebView2 Runtime bootstrapper, which int3-crashes under Wine and blocked the install. Planting the
+# WebView2 "already installed" marker (HKLM\...\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}
+# pv=120.x) let the install complete over VNC, and the runtime landed at
+# C:\Program Files\Trihedral\VTScada\VTScada\VTS.exe.
+#
+# IDENTITY SIGNAL PINNED FROM THE ARTIFACT (strings of VTS.exe, VTScada 12.3.01): the VTScada web
+# server emits `Server: VTScada` and a versioned `Server: VTS/<version> (OrLater)` response header,
+# plus a distinctive CORS header `Access-Control-Allow-Headers: AppGUID, Realm, Content-Type,
+# Cache-Control, Sequence, Session-ID, X-VTScadaAuth` (and uses HTTP Basic / WWW-Authenticate,
+# matching the docs). These are verbatim strings, not recalled.
+#
+# PROBE BUILT (2026-11-10): core/fingerprint.py probe_vtscada_http_identity -- unauthenticated
+# read-only GET /, confidence=high on the `Server: VTScada`/`VTS/<ver>` header or the X-VTScadaAuth
+# CORS marker; parses the version; registered in PROTOCOL_PROBES + discovery port 80. Smoke test
+# tests/smoke_test_vtscada_http_identity.py. Port is configurable so the probe keys on the header.
+#
+# REMAINING for the armed CHECK (why this is still a candidate, not an armed check): decide the
+# detection shape. probe_vtscada_http_identity already extracts the version, so the clean next step is
+# a version-gated exposure check -- flag an exposed VTScada Internet Server whose `Server: VTS/<ver>`
+# falls in a CVE-affected range (e.g. 8.x < 11.2.02 for CVE-2016-4532/-4523; the CVE-2022-3181 range).
+# The check is a benign READ-ONLY confirmation of exposure + version; it must NEVER exercise the
+# CVE-2016-4532 traversal or any DoS. A final sanity-check against a live VTScada HTTP response (the
+# Wine VTS.exe GUI does not run headless, so the server was not driven live) is advisable before arming.
+
+check_id: candidate-trihedral-vtscada-internet-server-unauthenticated-exposure
+protocol: http
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_probe: "vtscada_http_identity"
+references:
+  - "Trihedral VTScada, ICSA-16-159-01 (CVE-2016-4532 unauth path-traversal file read; CVE-2016-4523 WAP DoS, CISA KEV 2022-04-15): https://www.cisa.gov/news-events/ics-advisories/icsa-16-159-01"
+  - "Trihedral VTScada, ICSA-22-300-04 (CVE-2022-3181 unauth HTTP crash, CVSS 7.5): https://www.cisa.gov/news-events/ics-advisories/icsa-22-300-04"
+  - "VTScada Thin Client / Internet Client docs (login = HTTP Basic/Base64, 'sole protection'; ports 80/443, configurable): https://www.vtscada.com/help/Content/D_Internet/Dev_GeneralVTSIS_steps.htm"
+  - "Identity signal grounded in the artifact: VTScada 12.3.01 runtime VTS.exe emits `Server: VTScada` / `Server: VTS/<version> (OrLater)` + the X-VTScadaAuth CORS header (strings-extracted via a Wine install; see dam-lock-scada-sweep-2026-11.md). core/fingerprint.py probe_vtscada_http_identity consumes these."
+  - "Public detection prior-art: KittySploit 'VTScada - Internet Client Panel Detection' (KS:SCANNER-HTTP-VTSCADA_DETECT)."
+description: >
+  Trihedral VTScada's built-in Internet Server / Thin-Client ("VTScada Anywhere") web interface is
+  commonly network-exposed (municipal water + dam SCADA); vendor docs state the login is HTTP Basic
+  (Base64) and the sole access protection. The exposure class carries public unauthenticated CVEs --
+  CVE-2016-4532 (path-traversal arbitrary file read), CVE-2016-4523 (WAP DoS, in CISA KEV),
+  CVE-2022-3181 (HTTP crash, 7.5). The identity probe (probe_vtscada_http_identity) is BUILT and
+  grounded on the VTScada 12.3.01 runtime binary's own `Server: VTScada`/`VTS/<version>` header +
+  X-VTScadaAuth CORS marker; it parses the version. This candidate is the armed EXPOSURE CHECK that
+  would gate on that probe: a benign READ-ONLY confirmation that an exposed VTScada Internet Server
+  runs a CVE-affected version (version-gated, CODESYS-WebVisu / Node-RED shape). Still a candidate
+  pending the detection-shape decision (version-range gating) and a live-response sanity check; it
+  must NEVER exercise the traversal or any DoS.

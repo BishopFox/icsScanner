@@ -1,0 +1,49 @@
+# Default-credentials sweep, Phase 9. PRIMARY-SOURCE CONFIRMED — the plcscan.org blog post
+# SCADAPASS cites was fetched and read directly (Chinese-language, translated in this check's
+# research): the researcher, testing real HollySys LK-series hardware, found the PLC's FTP
+# service accepts anonymous access ("ftp可以匿名访问" — "ftp can be accessed anonymously") and
+# confirmed via Shodan/Zoomeye that multiple real internet-exposed HollySys LK PLCs share this
+# same factory configuration — this is not a single-device anecdote, the researcher specifically
+# checked for and found generality across real deployed hardware.
+#
+# Sibling check: checks/telnet/hollysys-lk-series-plc-root-blank-password.yaml (same source,
+# same PLC, the root/blank-password Telnet finding from the same post).
+#
+# Uses the generic checks/ftp/native/ftp_default_creds.py executor. Standard "anonymous" FTP
+# convention: username "anonymous", password field conventionally ignored/accepts anything — an
+# empty password is used here as the simplest valid anonymous-login attempt.
+#
+# No CVE — the plcscan.org post is informal research, not a numbered vulnerability disclosure.
+
+check_id: ftp-hollysys-lk-series-plc-anonymous-ftp
+protocol: ftp
+kind: native
+module: checks.ftp.native.ftp_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "HollySys Automation"
+params:
+  credentials:
+    - ["anonymous", ""]
+detection_hints:
+  transport: tcp
+  app_protocol: ftp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own FTP USER/PASS login attempt(s) using the documented factory credential(s) (anonymous:)"
+    patterns:
+      - context: request
+        bytes: "USER anonymous\r\nPASS \r\n"
+  broad:
+    description: "Any FTP USER/PASS login attempt on this device — the vulnerability class (default/weak credentials on this product's FTP server), not the specific guessed credential"
+    patterns:
+      - context: request
+        regex: "^USER \\S*\\r\\nPASS \\S*\\r\\n"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "http://plcscan.org/blog/2014/12/hollysys-lk-series-plc-system-default-password-vulnerability/"
+description: "HollySys LK-series PLCs ship with anonymous FTP access enabled by factory default — confirmed against real internet-exposed hardware via Shodan/Zoomeye by the source researcher. No CVE, documented factory-default behavior."

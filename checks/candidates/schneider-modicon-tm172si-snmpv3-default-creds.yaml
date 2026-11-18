@@ -1,0 +1,57 @@
+# PROMOTED 2026-09-14 to checks/snmp/schneider-modicon-tm172si-snmpv3-default-creds.yaml — the
+# BLOCKER TAG (2026-09-22 triage pass): code-gap -- This project's only existing SNMP executor implements SNMPv1/v2c community-string auth only -- SNMPv3 (USM, much more complex auth) has no executor yet.
+# executor blocker described below is RESOLVED (checks/snmp/native/snmpv3_default_creds.py, a new
+# SNMPv3 USM authNoPriv implementation). This stub is kept for its original sourcing history. The
+# real open question below (shared factory default vs. per-device value) is NOT resolved by the
+# promotion — the promoted check keeps confidence: low for exactly that reason.
+#
+# Candidate stub — 2026-09-14, bonus finding from the TM172SI firmware-extraction pilot (see
+# checks/http/schneider-modicon-tm172si-secure-interface-default-creds.yaml's own header for the
+# full acquisition/extraction chain — same firmware image, same rootfs). NOT executable (no
+# `kind`).
+#
+# Direct, verbatim finding from the extracted rootfs's own `/etc/snmp/snmpd.conf`:
+#   createUser admin MD5 SE_SecureInterface1 DES SE_SecureInterface1
+# This is a real SNMPv3 USM (User-based Security Model) account baked into the shipped firmware
+# image: username `admin`, auth protocol MD5 with passphrase `SE_SecureInterface1`, priv protocol
+# DES with the SAME passphrase `SE_SecureInterface1` for both auth and priv. Note this is a
+# DIFFERENT literal value from the HTTP REST API credential (`SE_SecureInterface`, no trailing
+# "1") already confirmed and built as a real check — a separate, if similarly-named, credential
+# for a separate service (SNMP, typically UDP/161) entirely.
+#
+# NOT YET BUILDABLE: this project's only existing SNMP executor
+# (checks/snmp/native/snmp_community_default_creds.py) implements SNMPv1/v2c community-string
+# auth only — a fundamentally different, much simpler mechanism (a single shared string, no
+# per-user auth/priv protocol negotiation). SNMPv3 USM requires engine-ID discovery, HMAC-MD5/SHA
+# key localization, and DES/AES priv-protocol handling — real new executor work, not a
+# params-only reuse of the existing module. No SNMPv3 executor exists in this project yet.
+#
+# Also unconfirmed: whether this exact credential is a genuine shared factory default across all
+# TM172SI units (this is a single firmware image's baked-in config, strong direct evidence, but
+# not independently cross-confirmed by a second source the way the HTTP credential was via two
+# separate mentions in the official manual) or whether it's regenerated/randomized at first boot
+# by some provisioning step not visible in this static image. The manifest.raucm's own
+# `[hooks]`/`slot-updater.sh` only handles bootloader/OS-partition flashing, not user-account
+# provisioning, so no evidence either way was found for or against a first-boot randomization
+# step — flagged as a real open question, not resolved.
+#
+# Action needed before building: (1) an SNMPv3 USM-capable check executor (real work, not
+# currently planned), (2) ideally a live device or a second independent source confirming this
+# credential is not regenerated per-unit at first boot.
+
+check_id: candidate-schneider-modicon-tm172si-snmpv3-default-creds
+protocol: snmp
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+  product: "TM172SI"
+references:
+  - "m172si-v0.5.0_signed.raucb — official TM172SI firmware update package, se.com/uk/en/download/document/Secure_Interface_TM172SIx/, user-supplied, /etc/snmp/snmpd.conf read directly from the extracted rootfs"
+description: >
+  Schneider Electric Modicon TM172SI ships with a baked-in SNMPv3 USM account (admin, auth MD5 /
+  priv DES, both passphrases SE_SecureInterface1) found directly in the extracted firmware's own
+  /etc/snmp/snmpd.conf — a separate credential/service from the already-built HTTP REST API
+  default-creds check on this same device. Not yet buildable: this project has no SNMPv3
+  executor (only SNMPv1/v2c community-string), and it's unconfirmed whether this exact value is
+  regenerated per-unit at first boot rather than a genuine shared factory default.

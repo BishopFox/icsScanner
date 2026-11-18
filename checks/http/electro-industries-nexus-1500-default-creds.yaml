@@ -1,0 +1,42 @@
+# Default-credentials sweep, Phase 14. Uses the generic
+# checks/http/native/basic_auth_default_creds.py executor.
+#
+# Source: SCADAPASS, citing the official Electro Industries/GaugeTech Nexus 1500/1500+ Power
+# Quality Meter user manuals directly (electroind.com-hosted PDFs). Single-source-tier (no
+# independent second source found in this pass) — confidence: low regardless.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-electro-industries-nexus-1500-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Electro Industries/Gauge Tech"
+params:
+  path: "/"
+  credentials:
+    - ["anonymous", "anonymous"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credential(s) (anonymous:anonymous)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic YW5vbnltb3VzOmFub255bW91cw=="
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "http://www.electroind.com/products/Nexus_1500+/pdf/manuals/Nexus%201500+%20Power%20Quality%20Meter%20User%20Manual%20V.1.01_E154713.pdf"
+description: "Electro Industries/GaugeTech Nexus 1500/1500+ Power Quality Meters ship with a factory-default anonymous/anonymous web-UI login — no CVE, documented factory-default behavior."

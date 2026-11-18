@@ -1,0 +1,104 @@
+# BUILT 2026-09-14 as scripts/safety_critical/ics_electronics_relay_{plan,confirm}.py (this
+# tier's 8th tool family), after an explicit user go-ahead ("build 8064 Ethernet-to-Relay
+# Interface as a safety critical tier use the off function for the test"). Sends ONLY a relay-Off
+# command for a single, operator-chosen channel (1-16, required argument, no default) — "On" and
+# "Pulse" have no code path anywhere in the tool (see _ics_electronics_relay_protocol.py's own
+# docstring); the other 15 channels are omitted from the request entirely. Demands the SAME extra
+# risk-acknowledgment phrase (beyond the usual one-time confirmation) as the DNP3 CROB tool in
+# this tier, for the same class of reason stated plainly in the tool's own docstring: "Off" is a
+# judgment call about the least-dangerous relay state, not a protocol-guaranteed no-op the way a
+# DNP3 Select is, and this project has not read the 8064's own firmware source to verify how it
+# handles a single-relay (vs. all-16) request. Response interpretation has no structured
+# success/failure signal (unlike DNP3's Command Status byte) — the tool recognizes only the
+# vendor's own shipped page shapes (the real Relay Control Page, the unexplained 403 password
+# page, or known 404/500/501 error pages) and reports anything else as unrecognized rather than
+# guessing. Verified via tests/smoke_test_safety_critical_ics_electronics_relay.py (27 assertions,
+# including explicit checks that "On"/"Pulse" and the other 15 relay channels never appear
+# anywhere in a sent request, and that a password-challenge response is never reported CONFIRMED).
+#
+# Candidate stub — 2026-09-14, continuation of the same-day ICS Electronics review, extended to
+# 3 more vendor support pages per user request ("use the same method of other devices from same
+# vendor" — vxi11_install.html [80xx series], 48xx_install.html, 239x_support.html,
+# gpib_any_install.html). NOT executable (no `kind`). The MOST SEVERE finding across the whole
+# vendor sweep so far — direct physical actuation, not just device/gateway reconfiguration or
+# downstream-instrument command relay.
+#
+# Product: ICS Electronics 8064 "Ethernet-to-Relay Interface" — official firmware update package
+# downloaded directly from icselect.com/pc_files/ICS_8064R7_AUdate.zip (plain HTTP, no gating,
+# same as every other package in this vendor's whole catalog). Ships the device's own embedded
+# web-server HTML source unpacked, including a page NONE of the other models examined in this
+# sweep have: `Rly.html`.
+#
+# CONFIRMED, directly from the shipped HTML source: `Rly.html` exposes 16 independent relay
+# channels (`rly1` through `rly16`), each a 3-state radio group (On / Pulse / Off), submitted via
+# a plain `<FORM METHOD="GET" action="/cgi">` — grepped the ENTIRE extracted package (every .html
+# file) for "password"/"passwd"/"login": the ONLY match anywhere is a generic, reused
+# "403 Password Error" boilerplate page ("80xx WebServer" branded, present across several 80xx
+# models' packages) whose triggering mechanism was NOT found — `Rly.html` and `config.html`
+# themselves contain no password/token/session field of any kind, no page in the package submits
+# a password parameter anywhere, and no ReadMe.txt documents an enable mechanism or default value
+# for it. Recorded as a genuine, unresolved ambiguity (an optional password feature MAY exist that
+# this pass didn't find how to enable), not swept under the rug — but the DEFAULT, as-shipped
+# behavior exposed by Rly.html's own form is a plain unauthenticated GET.
+#
+# WHY THIS IS MORE SEVERE than the sibling 90xx/8065/8099 command-relay finding
+# (checks/candidates/ics-electronics-9065-9099-unauthenticated-gpib-modbus-command-relay.yaml):
+# that finding requires a downstream instrument or Modbus device to actually be attached and
+# responsive for a command to have any effect. This finding IS the effect — the 8064 device
+# itself contains the relays; switching one on/off/pulse is an immediate, direct physical action
+# with no intermediary, and relay outputs in a real deployment are commonly wired to control
+# actual equipment (power to other devices, alarms, safety interlocks, motor contactors) — this is
+# about as directly "ICS/OT actuation-safety" as a finding in this sweep gets.
+#
+# CROSS-VENDOR-LINE CORROBORATION found this same pass, strengthening (not narrowing) the sibling
+# config-write candidate's own scope: the identical unauthenticated `config.html` -> `GET /cgi`
+# pattern (same field names: ip/net/gate/static/desc/commtimo/keep/agilent/rawena/socketport/
+# echoena) was independently reconfirmed in 7 MORE official firmware packages across TWO more
+# product lines — 80xx (8003, 8013, 8055, 8063, 8064, 8065, 8099) and 48xx (N4865A) — not just the
+# originally-reviewed 90xx family. See
+# checks/candidates/ics-electronics-90xx-unauthenticated-cgi-config-write.yaml's own FOLLOW-UP
+# note for the full list. This is a single shared embedded-web codebase across the vendor's entire
+# current product catalog, not an isolated per-model issue.
+#
+# NOT independently confirmed this pass: whether "Pulse" has a fixed/bounded duration or could be
+# combined with rapid repeated requests to produce a sustained-toggle effect, and the exact
+# real-world wiring/load typically driven by these relays (vendor documentation describes them
+# generically; actual deployment context determines real-world impact severity).
+#
+# RISK-TIER NOTE: unlike the sibling read-only "confirm reachability only" design already BUILT
+# for the 9065/9099 GPIB/Modbus command-relay finding (checks/http/native/
+# ics_electronics_gpib_modbus_control_unauthenticated.py, which reads an existing response buffer
+# and never issues a command), THERE IS NO EQUIVALENT SAFE READ-ONLY ACTION HERE — Rly.html's own
+# page, per its shipped HTML, has no separate "read current relay state without changing anything"
+# form; every submit button in this page sets a relay's requested state (even resubmitting the
+# CURRENT displayed state via the pre-filled `%rlyonN%`/`%rlyoffN%` template values still means
+# constructing and sending a real state-setting request, not a passive read). This is a materially
+# HARDER safety design problem than every other check-relay-class finding handled so far this
+# sweep. NOT BUILT, NOT ATTEMPTED — needs its own explicit conversation about whether a safe
+# confirmation design is even possible here (e.g., confirming only that Rly.html itself loads
+# unauthenticated, without ever submitting either relay-control form, might be the only safe
+# option — this was not attempted or designed this pass, left for a dedicated follow-up).
+
+check_id: candidate-ics-electronics-8064-unauthenticated-relay-control
+protocol: http
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "ICS Electronics"
+  product: "8064"
+references:
+  - "https://www.icselect.com/vxi11_install.html"
+  - "https://www.icselect.com/pc_files/ICS_8064R7_AUdate.zip — official 8064 (Ethernet-to-Relay Interface) firmware update package, extracted and read directly (Rly.html)"
+description: >
+  ICS Electronics 8064 Ethernet-to-Relay Interface exposes direct control of 16 physical relay
+  channels (On/Pulse/Off, "rly1".."rly16") via a plain unauthenticated GET to /cgi — confirmed
+  directly from the vendor's own shipped Rly.html source, zero password/login mechanism found
+  anywhere in the package (one generic, unexplained "403 Password Error" boilerplate page exists
+  in the broader 80xx family but no enabling trigger for it was found). The most severe finding in
+  this vendor's product line reviewed so far — direct physical actuation, not gateway
+  reconfiguration or downstream-instrument relay. NOT built as an icsScanner check — unlike the
+  sibling 9065/9099 command-relay check, Rly.html has no safe read-only action at all (every form
+  submission sets a relay state). Instead BUILT as a safety-critical two-step plan/confirm tool
+  (scripts/safety_critical/ics_electronics_relay_{plan,confirm}.py, per explicit user go-ahead)
+  that sends only "Off" for one operator-chosen relay channel — never "On"/"Pulse", never the
+  other 15 channels.

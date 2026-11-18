@@ -1,0 +1,75 @@
+# PROMOTED 2026-10-13 -> checks/http/codesys-webvisu-unauthenticated.yaml (generic CODESYS WebVisu,
+# unauthenticated_http_json_get executor + codesys_webvisu_identity probe). Kept as research record.
+# Candidate stub — 2026-09-14. User supplied "Firmware C-kit-1_1_0_HF1.zip" — ABB's own official
+# BLOCKER TAG (2026-09-22 triage pass): code-gap -- No CODESYS WebVisu protocol-identity fingerprint probe or executor exists in this project yet.
+# firmware/application package for the "SD-C-kit" (an EV-charging-station control kit, confirmed
+# by its own bundled visualization strings: "chargealarmgroup", "charging_state", "charger_type",
+# "equalshare" [multi-charger power load-sharing], "colonninaunavailable" [Italian: "charging
+# station unavailable"]) built on an ABB AC500 CODESYS V3 PLC, model **PM5650-2ETH/-2ETH-XC**
+# (confirmed directly from the package's own bundled Version.txt — a real, dual-Ethernet AC500
+# CPU module, MainVersion 3.8.0). New vendor/product for this project — EV charging control
+# infrastructure. NOT executable (no `kind`). Confirmed no prior AC500/C-kit candidate/check
+# existed before writing this file (an unrelated Schneider "PM5500-series" product line shares a
+# similar-looking model-number substring; a genuinely different vendor/product, not conflated).
+#
+# THE FINDING, confirmed directly from the package's own shipped files, not inferred:
+#   `USERDATA/USERPRG/PlcLogic/visu/webvisu.cfg.json` — the CODESYS WebVisu runtime's own
+#   configuration file, deployed as part of this real, official ABB firmware/application
+#   package — contains:
+#     "LoginVisu": "",
+#     "LoginVisuTexts": "",
+#     "LoginVisuErrorTexts": "",
+#     "LoginVisuNamespace": "",
+#     "LoginVisuDefLang": ""
+#   `LoginVisu` is CODESYS's own documented mechanism for naming a dedicated login/authentication
+#   visualization screen that must be satisfied before the WebVisu HTML5-canvas interface grants
+#   access — leaving it BLANK is CODESYS's own documented way of disabling that gate entirely.
+#   Confirmed the actual WebVisu deployment is real and complete: `webvisu.htm` (a plain,
+#   unauthenticated static HTML5-canvas page, `new Webvisu('background', 'foreground', true,
+#   false)`, read directly — no login form, no credential prompt anywhere in the page itself) +
+#   `webvisu.js` (the CODESYS WebVisu client runtime) are both present and bundled for
+#   deployment to the PLC's own web server.
+#
+# NET EFFECT: ABB's own official EV-charging-station control-kit application, as shipped, leaves
+# the CODESYS WebVisu web-based HMI/visualization interface with NO LOGIN SCREEN CONFIGURED —
+# meaning anyone who can reach the PM5650-2ETH PLC's web server gets full, unauthenticated
+# access to whatever the visualization exposes: live process values, and (depending on how the
+# visu's own elements are wired, not independently confirmed further this pass) potentially
+# write access to PLC variables controlling the EV charging session/load-sharing logic itself.
+#
+# NOT YET BUILDABLE: this project has no existing CODESYS WebVisu protocol-identity fingerprint
+# probe or executor. The exact TCP port CODESYS WebVisu serves on was not independently confirmed
+# against this specific firmware sample this pass (CODESYS WebVisu is commonly documented
+# elsewhere as defaulting to port 8080, but that is general CODESYS-ecosystem knowledge, not
+# something this pass verified against THIS firmware image's own configuration — this project's
+# sourcing discipline does not let general product-family knowledge stand in for a confirmed,
+# device-specific detail). `webvisu.cfg.json`'s own `PlcAddress` field
+# ("0000.32CF.2000.2DDC.C0A8.3514") decodes, in its last two dot-groups, to a real embedded IPv4
+# address (C0.A8.35.14 = 192.168.53.20) — likely a CODESYS gateway-channel address encoding, not
+# confirmed to be the WebVisu HTTP port itself, noted for reference only. Building a check would
+# need either a live device capture of the actual WebVisu wire protocol, or a CODESYS WebVisu
+# protocol reference this pass didn't have.
+#
+# Scope note: this is the ONE file from this batch's building-automation/EV-charging cluster
+# reviewed to this depth this pass. The M1M 72x72 (CN72 LED module) and D1M dimmer firmware in
+# the same batch are `.enc` (genuinely encrypted, confirmed via file extension and not pursued
+# further); CP116/CP216 control panels and EC531 equipment controller (.hex/.smf pairs) and the
+# older Busch-ComfortPanel x86 Linux image were not reviewed this pass.
+
+check_id: candidate-abb-ac500-ckit-codesys-webvisu-no-login
+protocol: unknown
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  vendor: "ABB"
+  product: "AC500 PM5650"
+references:
+  - "ABB's own official firmware/application package (user-supplied): Firmware C-kit-1_1_0_HF1.zip, SD-C-kit-PM5650-1.1.0_HF1/USERDATA/USERPRG/PlcLogic/visu/webvisu.cfg.json + webvisu.htm, read directly"
+description: >
+  ABB's own official "C-kit" EV-charging-station control application, deployed on an AC500
+  PM5650-2ETH CODESYS V3 PLC, ships with its CODESYS WebVisu web-based visualization/HMI
+  interface configured with NO login screen at all (webvisu.cfg.json's own "LoginVisu" field is
+  empty — CODESYS's own documented mechanism for disabling the WebVisu authentication gate).
+  Confirmed directly from the vendor's own shipped configuration and HTML/JS files, not inferred.
+  Not yet buildable: this project has no CODESYS WebVisu protocol support, and the exact serving
+  port was not independently confirmed against this specific firmware sample.

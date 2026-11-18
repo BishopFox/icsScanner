@@ -1,0 +1,50 @@
+# Omron/Microscan MicroHAWK WebLink unauthenticated device-API detection — built 2026-10-13, promoted
+# from checks/candidates/omron-microhawk-weblink-client-side-auth-default-creds.yaml (research record).
+# MicroHAWK readers (V320-F/V330-F/V420-F/V430-F, QX/MINI Hawk) serve the WebLink SPA, which loads
+# device config UNauthenticated from /api/v1/file/device/parameters.json. A single read-only
+# unauthenticated GET returning the MicroHAWK param-schema JSON array (objects with uid/editor) proves
+# the device REST API answers with no credential (CWE-306) -- the substrate for the WebLink's
+# client-side-only auth (the browser fetches PASSWORD/PWD_ENABLED from this API and checks in-page;
+# default login `weblink`, hardcoded master `WebLinkAdmin`; full detail in the research-record candidate).
+# READ-ONLY + SAFE: GET of a config-schema file; destructive:false; no login attempt, no writes.
+#
+# PRIOR-ART (2026-10-13): no CVE found for the WebLink client-side-auth/WebLinkAdmin-master angle
+# (potentially novel); adjacent defaults (FTP target/password, resettable login) are documented.
+# disclosure_status: public -- this specific check only DETECTS the unauthenticated API (reachable-with-
+# no-credential), which is observable device behavior, not an embargoed exploit; it does not weaponize
+# the master backdoor. confidence: low -- not live-verified; the param endpoint + array shape are from
+# firmware (WebLink 1.2.2/2.1.1), not a live capture.
+
+check_id: omron-microhawk-weblink-unauthenticated-api
+protocol: http
+kind: native
+module: checks.http.native.unauthenticated_http_json_get
+destructive: false
+risk_reason: []
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  protocol_probe: microhawk_weblink_identity
+params:
+  path: "/api/v1/file/device/parameters.json"
+  json_markers: ["uid", "editor"]   # MicroHAWK param-schema object keys (array items)
+  success_status: 200
+  https: false
+  default_port: 80
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0813
+  analytic_story: "ICS Unauthenticated Access"
+  narrow:
+    description: "This scanner's single unauthenticated HTTP GET /api/v1/file/device/parameters.json against a MicroHAWK reader -- no Authorization header. A 200 + the MicroHAWK param-schema JSON array (objects with uid/editor) proves the WebLink device REST API is reachable with no credential."
+    patterns:
+      - context: request
+        regex: "GET /api/v1/file/device/parameters\\.json"
+  broad:
+    description: "Unauthenticated GETs for /api/v1/file/device/* against a code-reader from one source -- enumeration of an open WebLink device API; read-only and indistinguishable from the SPA's own bootstrap load."
+    patterns:
+      - context: request
+        regex: "GET /api/v1/file/device/"
+references:
+  - "MicroHAWK_Firmware.zip -> 30-9000017-1.2.2_3002-http.zip, WebLink/index.html + boot.js: the Angular SPA loads device config unauthenticated via /api/v1/file/device/parameters.json (a JSON array of {uid,editor,type,...}); $GET('PASSWORD','weblink') / $GET('PWD_ENABLED',false) resolve from it; login check is client-side (checkPwd compares to pwd/master in-browser)."

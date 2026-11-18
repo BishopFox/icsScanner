@@ -1,0 +1,65 @@
+# Default-credentials sweep. Originally flagged in Phase 1 (Siemens) as candidate
+# candidate-cve-2011-4566 and NOT built, because a second search pointed at a different Beresford
+# S7comm finding (protocol-manipulation via function code 0x28 "PLC Control", not a login
+# credential) and I treated that as contradicting the "Basisk" claim. CORRECTED 2026-08-14 while
+# cross-referencing SCADAPASS (github.com/scadastrangelove/SCADAPASS/scadapass.csv, added as a
+# standing research source this phase): both findings are real and distinct. Beresford (NSS
+# Labs) disclosed TWO separate S7-300 issues in 2011 — this hardcoded Telnet/HTTP debug-daemon
+# credential (Wired, 2011-08-02; ICS-ALERT-11-204-01B), and the separate S7comm PLC-Control
+# memory-access bypass (Black Hat USA 2011 talk, later that year). Conflating them was the
+# original error, not the credential being fabricated.
+#
+# NO CVE cited, deliberately: multiple search summaries repeatedly attributed this to
+# CVE-2011-4566, but a direct NVD lookup (verified 2026-08-14) shows that ID belongs to an
+# unrelated PHP exif.c integer-overflow bug — a clear AI-summary CVE-misattribution, not
+# something to ship. CISA's ICS-ALERT-11-204-01B page itself returns 403 to automated access
+# (consistent with this project's established CISA-site-blocked finding), so its CVE field (if
+# any) could not be independently confirmed either. Left blank rather than guessed.
+#
+# Sources cross-verified (3 independent): Wired (2011-08-02, journalism citing Beresford/NSS
+# Labs directly); SCADAPASS (named researcher project, citing the same Wired article); multiple
+# secondary ICS-security blog summaries agreeing on Basisk:Basisk, Telnet port 23 + HTTP port 80,
+# and the affected-firmware detail (S7-300 with integrated PROFINET shipped before Oct 2009;
+# IM151-x PN CPUs shipped before Sept 2010).
+#
+# Confidence=low: this is a firmware-vintage-specific bug (pre-Oct-2009 S7-300 PROFINET
+# firmware) and this project has no remote way to confirm firmware date before attempting login
+# — a post-patch S7-300 will correctly reject these credentials, which is expected and not a
+# tool bug.
+
+check_id: telnet-siemens-s7-300-basisk-hardcoded-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Siemens AG"
+params:
+  credentials:
+    - ["basisk", "basisk"]
+  default_port: 23
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet username+password login attempt(s) using the documented factory credential(s) (basisk:basisk)"
+    patterns:
+      - context: request
+        bytes: "basisk\r\nbasisk\r\n"
+  broad:
+    description: "Any Telnet login attempt (a username followed by a password, both CRLF-terminated) on this device — the vulnerability class (default/weak credentials on this product's Telnet server), not the specific guessed credential"
+    patterns: []  # generic "any-line" pattern removed 2026-11-11 (real-traffic validation); no device-specific signature beyond the narrow probe/credential bytes. See lab-notes/zeek-detection-validation-pnnl-2026-11.md
+advisory_url: "https://www.cisa.gov/news-events/ics-alerts/ics-alert-11-204-01b"  # promoted from references (canonical advisory)
+references:
+  - "https://www.wired.com/2011/08/siemens-hardcoded-password/"
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.cisa.gov/news-events/ics-alerts/ics-alert-11-204-01b"
+description: >
+  Siemens SIMATIC S7-300 PLCs with integrated PROFINET shipped before October 2009 (and IM151-x
+  PN CPUs before September 2010) left a debug Telnet daemon enabled with a hardcoded
+  basisk:basisk login. No CVE assigned/confirmed — CWE-798 (Use of Hard-coded Credentials).

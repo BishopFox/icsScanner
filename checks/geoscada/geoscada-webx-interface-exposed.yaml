@@ -1,0 +1,56 @@
+# Armed 2026-11-12 (WWS Tier-1, Geo SCADA water-SCADA host). Schneider Geo SCADA Expert (formerly
+# ClearSCADA) is a dominant water/wastewater + utility SCADA host. The WebX web interface + DBServer (TCP
+# 5481) are the remote management/operations surface. This check confirms a Geo SCADA WebX interface is
+# NETWORK-REACHABLE (the exposed-SCADA-web-interface class CISA/NSA WWS guidance warns against; the login
+# surface for default creds + the built-in Guest account; the Oldsmar remote-access vector). It does NOT
+# assert a credential bypass -- that is a deeper Guest/default-cred check (follow-up).
+#
+# FINGERPRINT (verify-wire-format): confirmed LIVE against a Geo SCADA Expert 2025 R2 server (DBServer.exe
+# run under Wine). Every WebX path returns an XML "<Page ...>" document that references the "/file/xsl/"
+# stylesheet path AND names the "Geo SCADA Expert web server"; both markers required (no generic-XML FP).
+# The probe matched the live server at high confidence. disclosure_status: public -- documented product +
+# documented exposure class; this is detection coverage, not a novel vulnerability.
+#
+# SAFETY: read-only. The probe sends one unauthenticated GET "/"; no credentials, no writes, no control.
+
+check_id: geoscada-webx-interface-exposed
+protocol: geoscada
+kind: native
+module: checks.geoscada.native.geoscada_webx_exposed
+severity: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:L (6.3 MEDIUM) -- the Geo SCADA Expert / ClearSCADA WebX SCADA management interface is reachable on the network. This is the exposed-SCADA-web-interface class CISA/NSA WWS guidance says to remove from untrusted networks: the login surface for default credentials and the built-in Guest account, and the remote-access vector behind the Oldsmar water intrusion. This check confirms reachability only; it does not demonstrate a credential bypass (NOT claiming unauthenticated control)."
+destructive: false
+disclosure_status: public
+confidence: high
+fingerprint_precondition:
+  protocol_probe: geoscada_webx_identity
+params:
+  default_port: 8080
+  timeout: 5.0
+references:
+  - "Schneider Electric Geo SCADA Expert (formerly ClearSCADA) -- WebX web client + DBServer (TCP 5481). WebX commonly on 80/443/8080. Fingerprint confirmed live against Geo SCADA Expert 2025 R2."
+  - "CISA/NSA + EPA Water and Wastewater Sector guidance: SCADA/HMI web interfaces must not be reachable from untrusted networks; internet-exposed SCADA was the vector in the 2021 Oldsmar (FL) water treatment intrusion."
+  - "Geo SCADA Expert Security Guide: the built-in Guest user is the access path for third-party/unsecured clients; default account settings + external auth are set in the Server Configuration Tool -- the deeper Guest/default-cred exposure this interface fronts."
+  - "core/fingerprint.py probe_geoscada_webx_identity -- the read-only GET '/' identity gate this check reuses (matches the /file/xsl/ + 'Geo SCADA Expert web server' WebX XML)."
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0822
+  analytic_story: "ICS Exposed Management Interface"
+  narrow:
+    description: >-
+      The Geo SCADA Expert / ClearSCADA WebX server's distinctive XML response: a "<Page" document that
+      references the "/file/xsl/" stylesheet path, identifying an exposed WebX SCADA web interface.
+    patterns:
+      - context: response
+        regex: "/file/xsl/[a-z]+\\.xsl"
+description: >
+  Schneider Geo SCADA Expert (formerly ClearSCADA) is a dominant water/wastewater and utility SCADA host;
+  its WebX web interface (with the DBServer on TCP 5481) is the remote management/operations surface. This
+  check confirms a Geo SCADA WebX interface is network-reachable by reusing a read-only, unauthenticated
+  GET "/" that matches the distinctive WebX XML page (references /file/xsl/ and names the Geo SCADA Expert
+  web server) -- a fingerprint confirmed live against a Geo SCADA Expert 2025 R2 server. A reachable WebX
+  interface is the exposed-SCADA-web-management class CISA/NSA WWS guidance warns against: the login
+  surface for default credentials and the built-in Guest account, and the Oldsmar-style remote-access
+  vector. The check identifies the interface only -- it sends no credentials, makes no writes, and does
+  not claim a credential bypass (a deeper Guest/default-cred check is separate). disclosure_status public:
+  documented product + documented exposure class, i.e. detection coverage, not a novel vulnerability.

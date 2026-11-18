@@ -1,0 +1,59 @@
+# Default-credentials sweep, Priority 2 of human-review-queue.md — PROMOTED 2026-08-24, FTP
+# sibling of checks/http/ge-multilink-switches-hardcoded-creds.yaml. See that check's own header
+# comment for the full CVE-2016-2310 research trail and the manager/manager credential's
+# subsequent upgrade to primary-source-confirmed (GE's own Quickstart Guide, GEK-113393A).
+#
+# ARCHITECTURE CAVEAT, added 2026-08-24, real and unresolved — flagged rather than silently kept:
+# that same Quickstart Guide's only FTP-related content describes the switch acting as an FTP
+# CLIENT (config/firmware backup to a server on the OPERATOR'S OWN computer, from within an
+# already-authenticated web session) — it does NOT confirm the switch runs its own inbound FTP
+# SERVER that a remote, unauthenticated client could connect to and log into directly, which is
+# what this check assumes. CISA's own advisory text also only describes the vulnerability as
+# reachable "via the web interface," not FTP. The manager/manager VALUE is solid; whether this
+# check is testing a service that actually exists on these switches is genuinely unconfirmed.
+# Kept shipped rather than pulled, since the failure mode if wrong is a plain connection-refused
+# ERROR against a real device (ftplib has no destructive/false-positive failure mode here), not a
+# misleading result — but this is real, live uncertainty, not resolved corroboration.
+
+check_id: ftp-ge-multilink-switches-hardcoded-creds
+protocol: ftp
+kind: native
+module: checks.ftp.native.ftp_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+cve_id: CVE-2016-2310
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "GE Automation"
+  version:        # affected: GE Multilink ML-series firmware before 5.5.0 (CVE-2016-2310). Latent until
+    fixed: "5.5.0"   # ML firmware is extracted; suppress only when KNOWN >= 5.5.0.
+params:
+  credentials:
+    - ["manager", "manager"]
+detection_hints:
+  transport: tcp
+  app_protocol: ftp
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own FTP USER/PASS attempt using the documented hardcoded credential (manager:manager)"
+    patterns:
+      - context: request
+        bytes: "USER manager\\r\\nPASS manager\\r\\n"
+  broad:
+    description: "Any FTP USER/PASS pair using the 'manager' username — the vulnerability class (CVE-2016-2310, hardcoded credentials shared across web and FTP on this device family), not the specific guessed password"
+    patterns:
+      - context: request
+        regex: "USER manager\\r\\nPASS .*\\r\\n"
+advisory_url: "https://www.cisa.gov/news-events/ics-advisories/icsa-16-154-01"  # promoted from references (canonical advisory)
+references:
+  - "https://www.cisa.gov/news-events/ics-advisories/icsa-16-154-01"
+  - "https://nvd.nist.gov/vuln/detail/CVE-2016-2310"
+  - "https://www.cyber.gc.ca/en/alerts-advisories/ge-multilink-series-switch-security-updates"
+description: >
+  GE MultiLink series managed Ethernet switches (ML800, ML810, ML1200, ML1600, ML2400, ML3000,
+  ML3100 — firmware before 5.5.0/5.5.0k) ship with a hardcoded credential (manager:manager)
+  shared across both the web interface and the FTP service — CVE-2016-2310, CWE-259, CVSS v3
+  10.0 (CISA ICSA-16-154-01). See the sibling HTTP check for the full research trail and
+  credential-sourcing note.

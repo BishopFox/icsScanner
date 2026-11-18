@@ -1,0 +1,79 @@
+# Default-credentials sweep, Phase 10. Uses the generic
+# checks/telnet/native/telnet_default_creds.py executor.
+#
+# Sources (2 independent): SCADAPASS, citing the official Moxa EtherDevice EDS-508A/505A user
+# manual; corroborated by an independent WebSearch explicitly confirming: "the EDS's default
+# Password is not set (blank)... you can select either admin or user as the account, and simply
+# leave the password field empty" — a direct restatement of the manual's own password page, not
+# just an aggregator guess.
+#
+# admin = full access, user = read-only, both with a BLANK password. No CVE — documented
+# factory-default behavior.
+#
+# UPDATE 2026-09-17 (ingest batch 4): CORROBORATED (not re-scoped -- fingerprint_precondition is
+# already vendor-only) by two more Moxa "EtherDevice" firmware images from a different product
+# line (EOM-104/EOM-G103 fiber media converters, eCos RTOS, gzip-wrapped .rom images):
+# `moxa-eom-104-series-fiber-models-firmware-v1.2.rom` contains the literal string "Ethernet Port
+# %d of EtherDevice Switch"; `moxa-eom-g103-series-firmware-v4.1.rom` contains "EtherDeviceServer".
+# Both ship an identical factory-default config data table with fixed-width fields for account
+# names "admin"/"user" and SNMP communities "private"/"public", each followed by all-zero
+# (i.e. blank) password/value bytes -- consistent with, and extending vendor scope for, the
+# existing admin/BLANK + user/BLANK finding already documented here. Not independently
+# live-tested (no interactive login flow reverse-engineered for these specific eCos binaries);
+# filed as corroboration only, no params change.
+#
+# UPDATE 2026-09-17 (ingest batch 5): the OLDER 2015 firmware for a different managed-switch
+# product, `moxa-ics-g7526-ics-g7528-series-firmware-v3.5.rom` (same eCos "EtherDeviceServer"
+# family), ALSO ships the identical admin/BLANK + user/BLANK table -- further corroboration, same
+# treatment (no params change). The NEWER "A"-suffix hardware revision of this same switch line
+# (ICS-G7526A/G7528A, 2023+2025 firmware) does NOT match this blank-password pattern -- it was
+# found to use a literal "moxa" default password instead. Filed SEPARATELY as
+# candidates/moxa-ics-g7526a-g7528a-hardcoded-admin-password.yaml (undisclosed, CVSS 9.8) rather
+# than corroborated here, since the two behave differently.
+#
+# UPDATE 2026-09-17 (ingest batch 6): the OLDER (non-"A") `moxa-iks-6726-8poe-series-firmware-
+# v3.1.rom` -- yet another managed-switch product line on this same eCos family -- ALSO confirmed
+# to use admin/BLANK + user/BLANK. Same pattern: this switch line's newer "A"-suffix firmware
+# (IKS-G6524A/IKS-G6824A/IKS-6728A) instead uses the literal "moxa" password and was folded into
+# the ICS-G7526A candidate's now-broadened scope rather than corroborated here.
+#
+# FURTHER CORROBORATION same batch: `moxa-ics-g7848-ics-g7850-ics-g7852-series-firmware-v3.6.rom`
+# (older non-A generation of yet another switch model set) also confirmed admin/BLANK +
+# user/BLANK. Also: `moxa-iex-402-series-shdsl-models-firmware-v1.0.rom` and
+# `moxa-iex-402-series-vdsl2-models-firmware-v2.0.rom` (Moxa's DSL Ethernet extender line,
+# genuinely different product category) share this same "EtherDeviceServer" eCos codebase --
+# literal strings `"EtherDeviceServer"`, `"- No Password -"`, and `"password_admin_setting.asp"`
+# confirm the same blank-password admin UI, extending vendor scope yet again. No params change.
+
+check_id: telnet-moxa-eds-508a-505a-default-creds
+protocol: telnet
+kind: native
+module: checks.telnet.native.telnet_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Moxa Technologies"
+params:
+  credentials:
+    - ["admin", ""]
+    - ["user", ""]
+  default_port: 23
+detection_hints:
+  transport: tcp
+  app_protocol: telnet
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own Telnet username+password login attempt(s) using the documented factory credential(s) (admin:'', user:'')"
+    patterns:
+      - context: request
+        regex: "admin\\r\\n\\r\\n|user\\r\\n\\r\\n"
+  broad:
+    description: "Any Telnet login attempt (a username followed by a password, both CRLF-terminated) on this device — the vulnerability class (default/weak credentials on this product's Telnet server), not the specific guessed credential"
+    patterns: []  # generic "any-line" pattern removed 2026-11-11 (real-traffic validation); no device-specific signature beyond the narrow probe/credential bytes. See lab-notes/zeek-detection-validation-pnnl-2026-11.md
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "https://www.manualslib.com/manual/744254/Moxa-Technologies-Eds-508a.html?page=19"
+description: "Moxa EtherDevice EDS-508A/505A switches ship with factory-default admin/BLANK (full access) and user/BLANK (read-only) Telnet logins — no CVE, documented factory-default behavior."

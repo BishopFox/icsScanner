@@ -1,0 +1,48 @@
+# Default-credentials sweep, 2026-08-25 — user supplied two Schneider FAQs directly (Concept and
+# Unity Pro variants of the same setup procedure), both describing the same login step. New
+# product for this project: TSXETG100, a ConneXium Ethernet-to-Modbus serial gateway.
+#
+# Both FAQs' Setup step: "Log into the TSXETG100 through Internet Explorer by typing in its IP
+# address and entering a Username and Password (the defaults are Administrator with a password
+# of Gateway)." Same credential pair (Administrator:Gateway) this project has already confirmed
+# on the unrelated EGX-family gateways (EGX100/EGX300) — a real, recurring convention across
+# Schneider's gateway product lines, not a coincidence worth second-guessing.
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention — the FAQ
+# describes a plain browser username/password prompt, no custom form fields mentioned.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-tsxetg100-web-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["Administrator", "Gateway"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempt using the documented factory credential (Administrator:Gateway) for the TSXETG100 Ethernet-to-Modbus gateway's web configuration page"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic QWRtaW5pc3RyYXRvcjpHYXRld2F5"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this device's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ, \"How do you connect serially to a PLC with Concept via a TSXETG100 Ethernet to Modbus Gateway?\" (user-supplied)"
+  - "Schneider Electric FAQ, \"How do you connect serially to a PLC with Unity Pro via a TSXETG100 Ethernet to Modbus Gateway?\" (user-supplied)"
+description: "Schneider Electric TSXETG100, a ConneXium Ethernet-to-Modbus serial gateway, ships with a factory-default web configuration login of Administrator:Gateway — the same credential pair this project has separately confirmed on the unrelated EGX100/EGX300 gateway family. No CVE, documented factory-default behavior confirmed by two independent Schneider FAQs."

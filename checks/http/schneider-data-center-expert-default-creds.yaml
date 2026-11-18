@@ -1,0 +1,72 @@
+# Default-credentials sweep, 2026-08-25 — user supplied Schneider FAQ FA316534 ("Data Center
+# Expert | What are the default credentials?") directly. Brand-new product for this project:
+# StruxureWare Data Center Expert (DCE) — a DCIM/building-monitoring appliance (Basic AP9465,
+# Standard AP9470, Enterprise AP9475, Virtual AP94VMACT), plus its older-branded lineage
+# StruxureWare Central (SWC) and InfraStruXure Central (ISXC), all sharing this credential set
+# per the FAQ's own "Environment: StruxureWare Data Center Expert (all versions)" scoping.
+#
+# Two distinct credential tiers, both tried here:
+#   1. Web Interface & Desktop Client: apc:apc — the PRIMARY, always-applicable default login for
+#      the appliance's main network-facing web UI (and its separate desktop client, not itself
+#      network-probed here).
+#   2. "Initial configuration passwords" — used during the appliance's first-time setup wizard,
+#      genuinely factory-default before any installer runs it: apcsetup:apcsetup, apcinfo:apcinfo,
+#      and apcreset with password "apc" (firmware 7.9.2) or "apcreset" (7.9.3 and above) — the
+#      FAQ explicitly notes the "apcinfo" account's password is REPLACED with an installer-chosen
+#      value once the apcsetup wizard completes, so these apply only to a genuinely unconfigured/
+#      freshly-reset appliance, not a fully commissioned one. Both apcreset password variants are
+#      tried since this scanner cannot remotely determine firmware version.
+#
+# A separate "Root Operating System" credential is explicitly stated as N/A by the FAQ itself
+# (points to a different KB article, FA222410, not obtained here) — not applicable to this check.
+#
+# CLARIFIED 2026-08-25 (not a contradiction, a different lifecycle stage): a second Schneider FAQ,
+# FA158547 ("How do I reset the web interface and desktop client administrator password?"),
+# describes a REBOOT-RECOVERY login for an ALREADY-DEPLOYED appliance, not the never-configured
+# factory-default state this check targets: pre-7.8.0, recovery always uses apcreset:apc
+# (matching this check); 7.8.0+, recovery requires whatever password was actually set during
+# that appliance's own first deployment — not a static value at all in that scenario. This does
+# NOT invalidate the apcreset:apcreset pair above (sourced from FA316534's "initial
+# configuration" table for a genuinely unconfigured/reset appliance, a different state) — kept
+# as-is.
+#
+# Login mechanism (HTTP Basic Auth) assumed per this project's established convention.
+#
+# No CVE — documented factory-default behavior.
+
+check_id: http-schneider-data-center-expert-default-creds
+protocol: http
+kind: native
+module: checks.http.native.basic_auth_default_creds
+destructive: true
+risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Schneider Electric"
+params:
+  path: "/"
+  credentials:
+    - ["apc", "apc"]
+    - ["apcsetup", "apcsetup"]
+    - ["apcinfo", "apcinfo"]
+    - ["apcreset", "apc"]
+    - ["apcreset", "apcreset"]
+detection_hints:
+  transport: tcp
+  app_protocol: http
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: "This scanner's own HTTP Basic Auth attempts using the documented factory credentials for StruxureWare Data Center Expert (apc:apc primary login, plus the apcsetup/apcinfo/apcreset initial-configuration accounts)"
+    patterns:
+      - context: request
+        regex: "Authorization: Basic (YXBjOmFwYw==|YXBjc2V0dXA6YXBjc2V0dXA=|YXBjaW5mbzphcGNpbmZv|YXBjcmVzZXQ6YXBj|YXBjcmVzZXQ6YXBjcmVzZXQ=)"
+  broad:
+    description: "Any HTTP Basic Auth attempt against this appliance's web UI at / — the vulnerability class (factory-default credentials on this product), not the specific guessed value(s)"
+    patterns:
+      - context: request
+        regex: "GET / HTTP/1\\.[01]\\r\\nAuthorization: Basic"
+references:
+  - "Schneider Electric FAQ FA316534, \"Data Center Expert | What are the default credentials?\" (user-supplied)"
+description: "Schneider Electric StruxureWare Data Center Expert (DCE) appliances — Basic/Standard/Enterprise/Virtual, plus the older StruxureWare Central and InfraStruXure Central lineage — ship with a factory-default web/desktop-client login of apc:apc, plus 3 initial-configuration-only accounts (apcsetup, apcinfo, apcreset) that apply before an installer completes the setup wizard. No CVE, documented factory-default behavior per Schneider's own FAQ."

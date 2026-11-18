@@ -1,0 +1,23 @@
+# Candidate stub — default-credentials sweep, Phase 12. NOT executable (no `kind`).
+# Network-surface question, same shape as the DeltaV/System Platform/TwinCAT candidates.
+#
+# SCADAPASS gives Echelon:echeloncorp for LumInsight ("Central Management System"), citing the
+# official Echelon-hosted installation guide PDF directly — a real primary source. No port or
+# protocol given at all, unlike the sibling i.LON SmartServer checks (which explicitly document
+# HTTP port 80). LumInsight appears to be Windows-based central management software rather than
+# an embedded device — unclear network surface.
+
+check_id: candidate-echelon-luminsight-default-creds
+protocol: unknown
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Echelon Corp."
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+  - "http://www.echelon.com/assets/blt3db1ad5ba909f610/LumInsight%20CMS%20Installation%20Guide_078-1059-01C.pdf"
+description: >
+  Echelon LumInsight Central Management System — Echelon:echeloncorp, sourced directly from
+  Echelon's own installation guide, but no port/protocol given and the product appears to be
+  Windows-based management software rather than an embedded network device. Needs a
+  network-surface answer before building.

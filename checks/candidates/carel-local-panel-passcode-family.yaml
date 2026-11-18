@@ -1,0 +1,37 @@
+# Candidate stub — default-credentials sweep, Phase 13. NOT executable (no `kind`).
+# ARCHITECTURALLY OUT OF SCOPE, not under-researched — same category as the GE Multilin relay
+# factory passcode (Phase 3) and Delta DOP-B (Phase 7). Consolidates SEVERAL CAREL SCADAPASS
+# rows into one stub rather than filing near-identical near-duplicates.
+#
+# Devices: easy/easy compact/easy split/PJ32 series (passcode 22), ir33 platform family
+# (passcodes 22/66), Universal Infrared Series (passcodes 22/77), IR33-DN33 (passcode 77),
+# pRack PR100 (passcodes 0000/1234), humiSteam x-plus (passcode 77), μC2SE (passcodes 22/11/66).
+# All are small embedded electronic controllers/thermostats with a 2-4-digit numeric passcode
+# entered via a physical front-panel keypad to unlock parameter-editing menus — not a network
+# authentication mechanism at all. No port, protocol, or IP-network surface is given for any of
+# these rows in the source, consistent with them being local-only.
+
+check_id: candidate-carel-local-panel-passcode-family
+protocol: local-only
+disclosure_status: public
+confidence: low
+fingerprint_precondition:
+  vendor: "Carel s.p.a."
+physical_access_reference:
+  summary: "CAREL small embedded controllers/thermostats — 2-4-digit numeric passcodes entered via the physical front-panel keypad to unlock parameter-editing menus."
+  steps:
+    - "easy / easy compact / easy split / PJ32 series: 22"
+    - "ir33 platform family: 22 or 66"
+    - "Universal Infrared Series: 22 or 77"
+    - "IR33-DN33: 77"
+    - "pRack PR100: 0000 or 1234"
+    - "humiSteam x-plus: 77"
+    - "μC2SE: 22, 11, or 66"
+references:
+  - "https://github.com/scadastrangelove/SCADAPASS/blob/master/scadapass.csv"
+description: >
+  CAREL small embedded controllers/thermostats (easy/PJ32, ir33 platform, Universal Infrared,
+  IR33-DN33, pRack PR100, humiSteam x-plus, μC2SE) use local front-panel numeric passcodes to
+  unlock parameter menus — not a network-reachable authentication mechanism. Architecturally out
+  of scope for a network scanner, same category as the Phase 3 GE Multilin relay passcode and
+  Phase 7 Delta DOP-B project password.
