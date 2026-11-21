@@ -37,9 +37,7 @@ an open, safety-first, actively extensible active-CVE-check layer for ICS. icsSc
 | `02-DISCLOSURE-PLAYBOOK.md` | The `disclosure_status` contract for consuming upstream findings safely |
 | `03-STYLE-AND-DECISIONS.md` | Identity, naming, and the private-for-now publication decision |
 | `04-USAGE-GUIDE.md` | Full how-to: CLI + web UI, target inventory/scan policy formats, safety model, API reference, troubleshooting |
-| `lab-notes/gap-survey-and-prior-art.md` | The 2026-08-12 prior-art sweep (Nessus, Nuclei, Metasploit, nmap NSE, geeknik/scada-scanner, ICS Advisory Project) |
-| `lab-notes/check-inventory.md` | Mapping of own findings (both sibling projects) to planned checks, with disclosure status |
-| `lab-notes/default-credentials-sweep.md` | Phase-by-phase log of the default-credentials sweep — most of the 98 checks' origin story |
+| `05-PUBLIC-RELEASE-PIPELINE.md` | How this private repo becomes `BishopFox/icsscanner`: the staging review buffer, the disclosure/leak-guard model, the three scripts that run it |
 | `core/` | Engine — registry, target/policy loading, safety/throttling layer, logging, reporting |
 | `core/passive.py` / `core/detect_match.py` / `core/detections.py` | Zero-transmit passive mode — capture/dissect/inventory, native detection matching, the Observed-Activity report section |
 | `checks/` | Check registry content, organized by protocol; `checks/candidates/` holds research-stage stubs, never executable |
@@ -47,7 +45,6 @@ an open, safety-first, actively extensible active-CVE-check layer for ICS. icsSc
 | `icsscanner.py` | CLI driver — active `scan` and passive `discover sniff`; see above |
 | `icsscanner-web.py` / `web/` | Web UI — a local control panel over the same engine |
 | `templates/` | Example target-inventory and scan-policy YAML files |
-| `lab-notes/passive-mode.md` | Passive-mode architecture + TSA system-requirements (sizing from the PNNL OT-IDS dataset) |
 
 ## Operating modes
 
@@ -133,7 +130,6 @@ python3 icsscanner.py --inventory targets.yaml          # then scan only what pa
   but the Sparkplug path opens an MQTT subscribe — that transmits a SUBSCRIBE to the broker, so it is
   **not** literally zero-packet like `discover sniff`. Don't point it at a live OT broker assuming zero
   transmit.
-- Full architecture and the TSA system-requirements notes: `lab-notes/passive-mode.md`.
 
 If a target inventory entry has a `credential:` reference (auth-required checks like OPC-UA),
 set it in the keyring first: `python3 -c "import keyring; keyring.set_password('service',

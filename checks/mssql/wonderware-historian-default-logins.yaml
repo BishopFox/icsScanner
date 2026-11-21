@@ -1,22 +1,16 @@
 # Default-credentials sweep, Phase 5 (Wonderware/AVEVA). Uses the new generic
 # checks/mssql/native/mssql_default_creds.py executor.
 #
-# detection_hints: DELIBERATELY OMITTED (2026-08-22, detection-gen rollout pass). Investigated by
-# capturing pymssql's REAL first outbound packet against a local throwaway TCP listener (not
-# hand-derived): a 58-byte TDS PRELOGIN packet (type 0x12), verified live —
-# 1201003a0000000000001a00060100200001020021000c03002d00040400310001ff090000000000004d5353514c5365727665720044c1030000.
-# This packet carries NO credential material at all (PRELOGIN happens before any login is
-# attempted) and is byte-identical for any TDS client connecting to any SQL Server, including
-# completely legitimate DBA tools (SSMS, sqlcmd) — the same "benign, ubiquitous, non-
-# discriminating" problem as the EtherNet/IP List Identity check above, not a useful narrow OR
-# broad security signature. The actual credential-bearing packet is TDS LOGIN7, sent only after
-# a full two-way handshake (the server must first reply to PRELOGIN) — reaching and safely
-# verifying its exact byte layout (variable-offset UCS-2-encoded username/password fields) needs
-# a fake PRELOGIN-responding mock server, not attempted this pass. Real follow-up opportunity,
-# not a shortcut: build that mock, capture a genuine LOGIN7 packet, verify the offsets, then add
-# detection_hints properly — hand-deriving TDS LOGIN7's binary layout from memory without a
-# captured reference would risk exactly the kind of unverified-byte-pattern mistake this
-# project's own discipline exists to avoid.
+# detection_hints: ADDED 2026-11-18 (supersedes the earlier "omitted" note). pymssql's first packet
+# is a TDS PRELOGIN (type 0x12): it carries no credentials and is byte-identical for every TDS
+# client (SSMS, sqlcmd included), so it is NOT the signal. The signal is the default account NAME in
+# the TDS LOGIN7 request, sent client-to-server after the handshake. LOGIN7 encodes the username as
+# plain UCS-2LE (only the password is obfuscated), so each default login is a fixed little-endian
+# byte string, derivable without capturing a live LOGIN7 or standing up a mock server. A Suricata
+# content/pcre match is offset-independent, so the narrow rule below does not depend on LOGIN7's
+# variable field layout (the part the earlier note rightly declined to hand-derive): it matches the
+# 8 default account names in UCS-2LE on tcp/1433, to_server. Those names reach the wire only during
+# a login attempt with that account, so a hit means default-credential use, not mere presence.
 #
 # Sources (cross-checked, not a single search summary): initial search citing the account-name
 # pattern, independently corroborated by a direct fetch of w3h/icsmaster's Scada_Password.csv
@@ -37,6 +31,22 @@ disclosure_status: public
 confidence: low
 fingerprint_precondition:
   protocol_probe: mssql_identity
+detection_hints:
+  transport: tcp
+  app_protocol: mssql
+  mitre_attack_id: T0812
+  analytic_story: "ICS Default Credentials"
+  narrow:
+    description: >-
+      A TDS LOGIN7 login attempt (tcp/1433, client-to-server) using one of the 8 Wonderware
+      Historian default accounts. LOGIN7 carries the username as plain UCS-2LE, so each default
+      name is a fixed byte string; this regex matches the aa|ww prefix followed by the
+      dbo|Admin|Power|User suffix, i.e. exactly aadbo, wwdbo, aaAdmin, wwAdmin, aaPower, wwPower,
+      aaUser, wwUser. These names appear on the wire only during a login attempt with that account,
+      so a match is a default-credential use, not mere device presence.
+    patterns:
+      - context: request
+        regex: "(\\x61\\x00\\x61\\x00|\\x77\\x00\\x77\\x00)(\\x64\\x00\\x62\\x00\\x6f\\x00|\\x41\\x00\\x64\\x00\\x6d\\x00\\x69\\x00\\x6e\\x00|\\x50\\x00\\x6f\\x00\\x77\\x00\\x65\\x00\\x72\\x00|\\x55\\x00\\x73\\x00\\x65\\x00\\x72\\x00)"
 advisory_url: "https://www.cisa.gov/news-events/ics-advisories/icsa-17-024-01"  # promoted from references (canonical advisory)
 references:
   - "https://www.cisa.gov/news-events/ics-advisories/icsa-17-024-01"

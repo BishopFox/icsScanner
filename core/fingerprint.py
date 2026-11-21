@@ -5366,6 +5366,217 @@ def probe_franklin_fueling_web_identity(host: str, port: int = 443, timeout: flo
                        "is WebAuthn/FIDO2 -- interface reachability, not a credential bypass."})
 
 
+# ── ProMinent "taco" water-treatment controller web identity (HTTP, port 80) ─────────────────────
+# Added 2026-11-19 (WWS coverage). ProMinent's Aegis II (cooling-tower biocide controller), DCM3/
+# DCM5b (Dulcometer dosing) and SF5 controllers share one embedded web stack -- a ".cgi file server"
+# the firmware itself calls "taco". Markers are FIRMWARE-VERIFIED (no live device) from the 2024-25
+# update images AP/APX/APQ/APS: served pages carry a `method="get" action="/taco.cgi"` form plus
+# `./css/taco.css` + `./js/taco.js`, and the device uses the `/taco.cgi?F0=..&F1=..` command grammar.
+# The httpd has a literal "taco.cgi with no command runs" default branch, so a parameterless GET is a
+# benign read and does NOT count toward the firmware's "5 incorrect logins" lockout (a login is a
+# SPECIFIC command, not any GET). The web UI is reachable unauthenticated (status-only per ProMinent
+# manuals), so this is an exposure/identity fingerprint, NOT a credential bypass.
+#   Read-only: GET "/" then (fallback) a no-command GET "/taco.cgi"; never sends credentials or any
+#   F0/F1 command value (F8 = factory reset). Exercised against a mock in
+#   tests/smoke_test_prominent_taco_web_identity.py.
+#   CAUTION: the bare "taco.cgi" token is not vendor-unique (cf. Taco Inc. HVAC controls), so a
+#   ProMinent brand string echoed in the page is REQUIRED for 'high'; taco markers alone are 'low'.
+_PROMINENT_BRAND = ("prominent", "aegis", "dulco")
+
+
+def _prominent_http_get(host: str, port: int, path: str, timeout: float):
+    """One unauthenticated HTTP(S) GET; returns the raw decoded response (headers+body) or None."""
+    request = (f"GET {path} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: ics-scanner\r\n"
+               "Accept: */*\r\nConnection: close\r\n\r\n").encode()
+    sock = None
+    data = b""
+    try:
+        sock = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        sock.connect((host, port))
+        if port in (443, 8443):  # some units may front the UI with TLS
+            import ssl as _ssl
+            sock = _ssl._create_unverified_context().wrap_socket(sock, server_hostname=host)
+        sock.sendall(request)
+        while len(data) < 16384:
+            try:
+                chunk = sock.recv(4096)
+            except _socket.timeout:
+                break
+            if not chunk:
+                break
+            data += chunk
+    except OSError:
+        return None
+    finally:
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
+    return data.decode("latin-1", "replace")
+
+
+def _prominent_taco_markers(resp: str) -> bool:
+    """Firmware-exact taco signature: the /taco.cgi form action plus a taco.js/taco.css asset ref."""
+    low = resp.lower()
+    return "/taco.cgi" in low and ("taco.js" in low or "taco.css" in low)
+
+
+def probe_prominent_taco_web_identity(host: str, port: int = 80, timeout: float = 5.0) -> FingerprintResult:
+    """Active ProMinent taco-platform controller web-identity probe. Matches the firmware-exact taco
+    web markers (`/taco.cgi` form action + taco.js/taco.css) in GET "/", falling back to a benign
+    no-command GET "/taco.cgi". Vendor is confirmed ProMinent only when a brand string is echoed in the
+    page ('high'); taco markers without a brand are reported at 'low' (the bare taco.cgi token is not
+    vendor-unique). Fails closed. Read-only; sends no credentials and no F0/F1 commands."""
+    root = _prominent_http_get(host, port, "/", timeout)
+    if root is None:
+        return FingerprintResult(confidence="none", method="prominent_taco_unreachable")
+    resp, path = root, "/"
+    if not _prominent_taco_markers(root):
+        cgi = _prominent_http_get(host, port, "/taco.cgi", timeout)  # benign: "no command runs"
+        if cgi is None or not _prominent_taco_markers(cgi):
+            return FingerprintResult(confidence="none", method="prominent_taco_mismatch")
+        resp, path = cgi, "/taco.cgi"
+    low = resp.lower()
+    brand = next((b for b in _PROMINENT_BRAND if b in low), None)
+    model = "taco-platform water-treatment controller"
+    if "aegis" in low:
+        model = "Aegis II cooling-tower controller"
+    return FingerprintResult(
+        vendor="ProMinent",
+        model=model,
+        confidence="high" if brand else "low",
+        method="prominent_taco_web",
+        extra={"protocol": "prominent_taco_web", "port": port, "path": path,
+               "brand_echoed": bool(brand),
+               "note": "taco .cgi web stack shared by ProMinent Aegis II / DCM3 / DCM5b / SF5 "
+                       "(firmware-verified markers). Pre-auth web UI is status-only -- exposure/"
+                       "identity, not a credential bypass. 'low' when no ProMinent brand string is "
+                       "echoed on the unauth page (bare taco.cgi is not vendor-unique; distinguish "
+                       "from Taco Inc. HVAC controls on a live check)."})
+
+
+# ── Open Automation Software (OAS) Platform identity (HTTP REST, /OASREST/v2) ─────────────────────
+# Added 2026-11-20. OAS Platform / OAS Engine is a networked .NET SCADA / IIoT data-broker (NOT device
+# firmware). Markers are FIRMWARE-VERIFIED (no live instance) from the OAS 22.03.0000 Linux build: the
+# REST API is served at the OAS-unique path `/OASREST/v2` (assembly OPCSystemsService.OASRESTv2.RESTAPI;
+# also `/OASREST/v2/ws/{token}` + `/OPCREST`), and the product string is "Open Automation Software".
+# Cisco Talos documented (2022-2023) that the REST API is reachable WITHOUT authentication
+# (CVE-2022-26833), so a benign unauthenticated GET of the REST base identifies the platform. This is an
+# exposure/identity fingerprint that feeds CVE correlation (the OAS Talos cluster via
+# candidate-cve-2022-26833-oas), NOT a credential test or exploit. Read-only: one GET of /OASREST/v2; no
+# credentials, no writes. Default OAS web/REST host port = TCP/58725 (CONFIRMED from the 22.03 install:
+# mcp_http_config.json binds http://localhost:58725/mcp, and the same Kestrel host serves /OASREST/v2);
+# operator-configurable, so the probe also matches whatever port it is given (TLS on 443/8443). The
+# separate OAS config/data port TCP/58727 (cleartext, CVE-2022-26077) is noted in the result but not
+# probed here.
+_OAS_REST_PATH = "/OASREST/v2"
+# Unauthenticated OAS identity endpoint (decompiled from OASEngineService.dll, OPCSystemsService.
+# OASRESTv2.RESTAPI): GET /OASREST/v2/webconfig/secureinfo returns exactly {"securePort":N,"enabled":b}
+# with NO credentials (it is mapped before auth and exempted from the Require-Secure-REST gate). When
+# plaintext REST is disabled, that gate instead returns a 403 whose body names "Require Secure REST".
+_OAS_SECUREINFO_PATH = "/OASREST/v2/webconfig/secureinfo"
+_OAS_MARKERS = ("open automation software", "oasrest", "/oasrest/v2", "oas engine")
+# OAS self-signed TLS certificate identity (decompiled from the 22.03 OASConfiguration client:
+# subject/issuer "CN=Open Automation Software@localhost/O=Open Automation Software"). When OAS TLS is
+# enabled on a port, the server presents this cert; the O/CN strings appear verbatim in the DER, so a
+# plain substring match on the cert bytes is a definitive OAS marker without a cert-parsing dependency.
+_OAS_CERT_MARKER = b"Open Automation Software"
+
+
+def _oas_cert_has_marker(host: str, port: int, timeout: float) -> bool:
+    """TLS handshake only (no application data sent): True when the server certificate carries the OAS
+    identity marker. Returns False on any connect/TLS failure (just 'not an OAS TLS endpoint here')."""
+    import ssl as _ssl_oas
+    sock = None
+    try:
+        sock = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        sock.connect((host, port))
+        ctx = _ssl_oas.SSLContext(_ssl_oas.PROTOCOL_TLS_CLIENT)
+        ctx.check_hostname = False
+        ctx.verify_mode = _ssl_oas.CERT_NONE
+        sock = ctx.wrap_socket(sock, server_hostname=host)
+        der = sock.getpeercert(binary_form=True) or b""
+        return _OAS_CERT_MARKER in der
+    except OSError:
+        return False
+    finally:
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+
+def probe_oas_identity(host: str, port: int = 58725, timeout: float = 5.0) -> FingerprintResult:
+    """Active Open Automation Software (OAS) Platform identity probe. Two read-only vectors, no
+    credentials, fail-closed: (1) a TLS handshake whose server cert carries O/CN "Open Automation
+    Software" is DEFINITIVE (when OAS TLS is enabled, incl. the config port TCP/58727); (2) otherwise an
+    unauthenticated GET of the firmware-known REST base /OASREST/v2 (unauth per CVE-2022-26833) with an
+    OAS marker (the OAS-unique path merely served, non-404, is a weaker positive). Feeds the OAS Talos
+    CVE cluster via candidate-cve-2022-26833-oas."""
+    if _oas_cert_has_marker(host, port, timeout):
+        return FingerprintResult(
+            vendor="Open Automation Software", model="OAS Platform (OAS Engine)",
+            firmware="unknown", confidence="high", method="oas_tls_cert",
+            extra={"protocol": "oas_tls", "port": port,
+                   "note": "server TLS cert O/CN 'Open Automation Software' (decompiled from the OAS "
+                           "config client) -> definitive OAS. Known-CVE cluster (Talos 2022-2023): "
+                           "CVE-2022-26833/26077/26303 + CVE-2023-31242/34998/34353/32615 -> "
+                           "candidate-cve-2022-26833-oas. Config/data port TCP/58727 is cleartext by "
+                           "default (CVE-2022-26077)."})
+    # (2) Definitive unauthenticated endpoint: GET /OASREST/v2/webconfig/secureinfo. Firmware-exact body
+    # {"securePort":N,"enabled":b}; or the "Require Secure REST" 403 when plaintext is disabled. No creds.
+    import re as _re_oas
+    si = _franklin_http_get(host, port, _OAS_SECUREINFO_PATH, timeout)
+    if si is not None:
+        low_si = si.lower()
+        if '"secureport"' in low_si and '"enabled"' in low_si:
+            pm = _re_oas.search(r'"secureport"\s*:\s*(\d+)', low_si)
+            return FingerprintResult(
+                vendor="Open Automation Software", model="OAS Platform (OAS Engine)",
+                firmware="unknown", confidence="high", method="oas_secureinfo",
+                extra={"protocol": "oas_rest", "port": port, "path": _OAS_SECUREINFO_PATH,
+                       "secure_port": pm.group(1) if pm else None,
+                       "note": "unauth GET /OASREST/v2/webconfig/secureinfo returns {securePort,enabled} "
+                               "(firmware-exact, OASEngineService.dll) -> definitive OAS. Talos cluster "
+                               "-> candidate-cve-2022-26833-oas; config port TCP/58727 cleartext "
+                               "(CVE-2022-26077)."})
+        if "require secure rest" in low_si or "plaintext rest is disabled" in low_si:
+            return FingerprintResult(
+                vendor="Open Automation Software", model="OAS Platform (OAS Engine)",
+                firmware="unknown", confidence="high", method="oas_secure_rest_disabled",
+                extra={"protocol": "oas_rest", "port": port, "path": _OAS_SECUREINFO_PATH,
+                       "note": "OAS 'Require Secure REST' 403 on plaintext (firmware-exact) -> definitive "
+                               "OAS; secure REST is on a separate HTTPS port. candidate-cve-2022-26833-oas."})
+    # (3) Weaker fallback: the OAS-unique REST base path + brand marker.
+    resp = _franklin_http_get(host, port, _OAS_REST_PATH, timeout)  # generic unauth HTTP(S) GET
+    if resp is None:
+        return FingerprintResult(confidence="none", method="oas_unreachable")
+    low = resp.lower()
+    brand = any(m in low for m in _OAS_MARKERS)
+    status = low.split("\r\n", 1)[0]
+    served = ("http/1." in status) and (" 404 " not in status) and ("http/1.1 404" not in status)
+    if not brand and not served:
+        return FingerprintResult(confidence="none", method="oas_mismatch")
+    import re as _re_oas
+    vm = _re_oas.search(r'"?version"?\s*[:=]\s*"?v?(\d+\.\d+(?:\.\d+){0,2})', low)
+    version = vm.group(1) if vm else "unknown"
+    return FingerprintResult(
+        vendor="Open Automation Software",
+        model="OAS Platform (OAS Engine)",
+        firmware=version,
+        confidence="high" if brand else "low",
+        method="oas_rest_identity",
+        extra={"protocol": "oas_rest", "port": port, "path": _OAS_REST_PATH, "brand": bool(brand),
+               "note": "OAS Platform REST API at /OASREST/v2 (firmware-verified), reachable unauth per "
+                       "CVE-2022-26833. Known-CVE cluster (Cisco Talos 2022-2023): CVE-2022-26833/26077/"
+                       "26303 + CVE-2023-31242/34998/34353/32615 -> candidate-cve-2022-26833-oas. Also "
+                       "check the OAS config/data port TCP/58727 (cleartext, CVE-2022-26077)."})
+
+
 # ── KNXnet/IP (building automation, UDP 3671) identity + discovery ───────────────────────────────
 # KNXnet/IP is the dominant European building-automation transport (KNX over IP). Discovery is a benign,
 # documented service: a SEARCH_REQUEST to the KNX multicast group 224.0.23.12:3671 (segment sweep) or a
@@ -5448,6 +5659,8 @@ PROTOCOL_PROBES = {
     "geoscada_soap_unauth_query": probe_geoscada_soap_unauth_query,
     "geoscada_webx_identity": probe_geoscada_webx_identity,
     "franklin_fueling_web_identity": probe_franklin_fueling_web_identity,
+    "prominent_taco_web_identity": probe_prominent_taco_web_identity,
+    "oas_identity": probe_oas_identity,
     "robotis_motion_identity": probe_robotis_motion_identity,
     "milesight_router_identity": probe_milesight_router_identity,
     "microhawk_weblink_identity": probe_microhawk_weblink_identity,

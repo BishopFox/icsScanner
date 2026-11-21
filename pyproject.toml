@@ -41,6 +41,7 @@ full = [
   "pymssql>=2.3",      # MSSQL checks
   "paho-mqtt>=2.0",    # MQTT / Sparkplug-B
   "python-socketio>=5.0",
+  "requests>=2.25",    # HTTP transport for python-socketio's sync client (long-polling); python-socketio alone does not pull an HTTP client
 ]
 
 [project.scripts]
