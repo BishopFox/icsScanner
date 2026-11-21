@@ -23,6 +23,19 @@
 # accordingly.
 #
 # No CVE — documented behavior (recovery-procedure-set value, not a factory-shipped default).
+#
+# FIRMWARE-CONFIRMED 2026-11-19 (Schneider ingest sweep + independent re-verification): the current
+# shipping image PROD_SIGNED_NBRK075x_Build_5.6.0.25 (root.img, ext4) BAKES root:apc into /etc/shadow —
+# the $6$ root hash was verified by crypt.crypt('apc', hash) == hash (not just a john claim). sshd is
+# enabled by default (sshd.socket symlinked in sockets.target.wants; /usr/sbin/sshd present) and
+# sshd_config has PermitRootLogin yes; the firstTime scripts do NOT reset/randomize the root password.
+# So on the current firmware apc is the BAKED default in the image itself, not only the reset-procedure
+# value — this upgrades the earlier "not a factory-shipped default" hedge. The firmware update is
+# CMS-signed (Schneider Root CA chain), so no unsigned-OTA angle. HONEST CAVEATS keeping this below
+# high: the out-of-box host firewall (iptables-restore from the PERSISTENT partition, not in the image)
+# can't be confirmed from firmware, and a first-use serial commissioning step may set/change the root
+# password — both need a live unit. Confidence stays LOW (the scale is binary HIGH/LOW): the firmware
+# confirmation strengthens the EVIDENCE, but the ceiling stays low given those unconfirmed caveats.
 
 check_id: ssh-apc-netbotz-750-root-default-creds
 protocol: ssh
@@ -31,7 +44,7 @@ module: checks.ssh.native.ssh_default_creds
 destructive: true
 risk_reason: ["login"]  # plain login attempt, no confirmed lockout risk, no device write (2026-08-29 reclassification)
 disclosure_status: public
-confidence: low
+confidence: low  # binary HIGH/LOW scale; stays LOW — out-of-box firewall + possible first-use change not confirmable from firmware
 fingerprint_precondition:
   vendor: "American Power Conversion"
 params:
@@ -52,4 +65,5 @@ detection_hints:
         regex: "SSH-2\\.0-"
 references:
   - "Schneider Electric FAQ FA373416, \"NetBotz 750 | Resetting a Lost Root Account Password\" (user-supplied)"
-description: "APC (American Power Conversion) NetBotz 750 (NBRK0750, NBWL0755) environmental monitoring appliances, on firmware 5.3.0 and above, set the root SSH password to 'apc' whenever the documented hardware reset-switch recovery procedure is used — not a virgin factory-shipped default (a never-configured unit requires setting the root password on first use), but a real, valid finding for any device that has undergone that recovery procedure without a subsequent password change. No CVE, documented behavior per Schneider's own password-reset FAQ."
+  - "This project's firmware analysis 2026-11-19 (NetBotz 75x build 5.6.0.25, PROD_SIGNED_NBRK075x.sedp): root.img /etc/shadow root $6$ hash verified crypt('apc',hash)==hash; sshd.socket enabled in sockets.target.wants; sshd_config PermitRootLogin yes; no first-boot root reset; firmware CMS-signed."
+description: "APC (American Power Conversion) NetBotz 750 (NBRK0750, NBWL0755) environmental monitoring appliances use the root SSH password 'apc'. Firmware-confirmed 2026-11-19: the current shipping image (build 5.6.0.25) literally bakes root:apc into /etc/shadow (hash verified to crack to 'apc') with sshd enabled by default and PermitRootLogin yes, and the first-boot scripts do not reset it — so apc is the baked default in the image, not merely the value the documented hardware reset-switch recovery procedure (FA373416) sets. This check attempts a single root:apc SSH login. Honest caveats: a deployed unit's out-of-box host firewall (iptables table on the persistent partition, not in the image) and any first-use serial password change are not confirmable from firmware and need a live unit; hence confidence stays low (binary high/low scale), not high. No CVE — documented behavior per Schneider's own FAQ, now corroborated by firmware."

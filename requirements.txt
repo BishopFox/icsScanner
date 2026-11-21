@@ -42,8 +42,11 @@ paho-mqtt>=2.0
 # Socket.IO client for checks/http/native/socketio_login_default_creds.py (2026-09-23, HMS
 # Anybus Atlas2 Plus / Osiris) — the de facto reference implementation for Engine.IO's own
 # transport-negotiation handshake plus Socket.IO's event framing on top; hand-rolling that wire
-# protocol would be exactly the kind of detail-risk this project avoids elsewhere. Long-polling
-# transport works with just this package; a device that requires a WebSocket upgrade would
-# additionally need websocket-client, not installed by default since no candidate has needed it
-# yet (Engine.IO's protocol always supports long-polling as the mandatory baseline transport).
+# protocol would be exactly the kind of detail-risk this project avoids elsewhere. The sync
+# client's long-polling transport (engineio.client) requires `requests`, declared explicitly
+# below — `python-socketio` alone does NOT pull an HTTP client (that lives in its `[client]`
+# extra), so a clean environment fails to connect without it. A device needing a WebSocket
+# upgrade would additionally need websocket-client, left out by design since Engine.IO's
+# long-polling is the mandatory baseline transport and no candidate has needed WebSocket yet.
 python-socketio>=5.0
+requests>=2.25  # HTTP transport for the python-socketio sync client's long-polling (see note above)
